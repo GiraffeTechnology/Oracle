@@ -9,6 +9,10 @@ export class OracleControlPlane {
   verifyAsset({ actorId, idempotencyKey, asset, certificate, warehouse, evidenceVersion }) {
     this.authorizer.require(actorId, "asset:verify");
     return this.commandJournal.execute(idempotencyKey, { type: "asset.verify", asset, certificate, warehouse, evidenceVersion }, () => {
+      this.runtime.recordStore.assertAsset(asset);
+      this.runtime.recordStore.assertCertificate(certificate);
+      this.runtime.recordStore.assertWarehouse(warehouse);
+      this.runtime.stateEngine.assertTransition({ subjectId: asset.assetId, to: OracleStatus.VALID, evidenceVersion });
       this.runtime.recordStore.putAsset(asset);
       this.runtime.recordStore.appendCertificate(certificate);
       this.runtime.recordStore.putWarehouse(warehouse);

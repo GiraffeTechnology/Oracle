@@ -3,17 +3,22 @@ export class RecordStore {
   #certificates = new Map();
   #warehouse = new Map();
 
-  putAsset(record) {
+  assertAsset(record) {
     const existing = this.#assets.get(record.assetId);
     if (existing && existing.assetFingerprintHash !== record.assetFingerprintHash) {
       throw new Error("ASSET_FINGERPRINT_CONFLICT");
     }
+    return true;
+  }
+
+  putAsset(record) {
+    this.assertAsset(record);
     const stored = Object.freeze({ ...record });
     this.#assets.set(record.assetId, stored);
     return stored;
   }
 
-  appendCertificate(record) {
+  assertCertificate(record) {
     const history = this.#certificates.get(record.assetId) ?? [];
     const current = history.at(-1);
     if (!current && record.certificateVersion !== 1) throw new Error("CERTIFICATE_INITIAL_VERSION_INVALID");
@@ -25,16 +30,27 @@ export class RecordStore {
     if (history.some((item) => item.certificateHash === record.certificateHash)) {
       throw new Error("CERTIFICATE_HASH_ALREADY_USED");
     }
+    return true;
+  }
+
+  appendCertificate(record) {
+    this.assertCertificate(record);
+    const history = this.#certificates.get(record.assetId) ?? [];
     const stored = Object.freeze({ ...record });
     this.#certificates.set(record.assetId, Object.freeze([...history, stored]));
     return stored;
   }
 
-  putWarehouse(record) {
+  assertWarehouse(record) {
     const current = this.#warehouse.get(record.assetId);
     if (current && current.warehouseReceiptHash !== record.warehouseReceiptHash) {
       throw new Error("WAREHOUSE_RECEIPT_CONFLICT");
     }
+    return true;
+  }
+
+  putWarehouse(record) {
+    this.assertWarehouse(record);
     const stored = Object.freeze({ ...record });
     this.#warehouse.set(record.assetId, stored);
     return stored;
@@ -56,4 +72,3 @@ export class RecordStore {
     return this.#warehouse.get(assetId) ?? null;
   }
 }
-

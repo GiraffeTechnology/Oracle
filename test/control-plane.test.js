@@ -42,6 +42,16 @@ test("control plane verifies an asset idempotently and rejects unauthorized acto
   assert.throws(() => control.verifyAsset({ ...command, actorId: "reader-c", idempotencyKey: "verify-002" }), /PERMISSION_DENIED/);
 });
 
+test("failed asset verification leaves no partial in-memory records", () => {
+  const { control, runtime } = controlFixture();
+  assert.throws(
+    () => control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-bad", asset: { assetId: "asset-bad", assetFingerprintHash: HASH_A }, certificate: { assetId: "asset-bad", certificateHash: HASH_B, certificateVersion: 2 }, warehouse: { assetId: "asset-bad", warehouseReceiptHash: HASH_C }, evidenceVersion: 1 }),
+    /CERTIFICATE_INITIAL_VERSION_INVALID/,
+  );
+  assert.equal(runtime.recordStore.getAsset("asset-bad"), null);
+  assert.equal(runtime.recordStore.getWarehouse("asset-bad"), null);
+});
+
 test("attestation revocation requires independent approval", () => {
   const { control } = controlFixture();
   control.verifyAsset({
