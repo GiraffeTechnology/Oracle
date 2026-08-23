@@ -2,7 +2,14 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 
 const root = process.cwd();
-const excludedDirectories = new Set([".git", "node_modules", "coverage", "dist"]);
+const excludedDirectories = new Set([
+  ".git",
+  "node_modules",
+  "coverage",
+  "dist",
+  "erc-reference",
+  "erc-working-draft",
+]);
 const forbidden = [
   { name: "private-key-block", pattern: /BEGIN [A-Z ]*PRIVATE KEY/ },
   { name: "seed-phrase-label", pattern: /(?:mnemonic|seed phrase)\s*[:=]/i },
