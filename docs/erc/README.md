@@ -14,6 +14,7 @@
 | `PRE_SUBMISSION_TEST_REPORT_ZH.txt` | 提交前测试报告 | 记录测试结论及被测文件哈希 |
 | `ERC_PRIOR_ART_DUPLICATION_REVIEW_ZH.md` | 查重审查稿 | 查重结论与门禁清单；第 7 节附归档时的关闭状态 |
 | `VERSIONED_RWA_CERTIFICATE_LIFECYCLE_ZH.md` | v0.1.1 工作草案 | **阶段记录，已被正式文本取代**；接口代码块不具规范效力 |
+| `SUBMISSION_REVIEW_ZH.md` | 提交前审查结论 | 对正式英文文本的技术与格式审查；列出 7 项格式阻断与 7 项技术问题 |
 
 工作草案未被改写为冻结形态，以保留阶段记录；其与正式文本的全部已知差异列在该文件顶部的
 差异表中。查重审查稿的原有正文同样保留，仅追加门禁关闭状态表。两份正式文本和测试报告为
