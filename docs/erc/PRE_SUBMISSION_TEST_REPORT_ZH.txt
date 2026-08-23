@@ -1,0 +1,123 @@
+Giraffe ERC 提交前测试报告
+
+测试日期：2026-08-24
+提案主体：Giraffe Technology Holding Limited
+测试对象：Versioned RWA Certificate Settlement
+结论：PASS
+
+
+一、测试环境
+
+Node.js：v24.19.0
+Hardhat：2.29.0
+Ethers：6.17.0
+Solidity：0.8.26+commit.8a97fa7a.Emscripten.clang
+Solidity 设置：optimizer enabled，runs=200，viaIR=true
+本地链：Hardhat Network，chainId=31337
+
+
+二、接口冻结结果
+
+IVersionedRWACertificate interface ID：0xebaa86a0
+IDeferredCertificateSettlement interface ID：0x2773d4c9
+
+计算方法：分别对接口自身声明的函数 selector 进行 XOR，不包含从 IERC165 继承的 supportsInterface(bytes4)。
+
+两个拟议接口之间未发现 selector 冲突。合约对 ERC-165、ERC-721、两个拟议接口返回 true，对 0xffffffff 返回 false。
+
+
+三、ERC 参考实现测试
+
+结果：13 passing，0 failing。
+
+1. Solidity 编译成功且无编译警告；
+2. 两个 interface ID 经编译和逐 selector XOR 双重确认；
+3. 两个拟议接口之间不存在 selector 冲突；
+4. 参考实现部署后运行时代码为 7,768 bytes，低于 EIP-170 的 24,576-byte 上限；
+5. 初始证书版本为 1，previousCertificateHash 为零；
+6. 不存在的证书版本查询失败；
+7. Pending 期间 ownerOf 保持原持有人；
+8. Pending 期间 transferFrom 和两个 safeTransferFrom 重载全部失败；
+9. approved operator 不能绕过 Pending；
+10. 最终确认按 CertificateSuperseded、Transfer、SettlementFinalized 顺序发出事件；
+11. 最终确认原子更新证书版本、证书历史、Token 持有人和交割状态；
+12. 错误签名人被拒绝，失败后持有人、证书和交割状态不变；
+13. 过期 Authority 授权被拒绝；
+14. 超过 settlement deadline 的最终确认被拒绝；
+15. 同一 Token 的并发 Pending 被拒绝；
+16. 已使用的 settlementId 不得再次使用；
+17. 同一 Authority nonce 不能跨 Token 重放；
+18. deadline 后原持有人可以取消；
+19. 取消不改变持有人或证书；
+20. ERC-1271 合约 Authority 签名验证通过；
+21. ECDSA 高 s 签名受到限制；
+22. 多轮 T+n 交割保持版本连续、前序摘要正确且历史只追加。
+
+
+四、Oracle 产品回归测试
+
+结果：27 passing，0 failing。
+
+覆盖健康检查、只读边界、外部写入禁用、规范化 JSON、证据摘要、Schema 和 Source allowlist、追加式证书版本、状态机、审计链、Attestation、Settlement、数据库迁移、OpenAPI、SBOM 和公开字段最小披露。
+
+新增 ERC 测试环境未破坏 Oracle 现有行为。
+
+
+五、静态与仓库检查
+
+syntax-check：PASS，检查 23 个 Oracle 源文件。
+repository-scan：PASS。
+UTF-8 正式中文文本：PASS。
+UTF-8 正式英文文本：PASS。
+禁用词扫描：PASS。
+
+正式文本未出现中创、Chainart、ERC-RWO、固定 T+3 或固定 T+1。
+
+
+六、测试对象哈希
+
+GIRAFFE_ERC_FORMAL_ZH.txt
+SHA-256：4D8435CD585E5B79CE93929B30AC3A4C63BF8782804DF7C898C034124CEB7007
+
+GIRAFFE_ERC_FORMAL_EN.txt
+SHA-256：FF1CE231AB40850A6F443254C583082C38AC588D4082812F5B07E9EC124F616D
+
+VersionedRWACertificateReference.sol
+SHA-256：4FF296794AE28869065319602885B902FB7798C412998029BD039B24A04FB1AB
+
+protocol.cjs
+SHA-256：A4B948AF049E793A0176B560DB80C146CEAE017CE1490149A4229C59AD1BD3D8
+
+
+七、复现命令
+
+ERC 编译及 EVM 测试：
+
+node scripts/run-erc-tests.mjs
+
+Oracle 回归测试：
+
+node --test "test/*.test.js"
+
+Oracle 语法检查：
+
+node scripts/syntax-check.mjs
+
+仓库扫描：
+
+node scripts/repository-scan.mjs
+
+
+八、测试结论与非测试门禁
+
+本轮提交前技术测试全部通过。测试结果证明当前参考实现与正式中英文文本中的核心接口、版本规则、Pending 转移限制、原子最终确认、取消、EIP-712/ERC-1271 授权及 nonce 防重放要求一致。
+
+测试通过不构成外部安全审计、法律意见、监管批准或 Ethereum 背书。
+
+以下不是测试失败，但仍须在外部提交前完成：
+
+1. 用真实 GitHub 用户名替换 github-username 占位符；
+2. 创建 Ethereum Magicians 讨论地址并替换 Discussions-To；
+3. 确认 CC0、专利和必要权利门禁；
+4. 获得用户对外发帖和提交 ethereum/ERCs PR 的明确授权。
+
