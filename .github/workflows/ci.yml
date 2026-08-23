@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Fail closed: nothing in CI may reach a real authority, wallet or signing key.
+  CI: 'true'
+
+jobs:
+  verify:
+    name: verify (node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['22.22.2']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify
+        run: pnpm run verify
+
+  smoke:
+    name: service smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: verify
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start service
+        run: |
+          pnpm start &
+          echo "$!" > /tmp/oracle.pid
+          for _ in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8787/healthz >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "service did not become healthy" >&2
+          exit 1
+
+      - name: Probe the exposed routes
+        run: |
+          set -euo pipefail
+          curl -sf http://127.0.0.1:8787/healthz | tee /dev/stderr | grep -q '"status":"ok"'
+          curl -sf http://127.0.0.1:8787/readyz | tee /dev/stderr | grep -q '"status":"ready"'
+          curl -sf http://127.0.0.1:8787/v1/oracle/statuses | tee /dev/stderr | grep -q 'NOT_VERIFIED'
+
+      - name: Assert no write endpoint is exposed
+        run: |
+          set -euo pipefail
+          code="$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8787/v1/oracle/statuses)"
+          test "$code" = "405" || { echo "expected 405 for POST, got $code" >&2; exit 1; }
+
+      - name: Stop service
+        if: always()
+        run: kill "$(cat /tmp/oracle.pid)" || true
