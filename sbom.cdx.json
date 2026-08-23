@@ -1,0 +1,14 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:0d51591c-11d0-4cf4-a4c1-d7d6692d543f",
+  "version": 1,
+  "metadata": {
+    "component": {
+      "type": "application",
+      "name": "giraffe-rwa-oracle",
+      "version": "0.2.0"
+    }
+  },
+  "components": []
+}

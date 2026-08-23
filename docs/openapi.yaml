@@ -1,0 +1,60 @@
+openapi: 3.1.0
+info:
+  title: Giraffe RWA Oracle API
+  version: 0.2.0
+  description: Read-only facts and offline-verification API. Financial outputs and transaction signing are excluded.
+servers: []
+paths:
+  /healthz:
+    get:
+      operationId: health
+      responses: { '200': { description: Process health } }
+  /readyz:
+    get:
+      operationId: readiness
+      responses: { '200': { description: Runtime safety state } }
+  /v1/oracle/statuses:
+    get:
+      operationId: listOracleStatuses
+      responses: { '200': { description: Public status vocabulary } }
+  /v1/rwa/assets/{assetId}:
+    get:
+      operationId: getAsset
+      parameters:
+        - { name: assetId, in: path, required: true, schema: { type: string, pattern: '^[a-zA-Z0-9_-]{3,128}$' } }
+      responses:
+        '200': { description: Minimally disclosed current asset facts }
+        '404': { description: Asset not found }
+  /v1/rwa/assets/{assetId}/certificate-history:
+    get:
+      operationId: getCertificateHistory
+      parameters:
+        - { name: assetId, in: path, required: true, schema: { type: string, pattern: '^[a-zA-Z0-9_-]{3,128}$' } }
+      responses: { '200': { description: Append-only certificate hash history } }
+  /v1/rwa/settlements/{settlementId}:
+    get:
+      operationId: getSettlement
+      parameters:
+        - { name: settlementId, in: path, required: true, schema: { type: string, pattern: '^[a-zA-Z0-9_-]{3,128}$' } }
+      responses:
+        '200': { description: Settlement fact state }
+        '404': { description: Settlement not found }
+  /v1/rwa/attestations/verify:
+    post:
+      operationId: verifyAttestation
+      description: Computational verification only; does not create or mutate an attestation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [attestation]
+              properties:
+                attestation: { type: object }
+                expectedSubject: { type: object }
+                now: { type: string, format: date-time }
+      responses:
+        '200': { description: Verification result }
+        '400': { description: Invalid request }
+
