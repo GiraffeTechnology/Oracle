@@ -28,7 +28,15 @@ test("rejects non-loopback binds", () => {
 test("rejects enabling external writes", () => {
   assert.throws(
     () => loadConfig({ GIRAFFE_ORACLE_EXTERNAL_WRITES: "true" }),
-    /EXTERNAL_WRITES_NOT_IMPLEMENTED/,
+    /EXTERNAL_WRITES_NOT_AUTHORIZED/,
   );
 });
 
+test("allows external writes only for explicitly acknowledged synthetic tests", () => {
+  const config = loadConfig({
+    GIRAFFE_ORACLE_ENV: "test",
+    GIRAFFE_ORACLE_EXTERNAL_WRITES: "true",
+    GIRAFFE_ORACLE_TEST_WRITE_ACK: "synthetic-only",
+  });
+  assert.equal(config.externalWritesEnabled, true);
+});

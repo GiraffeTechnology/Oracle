@@ -8,9 +8,10 @@ function parsePort(raw) {
   return port;
 }
 
-function parseDisabledBoolean(raw) {
+function parseExternalWrites(raw, runtimeEnvironment, acknowledgement) {
   if (raw === "false") return false;
-  if (raw === "true") throw new Error("EXTERNAL_WRITES_NOT_IMPLEMENTED");
+  if (raw === "true" && runtimeEnvironment === "test" && acknowledgement === "synthetic-only") return true;
+  if (raw === "true") throw new Error("EXTERNAL_WRITES_NOT_AUTHORIZED");
   throw new Error("CONFIG_INVALID_BOOLEAN");
 }
 
@@ -29,9 +30,10 @@ export function loadConfig(env = process.env) {
     environment: runtimeEnvironment,
     host,
     port: parsePort(env.GIRAFFE_ORACLE_PORT ?? "8780"),
-    externalWritesEnabled: parseDisabledBoolean(
+    externalWritesEnabled: parseExternalWrites(
       env.GIRAFFE_ORACLE_EXTERNAL_WRITES ?? "false",
+      runtimeEnvironment,
+      env.GIRAFFE_ORACLE_TEST_WRITE_ACK,
     ),
   });
 }
-

@@ -13,6 +13,14 @@ function sendJson(response, statusCode, body) {
   response.end(`${JSON.stringify(body)}\n`);
 }
 
+function adminErrorStatus(errorCode) {
+  if (errorCode === "ADMIN_AUTHENTICATION_REQUIRED") return 401;
+  if (errorCode.startsWith("PERMISSION_DENIED") || errorCode === "ACTOR_NOT_REGISTERED") return 403;
+  if (errorCode.includes("IDEMPOTENCY_CONFLICT") || errorCode.includes("ALREADY_EXISTS")) return 409;
+  if (errorCode === "PAYLOAD_TOO_LARGE") return 413;
+  return 400;
+}
+
 async function readJson(request, limit = 65536) {
   const chunks = [];
   let size = 0;
@@ -28,7 +36,7 @@ async function readJson(request, limit = 65536) {
   }
 }
 
-export function createApp({ config, sourceRegistry, runtime = null }) {
+export function createApp({ config, sourceRegistry, runtime = null, controlPlane = null, authenticateAdmin = null }) {
   if (!config || !sourceRegistry) throw new Error("APP_DEPENDENCY_MISSING");
 
   return http.createServer(async (request, response) => {
@@ -42,7 +50,6 @@ export function createApp({ config, sourceRegistry, runtime = null }) {
         const body = await readJson(request);
         const result = runtime.attestations.verify(body.attestation, {
           expectedSubject: body.expectedSubject,
-          now: body.now ? new Date(body.now) : undefined,
         });
         sendJson(response, 200, result);
       } catch (error) {
@@ -50,6 +57,39 @@ export function createApp({ config, sourceRegistry, runtime = null }) {
           valid: false,
           errorCode: error.message,
         });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && requestUrl.pathname.startsWith("/v1/rwa/admin/")) {
+      if (!controlPlane || !authenticateAdmin || config.externalWritesEnabled !== true) {
+        sendJson(response, 503, { ok: false, errorCode: "ADMIN_WRITES_DISABLED" });
+        return;
+      }
+      try {
+        const actorId = await authenticateAdmin(request);
+        if (!actorId) throw new Error("ADMIN_AUTHENTICATION_REQUIRED");
+        const body = await readJson(request);
+        const idempotencyKey = request.headers["idempotency-key"];
+        const routes = {
+          "/v1/rwa/admin/assets/verify": () => controlPlane.verifyAsset({ actorId, idempotencyKey, ...body }),
+          "/v1/rwa/admin/tokens/bind": () => controlPlane.bindToken({ actorId, idempotencyKey, binding: body }),
+          "/v1/rwa/admin/attestations/issue": () => controlPlane.issueAttestation({ actorId, idempotencyKey, request: body }),
+          "/v1/rwa/admin/revocations/request": () => controlPlane.requestRevocation({ actorId, ...body }),
+          "/v1/rwa/admin/actions/approve": () => controlPlane.approveAction({ actorId, ...body }),
+          "/v1/rwa/admin/revocations/execute": () => controlPlane.executeRevocation({ actorId, ...body }),
+          "/v1/rwa/admin/settlements/begin": () => controlPlane.beginSettlement({ actorId, idempotencyKey, request: body }),
+          "/v1/rwa/admin/settlements/finalize": () => controlPlane.finalizeSettlement({ actorId, idempotencyKey, request: body }),
+          "/v1/rwa/admin/settlements/cancel": () => controlPlane.cancelSettlement({ actorId, idempotencyKey, request: body }),
+        };
+        const operation = routes[requestUrl.pathname];
+        if (!operation) {
+          sendJson(response, 404, { ok: false, errorCode: "ADMIN_ROUTE_NOT_FOUND" });
+          return;
+        }
+        sendJson(response, 200, { ok: true, result: operation() });
+      } catch (error) {
+        sendJson(response, adminErrorStatus(error.message), { ok: false, errorCode: error.message });
       }
       return;
     }

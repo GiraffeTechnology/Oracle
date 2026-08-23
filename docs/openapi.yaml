@@ -4,6 +4,14 @@ info:
   version: 0.2.0
   description: Read-only facts and offline-verification API. Financial outputs and transaction signing are excluded.
 servers: []
+components:
+  securitySchemes:
+    mutualTLS:
+      type: mutualTLS
+    signedRequest:
+      type: apiKey
+      in: header
+      name: X-Giraffe-Request-Signature
 paths:
   /healthz:
     get:
@@ -79,7 +87,6 @@ paths:
               properties:
                 attestation: { type: object }
                 expectedSubject: { type: object }
-                now: { type: string, format: date-time }
       responses:
         '200': { description: Verification result }
         '400': { description: Invalid request }

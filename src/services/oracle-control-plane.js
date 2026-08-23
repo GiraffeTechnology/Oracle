@@ -65,4 +65,31 @@ export class OracleControlPlane {
     this.outbox.enqueue({ eventType: "attestation.revoked", subjectId: attestation.envelope.subject.assetId, payloadHash: reasonHash, createdAt: now });
     return revocation;
   }
+
+  beginSettlement({ actorId, idempotencyKey, request }) {
+    this.authorizer.require(actorId, "settlement:manage");
+    return this.commandJournal.execute(idempotencyKey, { type: "settlement.begin", request }, () => {
+      const result = this.runtime.settlements.begin({ ...request, actorId });
+      this.outbox.enqueue({ eventType: "settlement.started", subjectId: result.assetId, payloadHash: result.snapshotHash, createdAt: result.startedAt });
+      return result;
+    });
+  }
+
+  finalizeSettlement({ actorId, idempotencyKey, request }) {
+    this.authorizer.require(actorId, "settlement:manage");
+    return this.commandJournal.execute(idempotencyKey, { type: "settlement.finalize", request }, () => {
+      const result = this.runtime.settlements.finalize({ ...request, actorId });
+      this.outbox.enqueue({ eventType: "settlement.finalized", subjectId: result.assetId, payloadHash: request.certificate.certificateHash, createdAt: result.finalizedAt });
+      return result;
+    });
+  }
+
+  cancelSettlement({ actorId, idempotencyKey, request }) {
+    this.authorizer.require(actorId, "settlement:manage");
+    return this.commandJournal.execute(idempotencyKey, { type: "settlement.cancel", request }, () => {
+      const result = this.runtime.settlements.cancel({ ...request, actorId });
+      this.outbox.enqueue({ eventType: "settlement.cancelled", subjectId: result.assetId, payloadHash: request.reasonHash, createdAt: result.cancelledAt });
+      return result;
+    });
+  }
 }

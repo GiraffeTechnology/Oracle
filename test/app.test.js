@@ -4,6 +4,11 @@ import { createApp } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
 import { SourceRegistry } from "../src/domain/source-registry.js";
 import { createSyntheticRuntime } from "../src/oracle-runtime.js";
+import { Authorizer } from "../src/services/authorizer.js";
+import { CommandJournal } from "../src/services/command-journal.js";
+import { DualControlQueue } from "../src/services/dual-control.js";
+import { OracleControlPlane } from "../src/services/oracle-control-plane.js";
+import { Outbox } from "../src/services/outbox.js";
 
 async function withServer(run) {
   const server = createApp({ config: loadConfig({}), sourceRegistry: new SourceRegistry() });
@@ -67,6 +72,55 @@ test("verification endpoint fails closed without a configured verifier", async (
     assert.equal(response.status, 503);
     assert.equal((await response.json()).errorCode, "VERIFIER_NOT_CONFIGURED");
   });
+});
+
+test("admin API remains disabled by default", async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/rwa/admin/assets/verify`, { method: "POST", body: "{}" });
+    assert.equal(response.status, 503);
+    assert.equal((await response.json()).errorCode, "ADMIN_WRITES_DISABLED");
+  });
+});
+
+test("explicit synthetic test gate enables authenticated idempotent admin commands", async () => {
+  const runtime = createSyntheticRuntime();
+  const authorizer = new Authorizer();
+  authorizer.registerActor("oracle-test", ["ORACLE_OPERATOR"]);
+  const controlPlane = new OracleControlPlane({ runtime, authorizer, dualControl: new DualControlQueue(), commandJournal: new CommandJournal(), outbox: new Outbox() });
+  const config = loadConfig({ GIRAFFE_ORACLE_ENV: "test", GIRAFFE_ORACLE_EXTERNAL_WRITES: "true", GIRAFFE_ORACLE_TEST_WRITE_ACK: "synthetic-only" });
+  const server = createApp({ config, sourceRegistry: runtime.sourceRegistry, runtime, controlPlane, authenticateAdmin: async () => "oracle-test" });
+  await new Promise((resolve) => server.listen(0, "localhost", resolve));
+  try {
+    const response = await fetch(`http://localhost:${server.address().port}/v1/rwa/admin/assets/verify`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "verify-http-001" },
+      body: JSON.stringify({ asset: { assetId: "asset-http", assetFingerprintHash: "a".repeat(64) }, certificate: { assetId: "asset-http", certificateHash: "b".repeat(64), certificateVersion: 1 }, warehouse: { assetId: "asset-http", warehouseReceiptHash: "c".repeat(64) }, evidenceVersion: 1 }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).result.result.status, "VALID");
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("public verifier ignores caller-supplied time overrides", async () => {
+  const issuedAt = new Date("2020-01-01T00:00:00.000Z");
+  let serverNow = issuedAt;
+  const runtime = createSyntheticRuntime({ clock: () => serverNow });
+  const attestation = runtime.attestations.issue({ subject: { assetId: "asset-old", purpose: "test" }, factType: "STATUS", factValue: "VALID", sourceRecordHash: "a".repeat(64), validForSeconds: 1, nonce: "old-nonce" });
+  serverNow = new Date("2020-01-01T00:00:02.000Z");
+  const server = createApp({ config: loadConfig({}), sourceRegistry: runtime.sourceRegistry, runtime });
+  await new Promise((resolve) => server.listen(0, "localhost", resolve));
+  try {
+    const response = await fetch(`http://localhost:${server.address().port}/v1/rwa/attestations/verify`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ attestation, now: issuedAt.toISOString() }),
+    });
+    assert.deepEqual(await response.json(), { valid: false, errorCode: "NOT_CURRENT" });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
 
 test("synthetic runtime exposes minimally disclosed asset facts", async () => {
