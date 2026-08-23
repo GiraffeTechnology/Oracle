@@ -19,11 +19,16 @@ export class StateEngine {
     return this.#states.get(subjectId) ?? OracleStatus.NOT_VERIFIED;
   }
 
-  transition({ subjectId, to, reasonHash, evidenceVersion, occurredAt }) {
+  assertTransition({ subjectId, to, evidenceVersion }) {
     const from = this.current(subjectId);
     if (!TRANSITIONS[from]?.has(to)) throw new Error(`STATE_TRANSITION_REJECTED:${from}:${to}`);
     const previous = [...this.#history].reverse().find((entry) => entry.subjectId === subjectId);
     if (previous && evidenceVersion <= previous.evidenceVersion) throw new Error("EVIDENCE_VERSION_NOT_INCREASING");
+    return Object.freeze({ from, to });
+  }
+
+  transition({ subjectId, to, reasonHash, evidenceVersion, occurredAt }) {
+    const { from } = this.assertTransition({ subjectId, to, evidenceVersion });
     const entry = Object.freeze({ subjectId, from, to, reasonHash, evidenceVersion, occurredAt });
     this.#states.set(subjectId, to);
     this.#history.push(entry);

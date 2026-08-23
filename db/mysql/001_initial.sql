@@ -51,6 +51,16 @@ CREATE TABLE warehouse_records (
   CONSTRAINT fk_warehouse_asset FOREIGN KEY (asset_id) REFERENCES assets(asset_id)
 ) ENGINE=InnoDB;
 
+CREATE TABLE token_bindings (
+  asset_id VARCHAR(128) PRIMARY KEY,
+  chain_id VARCHAR(64) NOT NULL,
+  contract_ref VARCHAR(128) NOT NULL,
+  token_id VARCHAR(128) NOT NULL,
+  bound_at TIMESTAMP(6) NOT NULL,
+  UNIQUE KEY uq_token_reference (chain_id, contract_ref, token_id),
+  CONSTRAINT fk_token_binding_asset FOREIGN KEY (asset_id) REFERENCES assets(asset_id)
+) ENGINE=InnoDB;
+
 CREATE TABLE attestations (
   attestation_id CHAR(36) PRIMARY KEY,
   asset_id VARCHAR(128) NOT NULL,
@@ -106,4 +116,3 @@ CREATE TABLE outbox_events (
   attempts INT UNSIGNED NOT NULL DEFAULT 0,
   INDEX idx_outbox_pending (published_at, created_at)
 ) ENGINE=InnoDB;
-

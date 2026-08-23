@@ -39,6 +39,32 @@ paths:
       responses:
         '200': { description: Settlement fact state }
         '404': { description: Settlement not found }
+  /v1/rwa/tokens/{chainId}/{contract}/{tokenId}:
+    get:
+      operationId: getTokenBinding
+      parameters:
+        - { name: chainId, in: path, required: true, schema: { type: string } }
+        - { name: contract, in: path, required: true, schema: { type: string } }
+        - { name: tokenId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Token-to-asset binding and current Oracle state }
+        '404': { description: Token binding not found }
+  /v1/rwa/tokens/{chainId}/{contract}/{tokenId}/eligibility:
+    get:
+      operationId: getTokenEligibility
+      parameters:
+        - { name: chainId, in: path, required: true, schema: { type: string } }
+        - { name: contract, in: path, required: true, schema: { type: string } }
+        - { name: tokenId, in: path, required: true, schema: { type: string } }
+      responses: { '200': { description: Current transfer eligibility fact } }
+  /v1/rwa/attestations/{attestationId}:
+    get:
+      operationId: getAttestation
+      parameters:
+        - { name: attestationId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Signed attestation and revocation status }
+        '404': { description: Attestation not found }
   /v1/rwa/attestations/verify:
     post:
       operationId: verifyAttestation
@@ -57,4 +83,3 @@ paths:
       responses:
         '200': { description: Verification result }
         '400': { description: Invalid request }
-

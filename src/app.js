@@ -118,6 +118,38 @@ export function createApp({ config, sourceRegistry, runtime = null }) {
       return;
     }
 
+    const tokenMatch = requestUrl.pathname.match(/^\/v1\/rwa\/tokens\/([a-zA-Z0-9_-]{1,64})\/([a-zA-Z0-9:_-]{3,128})\/([a-zA-Z0-9_-]{1,128})(?:\/(certificate-history|eligibility))?$/);
+    if (tokenMatch && runtime) {
+      const [, chainId, contract, tokenId, view] = tokenMatch;
+      const binding = runtime.tokenIndex.byToken(chainId, contract, tokenId);
+      if (!binding) {
+        sendJson(response, 404, { ok: false, errorCode: "TOKEN_NOT_FOUND" });
+        return;
+      }
+      if (view === "certificate-history") {
+        sendJson(response, 200, { binding, history: runtime.recordStore.certificateHistory(binding.assetId) });
+        return;
+      }
+      if (view === "eligibility") {
+        const status = runtime.stateEngine.current(binding.assetId);
+        sendJson(response, 200, { binding, status, transferable: status === "VALID" });
+        return;
+      }
+      sendJson(response, 200, { binding, status: runtime.stateEngine.current(binding.assetId), currentCertificate: runtime.recordStore.currentCertificate(binding.assetId) });
+      return;
+    }
+
+    const attestationMatch = requestUrl.pathname.match(/^\/v1\/rwa\/attestations\/([a-f0-9-]{36})$/);
+    if (attestationMatch && runtime) {
+      const attestation = runtime.attestations.get(attestationMatch[1]);
+      if (!attestation) {
+        sendJson(response, 404, { ok: false, errorCode: "ATTESTATION_NOT_FOUND" });
+        return;
+      }
+      sendJson(response, 200, { attestation, revoked: runtime.revocations.isRevoked(attestationMatch[1]) });
+      return;
+    }
+
     const settlementMatch = requestUrl.pathname.match(/^\/v1\/rwa\/settlements\/([a-zA-Z0-9_-]{3,128})$/);
     if (settlementMatch && runtime) {
       const settlement = runtime.settlements.get(settlementMatch[1]);

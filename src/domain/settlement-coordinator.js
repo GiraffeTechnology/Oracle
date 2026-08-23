@@ -35,6 +35,7 @@ export class SettlementCoordinator {
     if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
     if (!registryChangeRef || warehouseConfirmed !== true) throw new Error("SETTLEMENT_CONFIRMATION_INCOMPLETE");
     if (this.clock() > new Date(current.deadlineAt)) throw new Error("SETTLEMENT_DEADLINE_EXCEEDED");
+    this.stateEngine.assertTransition({ subjectId: current.assetId, to: OracleStatus.VALID, evidenceVersion });
     this.recordStore.appendCertificate(certificate);
     const now = this.clock().toISOString();
     this.stateEngine.transition({ subjectId: current.assetId, to: OracleStatus.VALID, reasonHash: certificate.certificateHash, evidenceVersion, occurredAt: now });

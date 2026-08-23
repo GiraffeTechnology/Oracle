@@ -6,6 +6,9 @@ function signingBytes(envelope) {
 }
 
 export class AttestationService {
+  #issuedNonces = new Set();
+  #attestations = new Map();
+
   constructor({ signerSetId, privateKey, publicKey, revocations, clock = () => new Date() }) {
     if (!signerSetId || !privateKey || !publicKey || !revocations) throw new Error("ATTESTATION_DEPENDENCY_MISSING");
     this.signerSetId = signerSetId;
@@ -20,6 +23,7 @@ export class AttestationService {
     if (!Number.isInteger(validForSeconds) || validForSeconds < 1 || validForSeconds > 86400) {
       throw new Error("ATTESTATION_TTL_INVALID");
     }
+    if (this.#issuedNonces.has(nonce)) throw new Error("ATTESTATION_NONCE_REUSED");
     const observedAt = this.clock();
     const expiresAt = new Date(observedAt.getTime() + validForSeconds * 1000);
     const envelope = Object.freeze({
@@ -35,11 +39,18 @@ export class AttestationService {
       nonce,
       signerSetId: this.signerSetId,
     });
-    return Object.freeze({
+    const attestation = Object.freeze({
       envelope,
       envelopeHash: evidenceHash(envelope),
       signature: sign(null, signingBytes(envelope), this.privateKey).toString("base64url"),
     });
+    this.#issuedNonces.add(nonce);
+    this.#attestations.set(envelope.attestationId, attestation);
+    return attestation;
+  }
+
+  get(attestationId) {
+    return this.#attestations.get(attestationId) ?? null;
   }
 
   verify(attestation, { expectedSubject, now = this.clock() } = {}) {
@@ -60,4 +71,3 @@ export class AttestationService {
     return { valid: true, errorCode: null };
   }
 }
-

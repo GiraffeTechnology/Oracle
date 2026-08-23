@@ -7,6 +7,7 @@ import { createDefaultSchemaRegistry } from "./domain/schema-registry.js";
 import { SettlementCoordinator } from "./domain/settlement-coordinator.js";
 import { SourceRegistry } from "./domain/source-registry.js";
 import { StateEngine } from "./domain/state-engine.js";
+import { TokenIndex } from "./domain/token-index.js";
 
 export function createSyntheticRuntime({ clock = () => new Date() } = {}) {
   const sourceRegistry = new SourceRegistry([
@@ -22,6 +23,6 @@ export function createSyntheticRuntime({ clock = () => new Date() } = {}) {
   const { privateKey, publicKey } = generateKeyPairSync("ed25519");
   const attestations = new AttestationService({ signerSetId: "synthetic-oracle-signers", privateKey, publicKey, revocations, clock });
   const settlements = new SettlementCoordinator({ recordStore, stateEngine, auditJournal, clock });
-  return Object.freeze({ sourceRegistry, schemaRegistry, recordStore, stateEngine, auditJournal, revocations, attestations, settlements });
+  const tokenIndex = new TokenIndex();
+  return Object.freeze({ sourceRegistry, schemaRegistry, recordStore, stateEngine, auditJournal, revocations, attestations, settlements, tokenIndex });
 }
-

@@ -84,3 +84,19 @@ test("synthetic runtime exposes minimally disclosed asset facts", async () => {
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test("token eligibility endpoint reflects Oracle status", async () => {
+  const runtime = createSyntheticRuntime();
+  runtime.recordStore.putAsset({ assetId: "asset-001", assetFingerprintHash: "a".repeat(64) });
+  runtime.stateEngine.transition({ subjectId: "asset-001", to: "VALID", reasonHash: "b".repeat(64), evidenceVersion: 1, occurredAt: new Date().toISOString() });
+  runtime.tokenIndex.bind({ chainId: "test-chain", contract: "contract-001", tokenId: "1", assetId: "asset-001" });
+  const server = createApp({ config: loadConfig({}), sourceRegistry: runtime.sourceRegistry, runtime });
+  await new Promise((resolve) => server.listen(0, "localhost", resolve));
+  try {
+    const response = await fetch(`http://localhost:${server.address().port}/v1/rwa/tokens/test-chain/contract-001/1/eligibility`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { binding: { chainId: "test-chain", contract: "contract-001", tokenId: "1", assetId: "asset-001" }, status: "VALID", transferable: true });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});

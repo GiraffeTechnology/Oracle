@@ -7,11 +7,13 @@ import { createDefaultSchemaRegistry } from "../src/domain/schema-registry.js";
 import { SourceRegistry } from "../src/domain/source-registry.js";
 import { assertProductionPorts } from "../src/ports/production-ports.js";
 import { BusinessCalendar } from "../src/services/business-calendar.js";
+import { createBackupManifest, verifyBackupManifest } from "../src/services/backup-manifest.js";
 import { DualControlQueue } from "../src/services/dual-control.js";
 import { IngestionGateway } from "../src/services/ingestion-gateway.js";
 import { Metrics } from "../src/services/metrics.js";
 import { Outbox } from "../src/services/outbox.js";
 import { Reconciler } from "../src/services/reconciler.js";
+import { RetentionPolicy } from "../src/services/retention-policy.js";
 
 const NOW = new Date("2026-08-24T00:00:00.000Z");
 const HASH_A = "a".repeat(64);
@@ -110,4 +112,16 @@ test("metrics expose numeric counters and gauges only", () => {
 test("production ports fail closed when any dependency is absent", () => {
   assert.throws(() => assertProductionPorts({}), /PRODUCTION_PORT_MISSING:repository/);
   assert.equal(assertProductionPorts({ repository: {}, signer: {}, registrySource: {}, certificateSource: {}, warehouseSource: {}, eventPublisher: {} }), true);
+});
+
+test("backup manifest detects tampering", () => {
+  const candidate = createBackupManifest({ backupId: "backup-001", createdAt: NOW.toISOString(), databaseSnapshotHash: HASH_A, auditHeadHash: HASH_B, schemaVersion: "oracle-db.v1", recordCounts: { assets: 1, certificates: 1 } });
+  assert.equal(verifyBackupManifest(candidate), true);
+  assert.equal(verifyBackupManifest({ ...candidate, manifest: { ...candidate.manifest, databaseSnapshotHash: HASH_C } }), false);
+});
+
+test("retention policy calculates versioned expiry dates", () => {
+  const policy = new RetentionPolicy({ policyId: "retention-v1", evidenceDays: 30, auditDays: 3650, identityDays: 90 });
+  assert.equal(policy.expiresAt("evidence", NOW).toISOString(), "2026-09-23T00:00:00.000Z");
+  assert.throws(() => policy.expiresAt("unknown", NOW), /RETENTION_KIND_INVALID/);
 });

@@ -69,6 +69,15 @@ export class SourceRegistry {
     return source;
   }
 
+  setActive(sourceId, active) {
+    const current = this.#sources.get(sourceId);
+    if (!current) throw new Error("SOURCE_NOT_REGISTERED");
+    if (typeof active !== "boolean") throw new Error("SOURCE_ACTIVE_INVALID");
+    const updated = Object.freeze({ ...current, active });
+    this.#sources.set(sourceId, updated);
+    return updated;
+  }
+
   listPublic() {
     return [...this.#sources.values()].map(({ id, displayName, kind, schemaVersions, active }) => ({
       id,
@@ -79,4 +88,3 @@ export class SourceRegistry {
     }));
   }
 }
-

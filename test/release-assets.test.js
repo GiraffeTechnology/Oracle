@@ -4,7 +4,7 @@ import test from "node:test";
 
 test("MySQL migration contains all required durable projections", async () => {
   const sql = await readFile(new URL("../db/mysql/001_initial.sql", import.meta.url), "utf8");
-  for (const table of ["source_authorities", "schema_versions", "assets", "certificate_versions", "warehouse_records", "attestations", "revocations", "settlements", "audit_events", "outbox_events"]) {
+  for (const table of ["source_authorities", "schema_versions", "assets", "certificate_versions", "warehouse_records", "token_bindings", "attestations", "revocations", "settlements", "audit_events", "outbox_events"]) {
     assert.match(sql, new RegExp(`CREATE TABLE ${table} \\(`));
   }
   assert.doesNotMatch(sql, /PASSWORD|PRIVATE KEY|IDENTIFIED BY/i);

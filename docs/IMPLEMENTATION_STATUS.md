@@ -33,12 +33,15 @@
 - Read-only asset, certificate and settlement APIs plus computational attestation verification.
 - Read-only admin status UI with browser security headers.
 - Logical MySQL schema, reliable outbox model, operations guide, release checklist and SBOM.
+- Signed ingestion with source key-set lifecycle, time-window, nonce and command idempotency.
+- RBAC control plane, dual-control revocation and protected production-port adapters.
+- One-to-one token binding index, token eligibility API, outbox dispatcher, reconciliation and metrics.
 
 ## Verification baseline
 
 ```text
 node --check: pass
-node --test: see latest local verification output
+node --test: 45 passed, 0 failed in the latest Oracle-scoped run
 repository-scan: pass
 ```
 
