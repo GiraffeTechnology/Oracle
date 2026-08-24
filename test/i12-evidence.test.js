@@ -14,6 +14,7 @@ test("I12 evidence validator requires security privacy and legal acceptance", ()
   const base = { schemaVersion: 1, type: "independent-reviews", status: "PASS", artifactSha256: HASH, reviews, unacceptedP0: 0 };
   assert.equal(validateI12Evidence("independent-reviews", base), true);
   assert.throws(() => validateI12Evidence("independent-reviews", { ...base, reviews: reviews.slice(0, 2) }), /I12_REVIEW_INSUFFICIENT:legal/);
+  assert.throws(() => validateI12Evidence("independent-reviews", { ...base, reviews: reviews.map((review) => ({ ...review, reviewerRef: "same-reviewer" })) }), /I12_REVIEWS_NOT_INDEPENDENT/);
 });
 test("I12 evidence validator requires every security gate and reproducible builds", () => {
   const gates = Object.fromEntries(["sast", "dependency", "secret", "container", "iac", "api", "penetration"].map((gate) => [gate, "PASS"]));
