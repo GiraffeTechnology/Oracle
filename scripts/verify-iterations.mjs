@@ -37,7 +37,7 @@ for (const iteration of manifest.iterations) {
     let valid = false;
     let errorCode = present ? null : "EVIDENCE_NOT_FOUND";
     if (present) {
-      const type = relative.includes("72h-stability") ? "72h-stability" : relative.includes("restore-drill") ? "restore-drill" : relative.includes("signer-rotation") ? "signer-rotation" : "independent-reviews";
+      const type = relative.includes("security-scans") ? "security-scans" : relative.includes("performance-capacity") ? "performance-capacity" : relative.includes("72h-stability") ? "72h-stability" : relative.includes("restore-drill") ? "restore-drill" : relative.includes("signer-rotation") ? "signer-rotation" : relative.includes("data-protection-response") ? "data-protection-response" : relative.includes("reproducible-build") ? "reproducible-build" : "independent-reviews";
       try { valid = validateI12Evidence(type, JSON.parse(await readFile(path.join(root, relative), "utf8"))); } catch (error) { errorCode = error.message; }
     }
     externalEvidence.push({ path: relative, present, valid, errorCode });

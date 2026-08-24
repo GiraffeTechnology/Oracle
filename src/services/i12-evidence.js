@@ -4,12 +4,21 @@ function base(value, type) {
 }
 export function validateI12Evidence(type, value) {
   base(value, type);
-  if (type === "72h-stability") {
+  if (type === "security-scans") {
+    for (const gate of ["sast", "dependency", "secret", "container", "iac", "api", "penetration"]) if (value.gates?.[gate] !== "PASS") throw new Error(`I12_SECURITY_GATE_INSUFFICIENT:${gate}`);
+    if ((value.unacceptedP0 ?? 1) !== 0) throw new Error("I12_SECURITY_UNACCEPTED_P0");
+  } else if (type === "performance-capacity") {
+    if (!value.loadProfileRef || value.requestsCompleted < 1 || value.p95Milliseconds <= 0 || value.queueBacklogMaximum < 0 || value.faultInjectionPassed !== true) throw new Error("I12_PERFORMANCE_INSUFFICIENT");
+  } else if (type === "72h-stability") {
     if (value.durationSeconds < 259200 || value.continuous !== true || value.sampleCount < 4320 || value.secretScanPassed !== true || value.unexplainedFailures !== 0) throw new Error("I12_STABILITY_INSUFFICIENT");
   } else if (type === "restore-drill") {
     if (value.databaseIntegrityVerified !== true || value.auditHeadVerified !== true || value.rpoSecondsActual > value.rpoSecondsTarget || value.rtoSecondsActual > value.rtoSecondsTarget) throw new Error("I12_RESTORE_DRILL_INSUFFICIENT");
   } else if (type === "signer-rotation") {
     if (value.newSignerAccepted !== true || value.oldSignerRejected !== true || value.rotationAudited !== true || value.privateMaterialObserved !== false) throw new Error("I12_SIGNER_ROTATION_INSUFFICIENT");
+  } else if (type === "data-protection-response") {
+    if (value.dpiaAccepted !== true || value.retentionPolicyVerified !== true || value.deletionPolicyVerified !== true || value.incidentExercisePassed !== true || !value.goNoGoChecklistRef) throw new Error("I12_DATA_PROTECTION_INSUFFICIENT");
+  } else if (type === "reproducible-build") {
+    if (!HASH.test(value.buildOneSha256 ?? "") || value.buildOneSha256 !== value.buildTwoSha256 || value.sbomVerified !== true || value.artifactSignatureVerified !== true) throw new Error("I12_REPRODUCIBLE_BUILD_INSUFFICIENT");
   } else if (type === "independent-reviews") {
     const reviews = new Map((value.reviews ?? []).map((review) => [review.role, review]));
     for (const role of ["security", "privacy", "legal"]) {

@@ -28,9 +28,13 @@ I12 在四份真实证据通过前应保持阻断。
 
 以下文件必须来自实际执行或独立审查，不得由 CI 生成空壳 PASS：
 
+- `evidence/acceptance/i12-security-scans.json`；
+- `evidence/acceptance/i12-performance-capacity.json`；
 - `evidence/acceptance/i12-72h-stability.json`；
 - `evidence/acceptance/i12-restore-drill.json`；
 - `evidence/acceptance/i12-signer-rotation.json`；
+- `evidence/acceptance/i12-data-protection-response.json`；
+- `evidence/acceptance/i12-reproducible-build.json`；
 - `evidence/acceptance/i12-independent-reviews.json`。
 
 验证器要求：稳定性实际连续时间不少于 259200 秒；恢复演练达到声明的 RPO/RTO 并验证数据库与

@@ -13,4 +13,10 @@ test("I12 evidence validator requires security privacy and legal acceptance", ()
   assert.equal(validateI12Evidence("independent-reviews", base), true);
   assert.throws(() => validateI12Evidence("independent-reviews", { ...base, reviews: reviews.slice(0, 2) }), /I12_REVIEW_INSUFFICIENT:legal/);
 });
+test("I12 evidence validator requires every security gate and reproducible builds", () => {
+  const gates = Object.fromEntries(["sast", "dependency", "secret", "container", "iac", "api", "penetration"].map((gate) => [gate, "PASS"]));
+  assert.equal(validateI12Evidence("security-scans", { schemaVersion: 1, type: "security-scans", status: "PASS", artifactSha256: HASH, gates, unacceptedP0: 0 }), true);
+  assert.throws(() => validateI12Evidence("security-scans", { schemaVersion: 1, type: "security-scans", status: "PASS", artifactSha256: HASH, gates: { ...gates, penetration: "MISSING" }, unacceptedP0: 0 }), /I12_SECURITY_GATE_INSUFFICIENT/);
+  assert.equal(validateI12Evidence("reproducible-build", { schemaVersion: 1, type: "reproducible-build", status: "PASS", artifactSha256: HASH, buildOneSha256: HASH, buildTwoSha256: HASH, sbomVerified: true, artifactSignatureVerified: true }), true);
+});
 

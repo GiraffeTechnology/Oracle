@@ -60,9 +60,13 @@ iteration acceptance: I0–I11 complete; I12 blocked; allComplete=false
 
 ## I12 evidence blockers
 
+- SAST/dependency/secret/container/IaC/API/penetration scan report with no unaccepted P0.
+- Performance/capacity/backlog/fault-injection report from an identified load profile.
 - 72-hour continuous stability report (minimum 259200 seconds; short tests cannot substitute).
 - Database restore/PITR and disaster-recovery drill with measured RPO/RTO and audit-head verification.
 - Protected signer rotation drill proving the new signer is accepted and the prior signer is rejected.
+- DPIA/retention/deletion/incident-response exercise and go/no-go checklist.
+- Two-build reproducibility, SBOM and artifact-signature verification.
 - Independent security, privacy and legal acceptance with no unaccepted P0.
 
 The expected formats and validation rules are implemented in `src/services/i12-evidence.js` and
