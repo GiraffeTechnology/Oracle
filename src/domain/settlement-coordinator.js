@@ -56,7 +56,31 @@ export class SettlementCoordinator {
     return cancelled;
   }
 
+  dispute({ settlementId, reasonHash, actorId, evidenceVersion }) {
+    const current = this.#settlements.get(settlementId);
+    if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
+    const now = this.clock().toISOString();
+    this.stateEngine.transition({ subjectId: current.assetId, to: OracleStatus.REVIEW_REQUIRED, reasonHash, evidenceVersion, occurredAt: now });
+    const disputed = Object.freeze({ ...current, status: "DISPUTED", reasonHash, disputedAt: now });
+    this.#settlements.set(settlementId, disputed);
+    this.auditJournal.append({ type: "settlement.disputed", subjectId: current.assetId, payloadHash: reasonHash, actorId, occurredAt: now });
+    return disputed;
+  }
+
+  timeout({ settlementId, reasonHash, actorId, evidenceVersion }) {
+    const current = this.#settlements.get(settlementId);
+    if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
+    if (this.clock() <= new Date(current.deadlineAt)) throw new Error("SETTLEMENT_DEADLINE_NOT_REACHED");
+    const now = this.clock().toISOString();
+    this.stateEngine.transition({ subjectId: current.assetId, to: OracleStatus.REVIEW_REQUIRED, reasonHash, evidenceVersion, occurredAt: now });
+    const timedOut = Object.freeze({ ...current, status: "TIMED_OUT", reasonHash, timedOutAt: now });
+    this.#settlements.set(settlementId, timedOut);
+    this.auditJournal.append({ type: "settlement.timed-out", subjectId: current.assetId, payloadHash: reasonHash, actorId, occurredAt: now });
+    return timedOut;
+  }
+
   get(settlementId) {
     return this.#settlements.get(settlementId) ?? null;
   }
 }
+

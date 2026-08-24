@@ -1,4 +1,5 @@
 import http from "node:http";
+import { createHash } from "node:crypto";
 import { ORACLE_STATUSES } from "./domain/oracle-status.js";
 import { ADMIN_HTML } from "./admin-ui.js";
 import { publicL2Profile } from "./config/deployment-profile.js";
@@ -12,6 +13,21 @@ const JSON_HEADERS = Object.freeze({
 
 function sendJson(response, statusCode, body) {
   response.writeHead(statusCode, JSON_HEADERS);
+  response.end(`${JSON.stringify(body)}\n`);
+}
+
+export function responseEtag(body) {
+  return `"${createHash("sha256").update(JSON.stringify(body)).digest("hex")}"`;
+}
+
+function sendCacheableJson(request, response, body) {
+  const etag = responseEtag(body);
+  if (request.headers["if-none-match"] === etag) {
+    response.writeHead(304, { etag, "cache-control": "private, no-cache", "x-content-type-options": "nosniff" });
+    response.end();
+    return;
+  }
+  response.writeHead(200, { ...JSON_HEADERS, etag, "cache-control": "private, no-cache" });
   response.end(`${JSON.stringify(body)}\n`);
 }
 
@@ -208,7 +224,11 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
         sendJson(response, 404, { ok: false, errorCode: "ATTESTATION_NOT_FOUND" });
         return;
       }
-      sendJson(response, 200, { attestation, revoked: runtime.revocations.isRevoked(attestationMatch[1]) });
+      if (runtime.revocations.isRevoked(attestationMatch[1])) {
+        sendJson(response, 410, { ok: false, errorCode: "ATTESTATION_REVOKED" });
+        return;
+      }
+      sendCacheableJson(request, response, { attestation, revoked: false });
       return;
     }
 

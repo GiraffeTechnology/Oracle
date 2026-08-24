@@ -5,9 +5,13 @@ export class SignerSetPolicy {
     this.record = Object.freeze({ signerSetId, threshold, signers: Object.freeze([...signers].sort()), status });
   }
   authorize(approvals) {
-    if (this.record.status !== "ACTIVE") throw new Error("SIGNER_SET_NOT_ACTIVE");
+    this.assertActive();
     const accepted = new Set((approvals ?? []).filter((signer) => this.record.signers.includes(signer)));
     if (accepted.size < this.record.threshold) throw new Error("SIGNER_THRESHOLD_NOT_MET");
+    return true;
+  }
+  assertActive() {
+    if (this.record.status !== "ACTIVE") throw new Error("SIGNER_SET_NOT_ACTIVE");
     return true;
   }
 }
