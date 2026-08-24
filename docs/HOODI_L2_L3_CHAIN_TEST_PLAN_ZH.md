@@ -4,7 +4,7 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 状态 | `BLOCKED_BEFORE_PREFLIGHT`；ArtFi1/2 受控 broker 正在 R2 安全重审 |
+| 状态 | `BLOCKED_BEFORE_PREFLIGHT`；等待受控 broker、ERC 冻结输入及第 5 节门禁的权威结果 |
 | 首选网络 | Hoodi testnet |
 | 固定 chainId | `560048` |
 | L2 配置 | `giraffe-oracle-l2/production-v1`（以合成/隔离依赖执行） |
@@ -15,12 +15,12 @@
 本方案验证 Oracle L2 事实、证明、撤销和状态映射能否被 L3 Working Draft 合约正确消费。
 它不构成主网授权、ERC 正式编号、真实资产登记、NFT 正式发行、销售、金融化或法律权属确认。
 
-### 当前阻断记录（2026-08-24）
+### 当前阻断记录（2026-08-25）
 
-- blocker：`BROKER_R2_REVIEW_IN_PROGRESS`；
+- blocker：`CONTROLLED_BROKER_AND_PROTOCOL_GATES_PENDING`；
 - ArtFi1/ArtFi2 ownership self-test：`NOT_VERIFIED`；
 - ArtFi1/ArtFi2 ACL gate：`NOT_VERIFIED`；
-- 待完成：broker 安全重审、SYSTEM 安装及用户人工附加；
+- 待完成：以“钱包+DAO”和 ERC 任务的最新权威结果重新执行第 5 节门禁；不得沿用旧 R2 阶段推断；
 - 尚未执行 Hoodi preflight、主网访问、业务签名、广播、转账或 nonce 占用；
 - 本状态既不是测试失败，也不是验收通过；门禁完成后从第 5 节重新开始，不继承任何推测结果。
 
@@ -35,7 +35,7 @@ ERC 任务完成自身提交前准备之前，Oracle 和钱包+DAO不得向 ERC 
 
 ## 1. 测试目标
 
-1. 在真实 Hoodi chain identity、区块时间、gas、nonce、交易 receipt 和 finality 条件下验证 L2–L3 边界。
+1. 在 Hoodi 测试网的实际 chain identity、区块时间、gas、nonce、交易 receipt 和 finality 条件下验证 L2–L3 边界。
 2. 验证 L3 合约同时公开候选接口 `0xebaa86a0`、`0x2773d4c9` 及 ERC-8325
    `0x4a967b01`；缺少任一接口即失败。
 3. 验证 Oracle 的 `VALID → TRANSFER_PENDING → VALID` 映射与合约
@@ -97,8 +97,9 @@ ABI、interfaceId、EIP-712 type string、`authorityData` 编码或参考实现�
 | ArtFi2 / W2 | `0xDE3c1D455c2CCe1bAcf1e70aAC7fA3B8cCb1ec2B` | 初始测试持有人、settlement `from` |
 | Test Authority | 每轮临时生成并仅公开地址 | 只签锁定的 EIP-712 测试授权；不持币、不签交易 |
 
-W1/W2 仅支付 Hoodi 测试 gas，所有调用 `value=0`。不得领取、移动或使用主网资产；不得把
-ArtFi3/ArtFi4 或 Solana 资产计入本轮测试。
+ArtFi1–ArtFi9 均为纯测试钱包，禁止接收或操作任何具有真实价值的资产。W1/W2 本轮仅使用无价值的
+Hoodi 测试币支付测试 gas，所有调用 `value=0`；不得领取、移动或使用主网资产。ArtFi3–ArtFi9
+不属于本轮 EVM 角色，不得把其测试链资产计入 W1/W2 余额或 nonce。
 
 ## 5. P0 执行前门禁
 
