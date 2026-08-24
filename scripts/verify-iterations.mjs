@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
+import { validateI12Evidence } from "../src/services/i12-evidence.js";
 
 const root = process.cwd();
 const manifest = JSON.parse(await readFile(path.join(root, "config", "iteration-acceptance.json"), "utf8"));
@@ -31,8 +32,17 @@ for (const iteration of manifest.iterations) {
   for (const relative of iteration.artifacts) artifacts.push({ path: relative, present: await exists(relative) });
   const requiredTests = iteration.tests.map((name) => ({ name, passed: tests.ok && testOutput.includes(`✔ ${name}`) }));
   const externalEvidence = [];
-  for (const relative of iteration.externalEvidence) externalEvidence.push({ path: relative, present: await exists(relative) });
-  const complete = syntax.ok && scan.ok && artifacts.every(({ present }) => present) && requiredTests.every(({ passed }) => passed) && externalEvidence.every(({ present }) => present);
+  for (const relative of iteration.externalEvidence) {
+    const present = await exists(relative);
+    let valid = false;
+    let errorCode = present ? null : "EVIDENCE_NOT_FOUND";
+    if (present) {
+      const type = relative.includes("72h-stability") ? "72h-stability" : relative.includes("restore-drill") ? "restore-drill" : relative.includes("signer-rotation") ? "signer-rotation" : "independent-reviews";
+      try { valid = validateI12Evidence(type, JSON.parse(await readFile(path.join(root, relative), "utf8"))); } catch (error) { errorCode = error.message; }
+    }
+    externalEvidence.push({ path: relative, present, valid, errorCode });
+  }
+  const complete = syntax.ok && scan.ok && artifacts.every(({ present }) => present) && requiredTests.every(({ passed }) => passed) && externalEvidence.every(({ present, valid }) => present && valid);
   results.push({ id: iteration.id, complete, artifacts, tests: requiredTests, externalEvidence });
 }
 

@@ -2,9 +2,9 @@
 
 ## Current milestone
 
-- Milestone: M6 L2–L3 configured candidate
-- Iteration: 0–12
-- Status: all 13 development iterations and repository-owned L2–L3 configuration are implemented; external production commissioning and approval blockers remain
+- Milestone: M4 Integration Candidate; M5/I12 evidence blocked
+- Iteration acceptance: I0–I11 verified; I12 blocked
+- Status: repository-owned implementation and verification controls are present, but the PRD does not permit I12 or all 13 iterations to be marked complete without the four required external evidence records
 - Network access used: no
 - Production data used: no
 - External writes: disabled by code
@@ -45,8 +45,9 @@
 
 ```text
 node --check: pass
-node --test: 63 passed, 0 failed in the latest Oracle-scoped run
+node --test: 83 passed, 0 failed in the latest Oracle-scoped run
 repository-scan: pass
+iteration acceptance: I0–I11 complete; I12 blocked; allComplete=false
 ```
 
 ## Remaining before production approval
@@ -56,6 +57,16 @@ repository-scan: pass
 - Resolve the configured deployment references to commissioned, contract-approved authenticated source adapters.
 - Complete restore, source-outage, signer-rotation and incident-response exercises.
 - Obtain independent security, privacy and legal acceptance plus written production go/no-go.
+
+## I12 evidence blockers
+
+- 72-hour continuous stability report (minimum 259200 seconds; short tests cannot substitute).
+- Database restore/PITR and disaster-recovery drill with measured RPO/RTO and audit-head verification.
+- Protected signer rotation drill proving the new signer is accepted and the prior signer is rejected.
+- Independent security, privacy and legal acceptance with no unaccepted P0.
+
+The expected formats and validation rules are implemented in `src/services/i12-evidence.js` and
+`scripts/verify-i12-evidence.mjs`. Creating empty or self-declared PASS files does not satisfy the gate.
 
 ## Iteration coverage
 
