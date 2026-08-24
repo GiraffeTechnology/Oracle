@@ -76,8 +76,8 @@
     },
     {
       "id": "I12",
-      "artifacts": ["SECURITY.md", "docs/OPERATIONS.md", "docs/RELEASE_CHECKLIST.md", "sbom.cdx.json", "Dockerfile", "scripts/verify-release.mjs"],
-      "tests": ["backup manifest detects tampering", "retention policy calculates versioned expiry dates", "release manifest detects artifact tampering", "fault injection preserves audit and outbox invariants"],
+      "artifacts": ["SECURITY.md", "docs/OPERATIONS.md", "docs/RELEASE_CHECKLIST.md", "docs/I12_SYNTHETIC_SIGNER_ROTATION_DRILL_ZH.md", "sbom.cdx.json", "Dockerfile", "scripts/verify-release.mjs", "scripts/run-i12-synthetic-signer-rotation.mjs"],
+      "tests": ["backup manifest detects tampering", "retention policy calculates versioned expiry dates", "release manifest detects artifact tampering", "fault injection preserves audit and outbox invariants", "synthetic signer rotation stays offline and cannot satisfy I12 acceptance"],
       "externalEvidence": ["evidence/acceptance/i12-security-scans.json", "evidence/acceptance/i12-performance-capacity.json", "evidence/acceptance/i12-72h-stability.json", "evidence/acceptance/i12-restore-drill.json", "evidence/acceptance/i12-signer-rotation.json", "evidence/acceptance/i12-data-protection-response.json", "evidence/acceptance/i12-reproducible-build.json", "evidence/acceptance/i12-independent-reviews.json"]
     }
   ]
