@@ -24,10 +24,13 @@ export function validateI12Evidence(type, value) {
     if (!HASH.test(value.buildOneSha256 ?? "") || value.buildOneSha256 !== value.buildTwoSha256 || value.sbomVerified !== true || value.artifactSignatureVerified !== true) throw new Error("I12_REPRODUCIBLE_BUILD_INSUFFICIENT");
   } else if (type === "independent-reviews") {
     const reviews = new Map((value.reviews ?? []).map((review) => [review.role, review]));
+    const reviewerRefs = new Set();
     for (const role of ["security", "privacy", "legal"]) {
       const review = reviews.get(role);
-      if (!review || review.accepted !== true || !review.reviewerRef || !HASH.test(review.evidenceSha256 ?? "")) throw new Error(`I12_REVIEW_INSUFFICIENT:${role}`);
+      if (!review || review.accepted !== true || typeof review.reviewerRef !== "string" || !review.reviewerRef.trim() || !HASH.test(review.evidenceSha256 ?? "")) throw new Error(`I12_REVIEW_INSUFFICIENT:${role}`);
+      reviewerRefs.add(review.reviewerRef.trim());
     }
+    if (reviewerRefs.size !== 3) throw new Error("I12_REVIEWS_NOT_INDEPENDENT");
     if ((value.unacceptedP0 ?? 1) !== 0) throw new Error("I12_UNACCEPTED_P0");
   } else throw new Error("I12_EVIDENCE_TYPE_UNKNOWN");
   return true;
