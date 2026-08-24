@@ -22,7 +22,7 @@ node scripts/verify-iterations.mjs
 ```
 
 `verify-iterations.mjs` 在任何迭代缺证据时必须返回非零。当前预期 I0–I11 可由仓库本地证据验证；
-I12 在四份真实证据通过前应保持阻断。
+I12 在八份真实证据全部通过前应保持阻断。
 
 ## I12 不可伪造证据
 
