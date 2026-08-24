@@ -1,10 +1,9 @@
-Giraffe ERC 提交前测试报告
+Giraffe ERC 提交前测试报告（Claude Code 审计整改后重写版）
 
 测试日期：2026-08-24
 提案主体：Giraffe Technology Holding Limited
 测试对象：Versioned RWA Certificate Settlement
-结论：PASS
-
+结论：技术测试 PASS；外部身份与讨论链接门禁未完成
 
 一、测试环境
 
@@ -12,112 +11,105 @@ Node.js：v24.19.0
 Hardhat：2.29.0
 Ethers：6.17.0
 Solidity：0.8.26+commit.8a97fa7a.Emscripten.clang
-Solidity 设置：optimizer enabled，runs=200，viaIR=true
+编译设置：optimizer enabled，runs=200，viaIR=true
 本地链：Hardhat Network，chainId=31337
 
-
-二、接口冻结结果
+二、审计整改后的冻结值
 
 IVersionedRWACertificate interface ID：0xebaa86a0
 IDeferredCertificateSettlement interface ID：0x2773d4c9
+ERC-8325 IAssetBoundTokenId interface ID：0x4a967b01
 
-计算方法：分别对接口自身声明的函数 selector 进行 XOR，不包含从 IERC165 继承的 supportsInterface(bytes4)。
+SettlementAuthorization 规范类型：
+SettlementAuthorization(uint256 tokenId,bytes32 settlementId,address from,address to,bytes32 previousCertificateHash,bytes32 newCertificateHash,uint64 newCertificateVersion,uint64 effectiveAt,uint64 validUntil,uint256 nonce)
 
-两个拟议接口之间未发现 selector 冲突。合约对 ERC-165、ERC-721、两个拟议接口返回 true，对 0xffffffff 返回 false。
+CancellationAuthorization 规范类型：
+CancellationAuthorization(bytes32 settlementId,uint256 tokenId,bytes32 reasonHash,uint64 validUntil,uint256 nonce)
 
+两种 authorityData 的唯一规范编码：
+abi.encode(uint64 validUntil, uint256 nonce, bytes signature)
+
+完整合规实现必须同时实现两个拟议接口，并实现 ERC-8325 IAssetBoundTokenId；只实现只读证书接口不得宣称符合本提案。
 
 三、ERC 参考实现测试
 
-结果：13 passing，0 failing。
+结果：17 passing，0 failing；Solidity 编译错误 0，警告 0。
 
-1. Solidity 编译成功且无编译警告；
-2. 两个 interface ID 经编译和逐 selector XOR 双重确认；
-3. 两个拟议接口之间不存在 selector 冲突；
-4. 参考实现部署后运行时代码为 7,768 bytes，低于 EIP-170 的 24,576-byte 上限；
-5. 初始证书版本为 1，previousCertificateHash 为零；
-6. 不存在的证书版本查询失败；
-7. Pending 期间 ownerOf 保持原持有人；
-8. Pending 期间 transferFrom 和两个 safeTransferFrom 重载全部失败；
+已验证：
+
+1. 三个接口 ID 均由函数 selector 逐项 XOR 确认；
+2. 两个拟议接口不存在 selector 冲突；
+3. supportsInterface 对 ERC-165、ERC-721、两个拟议接口和 ERC-8325 返回 true，对 0xffffffff 返回 false；
+4. 参考实现运行时代码低于 EIP-170 的 24,576-byte 上限；
+5. 一个 tokenId 只有一个非零、不可变的 ERC-8325 anchorId，anchorRegistry 不可变；
+6. anchor 不活跃时 beginSettlement 失败；
+7. 初始证书版本为 1，历史为追加式，连续多轮 T+n 交割不跳号、不覆盖；
+8. Pending 期间 ownerOf 保持 from，transferFrom 和两个 safeTransferFrom 重载全部失败；
 9. approved operator 不能绕过 Pending；
-10. 最终确认按 CertificateSuperseded、Transfer、SettlementFinalized 顺序发出事件；
-11. 最终确认原子更新证书版本、证书历史、Token 持有人和交割状态；
-12. 错误签名人被拒绝，失败后持有人、证书和交割状态不变；
-13. 过期 Authority 授权被拒绝；
-14. 超过 settlement deadline 的最终确认被拒绝；
-15. 同一 Token 的并发 Pending 被拒绝；
-16. 已使用的 settlementId 不得再次使用；
-17. 同一 Authority nonce 不能跨 Token 重放；
-18. deadline 后原持有人可以取消；
-19. 取消不改变持有人或证书；
-20. ERC-1271 合约 Authority 签名验证通过；
-21. ECDSA 高 s 签名受到限制；
-22. 多轮 T+n 交割保持版本连续、前序摘要正确且历史只追加。
-
+10. 正确最终确认原子更新证书、持有人、nonce 和交割状态；
+11. 错误签名、过期授权、超期确认及 nonce 跨 Token 重放均被拒绝，失败不留下部分状态；
+12. authorityData 可以按规范 tuple 解码，解码值与签名字段一致；
+13. deadline 后 from 可用空 authorityData 取消；
+14. deadline 前可由 Authority 使用 CancellationAuthorization 取消；
+15. finalize 与 cancel 共用 Authority nonce 防重放空间；
+16. EOA 使用低 s ECDSA 验证；合约 Authority 使用 ERC-1271 验证；
+17. 三个最终确认事件均存在；测试不再把事件顺序当作有效性的必要条件。
 
 四、Oracle 产品回归测试
 
-结果：27 passing，0 failing。
+结果：36 passing，0 failing。
 
-覆盖健康检查、只读边界、外部写入禁用、规范化 JSON、证据摘要、Schema 和 Source allowlist、追加式证书版本、状态机、审计链、Attestation、Settlement、数据库迁移、OpenAPI、SBOM 和公开字段最小披露。
+覆盖健康与就绪检查、只读边界、外部写入禁用、规范化 JSON、证据摘要、Schema/Source allowlist、追加式证书版本、状态机、审计链、Attestation、Settlement、签名摄取、双人控制、Outbox、对账、数据库迁移、OpenAPI、SBOM 和公开字段最小披露。
 
-新增 ERC 测试环境未破坏 Oracle 现有行为。
+ERC 整改未破坏 Oracle 现有行为。
 
+五、静态与提交格式检查
 
-五、静态与仓库检查
-
-syntax-check：PASS，检查 23 个 Oracle 源文件。
+syntax-check：PASS，32 files。
 repository-scan：PASS。
-UTF-8 正式中文文本：PASS。
-UTF-8 正式英文文本：PASS。
-禁用词扫描：PASS。
+英文 Markdown 提交候选稿：已生成。
+YAML front matter：已包含全部必要字段。
+status：Draft。
+requires：165, 721, 712, 1271, 8325，仅数字。
+Solidity：使用 fenced code block。
+CC0：使用 Copyright and related rights waived via [CC0](/LICENSE). 精确格式。
 
-正式文本未出现中创、Chainart、ERC-RWO、固定 T+3 或固定 T+1。
+候选稿中的 eip、GitHub 用户名和 Ethereum Magicians URL 仍为明确占位符，因此该文件现在是提交格式候选稿，不得原样提交。
 
+禁用内容检查：正式文本和候选稿未写入中创、文保链专名、Chainart、ERC-RWO、固定 T+1 或固定 T+3。时间只表述为实现定义的 T+n。
 
-六、测试对象哈希
+六、测试对象 SHA-256
 
 GIRAFFE_ERC_FORMAL_ZH.txt
-SHA-256：4D8435CD585E5B79CE93929B30AC3A4C63BF8782804DF7C898C034124CEB7007
+8179C5405674A3E54350261136C77470704F2460B9A0D7D6B28A506AB969224A
 
 GIRAFFE_ERC_FORMAL_EN.txt
-SHA-256：FF1CE231AB40850A6F443254C583082C38AC588D4082812F5B07E9EC124F616D
+300303BD7C9952B9A7FA78FCF5402572833883320CD3F3A519DAF224A93E7B9A
+
+ERC_SUBMISSION_CANDIDATE_EN.md
+C335F2E10475CF96E5E78E092B826F82B937A9D0F2F0EEE8C647296FC2B952FC
 
 VersionedRWACertificateReference.sol
-SHA-256：4FF296794AE28869065319602885B902FB7798C412998029BD039B24A04FB1AB
+9E27355D8826915119B1651E77D8DB0A3BEC93AB7E9485C642D8417AE96B3951
 
 protocol.cjs
-SHA-256：A4B948AF049E793A0176B560DB80C146CEAE017CE1490149A4229C59AD1BD3D8
-
+33C9154E92EE6601CA18F8E80990E6C5E7420D43232277EFDDC16FCC8639D5B4
 
 七、复现命令
 
-ERC 编译及 EVM 测试：
-
 node scripts/run-erc-tests.mjs
-
-Oracle 回归测试：
-
 node --test "test/*.test.js"
-
-Oracle 语法检查：
-
 node scripts/syntax-check.mjs
-
-仓库扫描：
-
 node scripts/repository-scan.mjs
 
+八、结论与剩余门禁
 
-八、测试结论与非测试门禁
+Claude Code 审计指出的协议级技术问题已在规范、参考实现和测试中整改，并由本地自动化测试复验。测试结果不构成独立安全审计、法律意见、监管批准或 Ethereum 背书。
 
-本轮提交前技术测试全部通过。测试结果证明当前参考实现与正式中英文文本中的核心接口、版本规则、Pending 转移限制、原子最终确认、取消、EIP-712/ERC-1271 授权及 nonce 防重放要求一致。
+外部提交前仍必须：
 
-测试通过不构成外部安全审计、法律意见、监管批准或 Ethereum 背书。
-
-以下不是测试失败，但仍须在外部提交前完成：
-
-1. 用真实 GitHub 用户名替换 github-username 占位符；
-2. 创建 Ethereum Magicians 讨论地址并替换 Discussions-To；
-3. 确认 CC0、专利和必要权利门禁；
-4. 获得用户对外发帖和提交 ethereum/ERCs PR 的明确授权。
-
+1. 由用户提供并确认实际 GitHub 用户名；
+2. 先在 Ethereum Magicians 创建讨论，并填入真实 discussions-to；
+3. 由 ERC 编辑分配编号后替换 eip: XXXX；不得自定编号；
+4. 完成 CC0、专利和必要权利的授权确认；
+5. 获得用户对外发帖及提交 ethereum/ERCs PR 的单独明确授权。

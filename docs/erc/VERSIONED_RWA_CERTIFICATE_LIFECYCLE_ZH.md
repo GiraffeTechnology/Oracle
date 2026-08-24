@@ -35,7 +35,9 @@
 | `CertificateInitialized` | 含 `assetId` 参数 | 不含 `assetId` | 随 `assetIdOf` 一并移除 |
 | `SettlementCancelled` | 含 `bool frozen` | 不含 `frozen` | 冻结表达交由 ERC-7943 |
 | interface ID | 声明"冻结前不固定" | 已冻结并经逐 selector XOR 复核 | ABI 冻结完成 |
-| EIP-712 type hash | 声明"英文提案前冻结" | 未固定 schema，EIP-712 保持 SHOULD | 避免绑定单一签名格式 |
+| EIP-712 type hash | 声明"英文提案前冻结" | 已固定 domain 与两个规范类型串，EIP-712 升为 MUST | 修订稿关闭互操作缺口 |
+| 资产绑定 | 自定 `assetIdOf` | 强制实现 ERC-8325 `IAssetBoundTokenId` | 复用既有标准，不另设标识符 |
+| 事件顺序 | 未涉及 | 三事件必发，顺序为 SHOULD | 避免过度约束实现 |
 
 > 因此本草案第 7.2、7.4、7.5、8.5、9 节所述的接口形态、生命周期状态模型和 interface ID
 > 冻结计划均已被上表取代。本草案未被改写为冻结形态，以保留阶段记录；如需规范性引用，

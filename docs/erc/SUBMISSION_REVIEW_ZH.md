@@ -150,3 +150,73 @@ Definitions 将 certificate hash 固定为 keccak256，而 Rationale 又称 cano
 - 未逐句核对中英文本的规范等效性（英文 63 处 MUST / 18 处 MUST NOT，中文 41 处“必须” /
   20 处“不得”，数量差异明显）。ERC 仅提交英文本；中文本若对外使用，建议标注为非规范性译本；
 - 未就 CC0、专利与必要权利作任何判断。
+
+---
+
+# 第二轮复核（修订包）
+
+| 项目 | 内容 |
+| --- | --- |
+| 审查对象 | `ERC_SUBMISSION_CANDIDATE_EN.md`（SHA-256 `C335F2E1…52FC`）及修订后的正式文本 |
+| 新增材料 | CC0 参考实现、17 项测试套件、`CLAUDE_AUDIT_REMEDIATION_REPORT_ZH.txt` |
+| 审查日期 | 2026-08-24 |
+
+## 1. 第一轮问题的处理结论
+
+F1–F7 与 T1–T7 **全部属实关闭**（F4 及外部门禁除外，属流程输入而非实现失败）。其中三项值得记录：
+
+- **T1 是实质修复**：EIP-712 domain、两个规范类型串、`authorityData` 的
+  `abi.encode(uint64,uint256,bytes)` 布局、共享 nonce 空间、低 s、ERC-1271 全部升为 MUST，
+  且规范文本与参考实现的类型串逐字节一致 —— 第一轮指出的互操作缺口已闭合。
+- **T2/T3 以合规规则而非改 ABI 解决**：完整实现必须同时实现两个接口与 ERC-8325，
+  只读实现不得宣称合规。因此两个 interface ID 未变，测试报告哈希体系得以保留。
+- **T4 正面处理了自相矛盾**：修订稿主动写明本 ERC 允许 approved 账户发起 settlement，
+  但任何持有人或 operator 都不能绕过 pending。
+
+## 2. 本轮实际复现的结果
+
+上一轮"未复现测试"的限制已解除：
+
+```
+solc 0.8.26 编译成功 → npx hardhat test → 17 passing / 0 failing
+```
+
+机械核验全部通过：两个 interface ID 仍为 `0xebaa86a0` / `0x2773d4c9`；ERC-8325
+`IAssetBoundTokenId` = `0x4a967b01`；两个 EIP-712 类型串规范与实现逐字节相同；
+`EIP712Domain` typehash 等于 EIP-712 规范值；测试报告第六节 5 个 SHA-256 与实际文件一致；
+ERC-8325 的 `anchorIdOf` / `anchorRegistry` / `isAnchorActiveFor` 与官方页面逐字对应。
+
+上述核验已固化为 CI 守卫 `scripts/check-frozen-erc-constants.ts`，每次 push 自动重算。
+（测试报告中的 36 项 Oracle 回归测试属另一仓库，本轮仍未复现。）
+
+## 3. 本轮新发现
+
+**N1（中）`CertificateInitialized` 缺少规范性发出条件。**
+接口声明了该事件，但候选稿与正式文本均未规定何时必须发出，仅参考实现在 `mint` 中发出。
+合规实现可以永不发出该事件，索引器因而无法发现 v1 证书。建议补一句：
+`An implementation MUST emit CertificateInitialized when a token's first certificate record is created.`
+
+**N2（中）两份英文规范并存 —— 已在本仓库归档层面处理。**
+`GIRAFFE_ERC_FORMAL_EN.txt` 与候选稿均为英文规范性文本且内容一致，但原先未声明效力顺序。
+`docs/erc/README.md` 现已指定候选稿为唯一规范源，两份 txt 降为内部副本。上游仓库若同时维护
+这两份文件，建议采用同一约定或由候选稿单向生成。
+
+**N3（低）`requires` 未按升序排列**（`165, 721, 712, 1271, 8325`）。EIP-1 正文未规定顺序，
+但仓库 linter 可能要求；改为 `165, 712, 721, 1271, 8325` 零成本。
+
+**N4（低，需知情接受）强制依赖 ERC-8325，而其仍处 Review 状态。**
+属设计决策而非缺陷，但 ERC-8325 若变更接口或停滞，本提案须随之调整。
+
+**一处澄清**：候选稿 description 中出现 "ERC-721" 不构成问题 —— EIP-1 关于标题/描述不得含
+EIP 编号指的是**自身编号**；ERC-4906 标题即为 "EIP-721 Metadata Update Extension" 且已 Final。
+
+## 4. 结论
+
+三个会改 ABI 的实质问题均已解决，且 ABI 实际未变。**技术上已具备提交条件**，剩余为：
+
+1. 四项外部输入：GitHub 用户名、Ethereum Magicians 讨论地址、ERC 编号、CC0 与专利结论；
+2. 三处低成本文本修补：N1、N2（上游）、N3；
+3. 一项知情接受：N4；
+4. 用户对外发布与提交 PR 的明确授权。
+
+本轮未进行安全审计、形式化验证或 gas 分析；公链测试网执行另见测试网任务书。

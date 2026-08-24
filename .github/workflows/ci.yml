@@ -50,6 +50,25 @@ jobs:
       - name: Verify
         run: pnpm run verify
 
+  erc-constants:
+    name: frozen ERC constants
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # No dependencies: the guard re-derives every constant with the standard library alone.
+      - name: Re-derive the frozen ERC constants
+        run: node scripts/check-frozen-erc-constants.ts
+
   smoke:
     name: service smoke test
     runs-on: ubuntu-latest
