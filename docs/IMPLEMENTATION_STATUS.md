@@ -2,9 +2,9 @@
 
 ## Current milestone
 
-- Milestone: M5 code candidate
+- Milestone: M6 L2–L3 configured candidate
 - Iteration: 0–12
-- Status: all planned code stages implemented as a synthetic, fail-closed candidate; production blockers remain
+- Status: all 13 development iterations and repository-owned L2–L3 configuration are implemented; external production commissioning and approval blockers remain
 - Network access used: no
 - Production data used: no
 - External writes: disabled by code
@@ -36,12 +36,16 @@
 - Signed ingestion with source key-set lifecycle, time-window, nonce and command idempotency.
 - RBAC control plane, dual-control revocation and protected production-port adapters.
 - One-to-one token binding index, token eligibility API, outbox dispatcher, reconciliation and metrics.
+- Complete non-secret L2 production profile with deployment-owned references and strict validation.
+- L3 Working Draft v0.1.1 profile pinned by five artifact hashes, three required interface IDs and explicit state mapping.
+- Artifact-byte, interface advertisement, pending-transfer and atomic-finalization compatibility gates.
+- Redacted public L2/L3 profile endpoints and protected production dependency assembly.
 
 ## Verification baseline
 
 ```text
 node --check: pass
-node --test: 52 passed, 0 failed in the latest Oracle-scoped run
+node --test: 63 passed, 0 failed in the latest Oracle-scoped run
 repository-scan: pass
 ```
 
@@ -49,7 +53,7 @@ repository-scan: pass
 
 - Run repository-owned CI after the pull request is opened; this task must not manually trigger or rerun CI.
 - Commission production MySQL, protected signer infrastructure and durable event delivery.
-- Replace synthetic adapters with contract-approved authenticated source adapters.
+- Resolve the configured deployment references to commissioned, contract-approved authenticated source adapters.
 - Complete restore, source-outage, signer-rotation and incident-response exercises.
 - Obtain independent security, privacy and legal acceptance plus written production go/no-go.
 
@@ -66,7 +70,8 @@ repository-scan: pass
 | I6 | Read-only query API and minimal disclosure |
 | I7 | Revocation registry and audit events |
 | I8 | T+0/T+N settlement coordinator |
-| I9 | Synthetic authority adapters; production adapters blocked |
+| I9 | Source adapter contracts, fixed references and complete deployment profile; real source commissioning blocked |
 | I10 | Read-only admin UI and immutable audit journal |
-| I11 | Consumer SDK and compatibility tests |
-| I12 | Security/operations docs, SBOM, container recipe and release gates |
+| I11 | Consumer SDK plus pinned L3 protocol profile and compatibility gates |
+| I12 | Security/operations docs, full non-secret production configuration, SBOM, container recipe and release gates |
+

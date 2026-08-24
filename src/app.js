@@ -1,6 +1,8 @@
 import http from "node:http";
 import { ORACLE_STATUSES } from "./domain/oracle-status.js";
 import { ADMIN_HTML } from "./admin-ui.js";
+import { publicL2Profile } from "./config/deployment-profile.js";
+import { publicProtocolProfile } from "./protocol/protocol-profile.js";
 
 const JSON_HEADERS = Object.freeze({
   "content-type": "application/json; charset=utf-8",
@@ -36,7 +38,7 @@ async function readJson(request, limit = 65536) {
   }
 }
 
-export function createApp({ config, sourceRegistry, runtime = null, controlPlane = null, authenticateAdmin = null }) {
+export function createApp({ config, sourceRegistry, runtime = null, controlPlane = null, authenticateAdmin = null, l2Profile = null, protocolProfile = null }) {
   if (!config || !sourceRegistry) throw new Error("APP_DEPENDENCY_MISSING");
 
   return http.createServer(async (request, response) => {
@@ -126,7 +128,27 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
         environment: config.environment,
         externalWritesEnabled: config.externalWritesEnabled,
         registeredSources: sourceRegistry.listPublic().length,
+        l2Configured: l2Profile !== null,
+        l3Configured: protocolProfile !== null,
       });
+      return;
+    }
+
+    if (requestUrl.pathname === "/v1/oracle/deployment-profile") {
+      if (!l2Profile) {
+        sendJson(response, 503, { ok: false, errorCode: "L2_PROFILE_NOT_CONFIGURED" });
+        return;
+      }
+      sendJson(response, 200, { profile: publicL2Profile(l2Profile) });
+      return;
+    }
+
+    if (requestUrl.pathname === "/v1/oracle/protocol-profile") {
+      if (!protocolProfile) {
+        sendJson(response, 503, { ok: false, errorCode: "L3_PROFILE_NOT_CONFIGURED" });
+        return;
+      }
+      sendJson(response, 200, { profile: publicProtocolProfile(protocolProfile) });
       return;
     }
 
@@ -204,3 +226,4 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
     sendJson(response, 404, { ok: false, errorCode: "NOT_FOUND" });
   });
 }
+

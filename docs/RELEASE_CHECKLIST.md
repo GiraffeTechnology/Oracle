@@ -12,13 +12,16 @@
 - [x] Logical MySQL schema and outbox tables.
 - [x] Local syntax, unit, HTTP, secret and address scans.
 - [x] Container recipe, operations guide, threat model and security policy.
+- [x] Complete non-secret L2 deployment profile and fail-closed dependency resolver contract.
+- [x] L3 Working Draft v0.1.1 artifact/interface pins and explicit Oracle status mapping.
+- [x] Pending-owner, transfer-block, atomic-finalize and certificate-version compatibility tests.
 
 ## Production blockers
 
 - [ ] Authoritative source contracts and signed data dictionaries approved.
 - [ ] Production MySQL deployment and restore exercise completed.
 - [ ] HSM or protected signer set commissioned.
-- [ ] Authenticated production adapters implemented and independently reviewed.
+- [ ] Configured authenticated production adapters commissioned and independently reviewed.
 - [ ] Durable queue, monitoring, alerting and on-call ownership commissioned.
 - [ ] Security, privacy and legal reviews accepted.
 - [ ] Real-asset, jurisdiction and production go/no-go signed.

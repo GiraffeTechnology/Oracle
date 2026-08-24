@@ -9,6 +9,8 @@ import { CommandJournal } from "../src/services/command-journal.js";
 import { DualControlQueue } from "../src/services/dual-control.js";
 import { OracleControlPlane } from "../src/services/oracle-control-plane.js";
 import { Outbox } from "../src/services/outbox.js";
+import { loadL2DeploymentProfile } from "../src/config/deployment-profile.js";
+import { loadProtocolProfile } from "../src/protocol/protocol-profile.js";
 
 async function withServer(run) {
   const server = createApp({ config: loadConfig({}), sourceRegistry: new SourceRegistry() });
@@ -42,7 +44,26 @@ test("readiness confirms external writes are disabled", async () => {
     const body = await response.json();
     assert.equal(body.externalWritesEnabled, false);
     assert.equal(body.registeredSources, 0);
+    assert.equal(body.l2Configured, false);
+    assert.equal(body.l3Configured, false);
   });
+});
+
+test("configured app publishes redacted L2 and pinned L3 profiles", async () => {
+  const l2Profile = await loadL2DeploymentProfile("config/l2.production.json");
+  const protocolProfile = await loadProtocolProfile("config/l3.protocol.wd-0.1.1.json");
+  const server = createApp({ config: loadConfig({}), sourceRegistry: new SourceRegistry(), l2Profile, protocolProfile });
+  await new Promise((resolve) => server.listen(0, "localhost", resolve));
+  try {
+    const baseUrl = `http://localhost:${server.address().port}`;
+    const deployment = await (await fetch(`${baseUrl}/v1/oracle/deployment-profile`)).json();
+    const protocol = await (await fetch(`${baseUrl}/v1/oracle/protocol-profile`)).json();
+    assert.equal(deployment.profile.profileId, "giraffe-oracle-l2/production-v1");
+    assert.doesNotMatch(JSON.stringify(deployment), /deployment:\/\//);
+    assert.equal(protocol.profile.profileId, "giraffe-rwa-certificate-settlement/wd-0.1.1");
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
 });
 
 test("all write methods are rejected", async () => {
@@ -154,3 +175,4 @@ test("token eligibility endpoint reflects Oracle status", async () => {
     await new Promise((resolve) => server.close(resolve));
   }
 });
+

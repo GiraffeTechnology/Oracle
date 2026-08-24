@@ -25,6 +25,20 @@ paths:
     get:
       operationId: listOracleStatuses
       responses: { '200': { description: Public status vocabulary } }
+  /v1/oracle/deployment-profile:
+    get:
+      operationId: getPublicDeploymentProfile
+      description: Redacted L2 configuration summary; never returns deployment references.
+      responses:
+        '200': { description: Validated public L2 profile }
+        '503': { description: L2 profile is not configured }
+  /v1/oracle/protocol-profile:
+    get:
+      operationId: getProtocolProfile
+      description: Version and hash pins for the configured L3 protocol Working Draft.
+      responses:
+        '200': { description: Pinned L3 protocol profile }
+        '503': { description: L3 profile is not configured }
   /v1/rwa/assets/{assetId}:
     get:
       operationId: getAsset
@@ -90,3 +104,4 @@ paths:
       responses:
         '200': { description: Verification result }
         '400': { description: Invalid request }
+

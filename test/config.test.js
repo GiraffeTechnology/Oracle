@@ -18,6 +18,27 @@ test("rejects production mode before authorization", () => {
   );
 });
 
+test("loads pinned L2-L3 production profile references only with explicit acknowledgement", () => {
+  const config = loadConfig({
+    GIRAFFE_ORACLE_ENV: "production",
+    GIRAFFE_ORACLE_PRODUCTION_ACK: "l2-l3-profile-locked",
+  });
+  assert.equal(config.environment, "production");
+  assert.equal(config.externalWritesEnabled, false);
+  assert.equal(config.l2ProfileRef, "config/l2.production.json");
+  assert.equal(config.l3ProfileRef, "config/l3.protocol.wd-0.1.1.json");
+});
+
+test("production writes require a separate authenticated-control-plane acknowledgement", () => {
+  const base = {
+    GIRAFFE_ORACLE_ENV: "production",
+    GIRAFFE_ORACLE_PRODUCTION_ACK: "l2-l3-profile-locked",
+    GIRAFFE_ORACLE_EXTERNAL_WRITES: "true",
+  };
+  assert.throws(() => loadConfig(base), /EXTERNAL_WRITES_NOT_AUTHORIZED/);
+  assert.equal(loadConfig({ ...base, GIRAFFE_ORACLE_PRODUCTION_WRITE_ACK: "authenticated-control-plane" }).externalWritesEnabled, true);
+});
+
 test("rejects non-loopback binds", () => {
   assert.throws(
     () => loadConfig({ GIRAFFE_ORACLE_HOST: "example.invalid" }),
@@ -40,3 +61,4 @@ test("allows external writes only for explicitly acknowledged synthetic tests", 
   });
   assert.equal(config.externalWritesEnabled, true);
 });
+
