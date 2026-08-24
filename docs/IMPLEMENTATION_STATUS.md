@@ -4,7 +4,7 @@
 
 - Milestone: M4 Integration Candidate; M5/I12 evidence blocked
 - Iteration acceptance: I0–I11 verified; I12 blocked
-- Status: repository-owned implementation and verification controls are present, but the PRD does not permit I12 or all 13 iterations to be marked complete without the four required external evidence records
+- Status: repository-owned implementation and verification controls are present, but the PRD does not permit I12 or all 13 iterations to be marked complete without the eight required external evidence records
 - Network access used: no
 - Production data used: no
 - External writes: disabled by code
