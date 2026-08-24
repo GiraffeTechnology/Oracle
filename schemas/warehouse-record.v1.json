@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:giraffe:oracle:schema:warehouse-record.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["assetId", "warehouseReceiptHash", "warehouseStatus"],
+  "properties": {
+    "assetId": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{3,128}$" },
+    "warehouseReceiptHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "warehouseStatus": { "enum": ["IN_CUSTODY", "FROZEN", "RELEASE_PENDING", "RELEASED", "REVIEW_REQUIRED"] },
+    "holderCommitment": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  }
+}
+

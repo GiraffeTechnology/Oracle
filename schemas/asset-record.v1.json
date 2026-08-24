@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:giraffe:oracle:schema:asset-record.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["assetId", "assetFingerprintHash", "registryRef"],
+  "properties": {
+    "assetId": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{3,128}$" },
+    "assetFingerprintHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "registryRef": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "ownerCommitment": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "classificationCode": { "type": "string", "maxLength": 64 }
+  }
+}
+
