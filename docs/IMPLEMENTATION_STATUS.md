@@ -45,7 +45,7 @@
 
 ```text
 node --check: pass
-node --test: 83 passed, 0 failed in the latest Oracle-scoped run
+node --test: 85 passed, 0 failed in the latest Oracle-scoped run
 repository-scan: pass
 iteration acceptance: I0–I11 complete; I12 blocked; allComplete=false
 ```
