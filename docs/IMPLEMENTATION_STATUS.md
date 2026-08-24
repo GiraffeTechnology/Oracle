@@ -45,7 +45,7 @@
 
 ```text
 node --check: pass
-node --test: 85 passed, 0 failed in the latest Oracle-scoped run
+node --test: 86 passed, 0 failed in the latest Oracle-scoped run
 repository-scan: pass
 iteration acceptance: I0–I11 complete; I12 blocked; allComplete=false
 ```
@@ -59,6 +59,8 @@ iteration acceptance: I0–I11 complete; I12 blocked; allComplete=false
 - Obtain independent security, privacy and legal acceptance plus written production go/no-go.
 
 ## I12 evidence blockers
+
+- Synthetic offline signer rotation preflight passes and is committed as non-accepting evidence; the protected production-equivalent ceremony remains required.
 
 - SAST/dependency/secret/container/IaC/API/penetration scan report with no unaccepted P0.
 - Performance/capacity/backlog/fault-injection report from an identified load profile.
