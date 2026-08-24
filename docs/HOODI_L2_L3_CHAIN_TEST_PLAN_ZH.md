@@ -4,7 +4,7 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 状态 | 待执行；本文件只授权测试准备与约定用例，不等同于广播授权 |
+| 状态 | `BLOCKED_BEFORE_PREFLIGHT`；ArtFi1/2 受控 broker 正在 R2 安全重审 |
 | 首选网络 | Hoodi testnet |
 | 固定 chainId | `560048` |
 | L2 配置 | `giraffe-oracle-l2/production-v1`（以合成/隔离依赖执行） |
@@ -14,6 +14,15 @@
 
 本方案验证 Oracle L2 事实、证明、撤销和状态映射能否被 L3 Working Draft 合约正确消费。
 它不构成主网授权、ERC 正式编号、真实资产登记、NFT 正式发行、销售、金融化或法律权属确认。
+
+### 当前阻断记录（2026-08-24）
+
+- blocker：`BROKER_R2_REVIEW_IN_PROGRESS`；
+- ArtFi1/ArtFi2 ownership self-test：`NOT_VERIFIED`；
+- ArtFi1/ArtFi2 ACL gate：`NOT_VERIFIED`；
+- 待完成：broker 安全重审、SYSTEM 安装及用户人工附加；
+- 尚未执行 Hoodi preflight、主网访问、业务签名、广播、转账或 nonce 占用；
+- 本状态既不是测试失败，也不是验收通过；门禁完成后从第 5 节重新开始，不继承任何推测结果。
 
 ### ERC 任务隔离门禁
 
