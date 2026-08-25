@@ -1,7 +1,9 @@
 import { OracleStatus } from "./oracle-status.js";
+import { evidenceHash } from "./canonical-json.js";
 
 export class SettlementCoordinator {
   #settlements = new Map();
+  #intentHashes = new Map();
 
   constructor({ recordStore, stateEngine, auditJournal, tokenIndex = null, attestations = null, clock = () => new Date() }) {
     this.recordStore = recordStore;
@@ -12,8 +14,11 @@ export class SettlementCoordinator {
     this.clock = clock;
   }
 
-  begin({ settlementId, assetId, token, sellerWallet, buyerWallet, externalExecutionRef, snapshotHash, oldCertificateHash, warehouseReceiptHash, deadlineAt, actorId, evidenceVersion }) {
-    if (this.#settlements.has(settlementId)) return this.#settlements.get(settlementId);
+  begin(request) {
+    if (Object.hasOwn(request ?? {}, "snapshotHash") || Object.hasOwn(request ?? {}, "t0SnapshotHash")) {
+      throw new Error("SETTLEMENT_CALLER_SNAPSHOT_REFUSED");
+    }
+    const { settlementId, assetId, token, sellerWallet, buyerWallet, externalExecutionRef, oldCertificateHash, warehouseReceiptHash, deadlineAt, actorId, evidenceVersion } = request ?? {};
     const certificate = this.recordStore.currentCertificate(assetId);
     const warehouse = this.recordStore.getWarehouse(assetId);
     if (!this.recordStore.getAsset(assetId) || !certificate || !warehouse) {
@@ -30,8 +35,28 @@ export class SettlementCoordinator {
     const now = this.clock();
     const deadline = new Date(deadlineAt);
     if (!Number.isFinite(deadline.getTime()) || deadline <= now) throw new Error("SETTLEMENT_DEADLINE_INVALID");
+    if (![settlementId, actorId].every((value) => typeof value === "string" && value)) throw new Error("SETTLEMENT_SNAPSHOT_INCOMPLETE");
+    const normalizedDeadlineAt = deadline.toISOString();
+    const intent = Object.freeze({
+      schemaVersion: "giraffe-settlement-intent.v1",
+      settlementId,
+      assetId,
+      token: Object.freeze({ chainId: token.chainId, contract: token.contract, tokenId: token.tokenId }),
+      sellerWallet,
+      buyerWallet,
+      externalExecutionRef,
+      oldCertificateHash,
+      warehouseReceiptHash,
+      deadlineAt: normalizedDeadlineAt,
+    });
+    const intentHash = evidenceHash(intent);
+    const existing = this.#settlements.get(settlementId);
+    if (existing) {
+      if (this.#intentHashes.get(settlementId) !== intentHash) throw new Error("SETTLEMENT_IDEMPOTENCY_CONFLICT");
+      return existing;
+    }
+    const snapshotHash = evidenceHash({ ...intent, schemaVersion: "giraffe-settlement-snapshot.v1", observedAt: now.toISOString() });
     this.stateEngine.assertTransition({ subjectId: assetId, to: OracleStatus.TRANSFER_PENDING, evidenceVersion });
-    if (![snapshotHash, actorId].every((value) => typeof value === "string" && value)) throw new Error("SETTLEMENT_SNAPSHOT_INCOMPLETE");
     this.stateEngine.transition({
       subjectId: assetId,
       to: OracleStatus.TRANSFER_PENDING,
@@ -46,8 +71,9 @@ export class SettlementCoordinator {
       revokedAt: now.toISOString(),
       authorityId: actorId,
     });
-    const record = Object.freeze({ settlementId, assetId, token: Object.freeze({ ...token }), sellerWallet, buyerWallet, externalExecutionRef, snapshotHash, oldCertificateHash, warehouseReceiptHash, deadlineAt, status: "PENDING", startedAt: now.toISOString() });
+    const record = Object.freeze({ settlementId, assetId, token: Object.freeze({ ...token }), sellerWallet, buyerWallet, externalExecutionRef, snapshotHash, oldCertificateHash, warehouseReceiptHash, deadlineAt: normalizedDeadlineAt, status: "PENDING", startedAt: now.toISOString() });
     this.#settlements.set(settlementId, record);
+    this.#intentHashes.set(settlementId, intentHash);
     this.auditJournal.append({ type: "settlement.started", subjectId: assetId, payloadHash: snapshotHash, actorId, occurredAt: now.toISOString() });
     return record;
   }

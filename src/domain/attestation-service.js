@@ -80,6 +80,7 @@ export class AttestationService {
     if (!verify(null, signingBytes(envelope), this.publicKey, Buffer.from(signature, "base64url"))) {
       return { valid: false, errorCode: "SIGNATURE_INVALID" };
     }
+    if (envelope.schemaVersion !== "giraffe-attestation.v1") return { valid: false, errorCode: "SCHEMA_VERSION_UNSUPPORTED" };
     if (this.revocations.isRevoked(envelope.attestationId)) return { valid: false, errorCode: "REVOKED" };
     if (now < new Date(envelope.validFrom) || now >= new Date(envelope.expiresAt)) {
       return { valid: false, errorCode: "NOT_CURRENT" };

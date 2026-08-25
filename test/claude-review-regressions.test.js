@@ -30,7 +30,6 @@ function begin(runtime, overrides = {}) {
     sellerWallet: "seller",
     buyerWallet: "buyer",
     externalExecutionRef: "external-1",
-    snapshotHash: D,
     oldCertificateHash: B,
     warehouseReceiptHash: C,
     deadlineAt: "2026-08-26T00:00:00.000Z",
@@ -102,4 +101,14 @@ test("asset fingerprints are globally unique across asset identifiers", () => {
   const store = new RecordStore();
   store.putAsset({ assetId: "asset-1", assetFingerprintHash: A });
   assert.throws(() => store.putAsset({ assetId: "asset-2", assetFingerprintHash: A }), /ASSET_FINGERPRINT_ALREADY_CLAIMED/);
+});
+
+test("Oracle generates the T+0 snapshot and rejects caller supplied hashes", () => {
+  const runtime = preparedRuntime();
+  assert.throws(() => begin(runtime, { snapshotHash: D }), /SETTLEMENT_CALLER_SNAPSHOT_REFUSED/);
+  const settlement = begin(runtime);
+  assert.match(settlement.snapshotHash, /^[a-f0-9]{64}$/);
+  assert.notEqual(settlement.snapshotHash, D);
+  assert.equal(begin(runtime), settlement);
+  assert.throws(() => begin(runtime, { buyerWallet: "different-buyer" }), /SETTLEMENT_IDEMPOTENCY_CONFLICT/);
 });

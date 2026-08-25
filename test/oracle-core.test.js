@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { generateKeyPairSync } from "node:crypto";
+import { generateKeyPairSync, sign } from "node:crypto";
 import test from "node:test";
 import { SyntheticAuthorityAdapter } from "../src/adapters/synthetic-authority.js";
 import { AttestationService } from "../src/domain/attestation-service.js";
@@ -110,6 +110,13 @@ test("attestation is subject-bound, expires and can be revoked", () => {
   });
   assert.equal(requireValidOracleAttestation(service, attestation, { assetId: "asset-001", chainId: "test-chain", contract: "synthetic-contract", tokenId: "1", purpose: "transfer-eligibility" }, NOW).attestationId, attestation.envelope.attestationId);
   assert.deepEqual(service.verify(attestation, { expectedSubject: { assetId: "asset-002" }, now: NOW }), { valid: false, errorCode: "SUBJECT_MISMATCH" });
+  const unsupportedEnvelope = { ...attestation.envelope, schemaVersion: "giraffe-attestation.v999" };
+  const unsupported = {
+    envelope: unsupportedEnvelope,
+    envelopeHash: evidenceHash(unsupportedEnvelope),
+    signature: sign(null, Buffer.from(canonicalJson(unsupportedEnvelope), "utf8"), privateKey).toString("base64url"),
+  };
+  assert.deepEqual(service.verify(unsupported, { now: NOW }), { valid: false, errorCode: "SCHEMA_VERSION_UNSUPPORTED" });
   assert.deepEqual(service.verify(attestation, { now: new Date(NOW.getTime() + 60000) }), { valid: false, errorCode: "NOT_CURRENT" });
   revocations.revoke({ attestationId: attestation.envelope.attestationId, reasonHash: HASH_B, revokedAt: NOW.toISOString(), authorityId: "synthetic-oracle" });
   assert.deepEqual(service.verify(attestation, { now: NOW }), { valid: false, errorCode: "REVOKED" });
@@ -123,7 +130,7 @@ test("settlement requires complete evidence and upgrades the certificate", () =>
   runtime.recordStore.putWarehouse({ assetId: "asset-001", warehouseReceiptHash: HASH_A, warehouseStatus: "HELD" });
   runtime.stateEngine.transition({ subjectId: "asset-001", to: OracleStatus.VALID, reasonHash: HASH_A, evidenceVersion: 1, occurredAt: NOW.toISOString() });
   runtime.tokenIndex.bind({ chainId: "test-chain", contract: "contract-001", tokenId: "1", assetId: "asset-001" });
-  runtime.settlements.begin({ settlementId: "settlement-001", assetId: "asset-001", token: { chainId: "test-chain", contract: "contract-001", tokenId: "1" }, sellerWallet: "seller-wallet", buyerWallet: "buyer-wallet", externalExecutionRef: "external-execution-001", snapshotHash: HASH_C, oldCertificateHash: HASH_B, warehouseReceiptHash: HASH_A, deadlineAt: new Date(NOW.getTime() + 86400000).toISOString(), actorId: "synthetic-market", evidenceVersion: 2 });
+  runtime.settlements.begin({ settlementId: "settlement-001", assetId: "asset-001", token: { chainId: "test-chain", contract: "contract-001", tokenId: "1" }, sellerWallet: "seller-wallet", buyerWallet: "buyer-wallet", externalExecutionRef: "external-execution-001", oldCertificateHash: HASH_B, warehouseReceiptHash: HASH_A, deadlineAt: new Date(NOW.getTime() + 86400000).toISOString(), actorId: "synthetic-market", evidenceVersion: 2 });
   assert.equal(runtime.stateEngine.current("asset-001"), OracleStatus.TRANSFER_PENDING);
   assert.throws(
     () => runtime.settlements.finalize({ settlementId: "settlement-001", certificate: {}, registryChangeRef: null, warehouseConfirmed: false, actorId: "synthetic-registry", evidenceVersion: 3 }),
