@@ -1,60 +1,48 @@
-# Claude Code CI 与审计交接
+# Claude Code CI 与审计交接（PRD v0.3）
 
 ## 权威对照
 
-Claude Code 应以以下文件为验收依据：
+只使用以下现行文件：
 
-1. `docs/PRD_RWA_ORACLE_PROTOCOL_L2_L3_ZH.md`：定义产品和 I0–I12 要求；
-2. `docs/PRD_DELIVERY_ACCEPTANCE_STANDARD_ZH.md`：定义“可验证”的交付证据；
-3. `config/iteration-acceptance.json`：机器可读的迭代—文件—测试—外部证据映射；
-4. `scripts/verify-iterations.mjs`：统一验收入口。
+1. `docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md`；
+2. `docs/ACCEPTANCE_RWA_ORACLE_ZH.md`；
+3. `config/prd-v0.3-acceptance.json`；
+4. `scripts/verify-prd-v0.3.mjs`；
+5. `docs/STATUS.md`。
 
-不得以 PR 描述、提交数量或“测试计划已写”替代上述证据，也不得降低 PRD 条件使结果变绿。
+旧 `PRD_RWA_ORACLE_PROTOCOL_L2_L3_ZH.md`、旧 `PRD_DELIVERY_ACCEPTANCE_STANDARD_ZH.md`、`config/iteration-acceptance.json` 与 `verify-iterations.mjs` 仅保留历史审计，不得覆盖新基线。
 
-## 建议 CI 顺序
+## CI 顺序
 
 ```text
+pnpm install --frozen-lockfile
 node scripts/syntax-check.mjs
 node --test "test/*.test.js"
 node scripts/repository-scan.mjs
 node scripts/verify-release.mjs
-node scripts/verify-iterations.mjs
+node scripts/verify-prd-v0.3.mjs
 ```
 
-`verify-iterations.mjs` 在任何迭代缺证据时必须返回非零。当前预期 I0–I11 可由仓库本地证据验证；
-I12 在八份真实证据全部通过前应保持阻断。
+`verify-prd-v0.3.mjs` 在任何适用门禁未满足时必须非零退出。当前工程候选预期为 ORACLE-001~011、CONSUMER-001~009、NFR-001~003 本地验证通过；NFR-004 和 Stage A/D/F 保持 `PENDING-GATE`，`allComplete=false`。
 
-## I12 不可伪造证据
+## 必查项
 
-以下文件必须来自实际执行或独立审查，不得由 CI 生成空壳 PASS：
+- 每个 ORACLE/CONSUMER/NFR ID 均有代码、正向/负向测试和准确状态；测试名称存在本身不构成语义通过。
+- `CONSUMER-*` 只验收 Oracle 侧可强制性，不得误判为本项目实现 L3/ERC/NFT。
+- 未知来源、任意端点、冲突、过期、撤销、乱序、重放和依赖不可用均 fail closed。
+- 证明必须绑定资产、链、合约、Token、用途、nonce、有效期、来源和撤销引用。
+- 一物一证一 Token；重复指纹、仓单、当前证书及任何份额化请求必须拒绝。
+- T+0 不等于交割完成；T+3 必须验证登记变更、新旧证书、仓储、钱包绑定、版本和前序哈希。
+- API/schema/UI/合同不得生产主体合规结论或金融输出；`transferEligibility` 只能表示资产侧事实。
+- 公开 API/UI 不得泄露持有人承诺、身份映射、内部仓库标识、证书/仓单原文、密钥、端点或拓扑。
+- MySQL 迁移、自空库、备份、独立恢复、反向迁移及 schema/种子校验必须实测。
+- PR、commit、CI 启动或自声明 PASS 不得改变证据状态。
 
-- `evidence/acceptance/i12-security-scans.json`；
-- `evidence/acceptance/i12-performance-capacity.json`；
-- `evidence/acceptance/i12-72h-stability.json`；
-- `evidence/acceptance/i12-restore-drill.json`；
-- `evidence/acceptance/i12-signer-rotation.json`；
-- `evidence/acceptance/i12-data-protection-response.json`；
-- `evidence/acceptance/i12-reproducible-build.json`；
-- `evidence/acceptance/i12-independent-reviews.json`。
+## 不可伪造的外部证据
 
-验证器要求：稳定性实际连续时间不少于 259200 秒；恢复演练达到声明的 RPO/RTO 并验证数据库与
-审计头；轮换后新签名人有效、旧签名人无效且未观察到私钥材料；安全、隐私、法律三类独立审查
-全部接受且没有未接受 P0。仅创建同名文件不能通过。
+NFR-004 与 Stage F 至少需要真实安全扫描、正式性能/容量、连续 72 小时且可用性不低于 99.9%、MySQL 恢复/PITR、受保护签名人轮换、数据保护/事件响应、可复现签名构建、独立法律/隐私/安全/合约/运营审查、P1–P8 取证、范围契约及逐司法辖区 go/no-go。空文件、mock、截图或操作者陈述均不能替代。
 
-## 审计重点
+## 输出格式
 
-- 检查验收测试是否仅匹配测试名称而没有验证真实语义；
-- 检查 default/production 配置是否仍 fail-closed；
-- 检查 L2 Ed25519 证明与 L3 EIP-712/ERC-1271 授权边界，不把两者误称为同一签名；
-- 检查历史记录、撤销、Pending、Finalize 和 conflict 是否存在部分写入；
-- 检查 admin、export、subscription、source adapter 的权限、重放和恢复路径；
-- 检查仓库、日志、测试制品及 PR diff 中的秘密、个人资料和明文公网地址；
-- 检查 ERC Working Draft 哈希及 interfaceId 漂移是否失败关闭；
-- 检查 I12 外部证据的来源、时间、完整性哈希和审查独立性。
-
-## 结果格式
-
-审计结果应逐迭代给出 `PASS/BLOCKED/FAIL`、对应文件、命令、测试、原始证据哈希、缺口和建议。
-只有 I0–I12 全部 `PASS` 且 `iteration-acceptance-report.json` 的 `allComplete=true`，才可声明
-“13 个迭代按 PRD 可验证交付完成”。生产上线和主网授权仍须另行批准。
+按 ID 使用验收标准规定的六值状态，引用确切 commit、文件、测试、命令、证据 SHA 和缺口。最后单列 G-A~G-F、P1~P8、§0.1 裁决与 §0.2 契约。只有全部适用项在同一 commit 为 `VERIFIED` 且真实外部门禁齐全，才允许 `allComplete=true`。
 
