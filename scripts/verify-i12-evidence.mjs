@@ -12,4 +12,3 @@ const files = {
 };
 for (const [type, file] of Object.entries(files)) validateI12Evidence(type, JSON.parse(await readFile(file, "utf8")));
 process.stdout.write("i12-evidence: pass\n");
-

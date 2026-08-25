@@ -15,4 +15,3 @@ export class ReasonCodeRegistry {
   }
   list() { return Object.freeze({ ...this.codes }); }
 }
-

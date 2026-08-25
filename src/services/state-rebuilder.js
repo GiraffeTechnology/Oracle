@@ -11,4 +11,3 @@ export class StateRebuilder {
     return engine;
   }
 }
-

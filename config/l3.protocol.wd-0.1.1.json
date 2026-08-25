@@ -50,4 +50,3 @@
     "authorityDataEncoding": "abi.encode(uint64 validUntil,uint256 nonce,bytes signature)"
   }
 }
-

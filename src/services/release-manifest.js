@@ -9,4 +9,3 @@ export function verifyReleaseManifest(manifest, files) {
   const current = createReleaseManifest(files);
   return current.manifestSha256 === manifest.manifestSha256 && JSON.stringify(current.entries) === JSON.stringify(manifest.entries);
 }
-

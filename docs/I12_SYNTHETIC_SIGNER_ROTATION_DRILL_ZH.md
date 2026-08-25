@@ -43,4 +43,3 @@ node scripts/run-i12-synthetic-signer-rotation.mjs --write-fixed-output
 - `acceptanceEligible=false`。
 
 正式 I12 仍需在受保护生产等价签名设施中完成独立轮换仪式，并由外部证据链证明私钥材料未被审计人员观察。
-

@@ -23,4 +23,3 @@ export class SyntheticEvidenceVault extends EvidenceVaultPort {
     return Buffer.from(record.bytes);
   }
 }
-

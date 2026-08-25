@@ -12,4 +12,3 @@ export function createAuditExport(events, { exportId, purpose, createdAt }) {
 export function verifyAuditExport(candidate) {
   return candidate?.manifest?.recordCount === candidate?.records?.length && candidate.manifest.recordsHash === evidenceHash(candidate.records) && candidate.manifestHash === evidenceHash(candidate.manifest);
 }
-

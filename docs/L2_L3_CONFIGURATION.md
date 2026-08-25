@@ -44,4 +44,3 @@ certificate versioning and the required finalization event set.
 
 Production commissioning still requires deployment-owned values and independent approvals. Those values
 must never be committed to this repository.
-

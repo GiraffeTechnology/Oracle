@@ -7,4 +7,3 @@ export class ExportGate {
     return Object.freeze({ purpose, recordCount, sensitiveFieldsIncluded: false });
   }
 }
-

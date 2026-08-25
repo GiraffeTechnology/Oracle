@@ -28,4 +28,3 @@ export class ResilientSourceAdapter {
     } finally { clearTimeout(timer); }
   }
 }
-

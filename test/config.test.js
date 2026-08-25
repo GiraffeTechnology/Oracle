@@ -61,4 +61,3 @@ test("allows external writes only for explicitly acknowledged synthetic tests", 
   });
   assert.equal(config.externalWritesEnabled, true);
 });
-

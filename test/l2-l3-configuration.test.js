@@ -106,4 +106,3 @@ test("production assembly resolves every protected dependency and fails closed",
   assert.equal(calls.length, 10);
   await assert.rejects(() => assembleProductionConfiguration({ l2Profile, l3Profile, resolver: { async resolve() { return null; } } }), /PRODUCTION_PORT_MISSING|DEPLOYMENT_REFERENCE_UNRESOLVED/);
 });
-

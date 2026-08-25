@@ -68,4 +68,3 @@ await mkdir(path.join(root, "output"), { recursive: true });
 await writeFile(path.join(root, "output", "iteration-acceptance-report.json"), `${JSON.stringify(report, null, 2)}\n`, { encoding: "utf8", flag: "w" });
 process.stdout.write(`${JSON.stringify(report.summary)}\nreportSha256=${report.reportSha256}\n`);
 if (!report.summary.allComplete) process.exitCode = 1;
-

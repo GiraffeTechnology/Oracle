@@ -10,4 +10,3 @@ self-attestation, or edited timestamps are not evidence. Confidential reports, c
 private keys, personal data, endpoints, and server addresses must not be committed.
 
 Required acceptance filenames are listed in `config/iteration-acceptance.json`.
-

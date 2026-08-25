@@ -4,4 +4,3 @@ const paths = ["Dockerfile", "README.md", "SECURITY.md", "sbom.cdx.json", "docs/
 const files = await Promise.all(paths.map(async (path) => ({ path, bytes: await readFile(path) })));
 const manifest = createReleaseManifest(files);
 process.stdout.write(`${JSON.stringify(manifest)}\n`);
-

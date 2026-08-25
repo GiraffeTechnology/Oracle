@@ -16,4 +16,3 @@ export class ReviewQueue {
   get(reviewId) { return this.#items.get(reviewId) ?? null; }
   list() { return [...this.#items.values()]; }
 }
-

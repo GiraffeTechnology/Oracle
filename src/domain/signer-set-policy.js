@@ -15,4 +15,3 @@ export class SignerSetPolicy {
     return true;
   }
 }
-

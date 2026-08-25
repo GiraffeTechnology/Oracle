@@ -21,4 +21,3 @@ server.listen(config.port, config.host, () => {
     })}\n`,
   );
 });
-

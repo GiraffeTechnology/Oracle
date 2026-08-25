@@ -108,4 +108,3 @@ export function verifyProtocolArtifactBytes(profile, artifacts) {
   }
   return true;
 }
-

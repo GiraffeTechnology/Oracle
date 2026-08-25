@@ -71,4 +71,3 @@ await writeFile(rawPath, rawText, { encoding: "utf8", flag: "wx" });
 await writeFile(acceptancePath, `${JSON.stringify(report, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
 process.stdout.write(`${JSON.stringify({ status: report.status, artifactSha256, durationSeconds: report.durationSeconds, sampleCount: report.sampleCount })}\n`);
 if (report.status !== "PASS") process.exitCode = 1;
-

@@ -92,4 +92,3 @@ export function publicL2Profile(profile) {
     dualControlRequired: valid.security.dualControlRequired,
   });
 }
-

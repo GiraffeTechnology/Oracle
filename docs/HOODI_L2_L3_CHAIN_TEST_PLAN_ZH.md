@@ -256,4 +256,3 @@ ERC 正式标准、主网可用、监管批准或现实权利已转移。
 该 preflight 只证明执行能力，不授权签名或广播。业务交易必须等待 Oracle/ERC runner 提交精确 manifest。
 在 ERC 任务自行确认提交前准备完成之前，钱包+DAO回传 preflight 后必须保持等待，不得联系 ERC、
 不得准备业务 raw transaction、不得签名或广播。
-

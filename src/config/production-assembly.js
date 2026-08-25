@@ -25,4 +25,3 @@ export async function assembleProductionConfiguration({ l2Profile, l3Profile, re
   }
   return Object.freeze({ l2, l3, ports: resolved });
 }
-

@@ -17,4 +17,3 @@ export class SubscriptionSigner {
     return verify(null, bytes(candidate.envelope), this.publicKey, Buffer.from(candidate.signature, "base64url"));
   }
 }
-

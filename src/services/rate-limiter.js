@@ -15,4 +15,3 @@ export class FixedWindowRateLimiter {
     return next;
   }
 }
-
