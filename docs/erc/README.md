@@ -1,6 +1,6 @@
 # ERC 提交前归档（参考资料，非本仓库实现范围）
 
-本目录是独立 ERC 任务在发布前移交的文件归档。按 `docs/PRD_RWA_ORACLE_PROTOCOL_L2_L3_ZH.md`
+本目录是独立 ERC 任务在发布前移交的文件归档。按 `docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md`
 第 0 节，L3 ERC 提案及其参考合约不属于本 Oracle 仓库的实现范围：本仓库不自定 ERC 编号、
 不提交 ERC 提案，也不把任何 NFT 合约实现列为 Oracle 完成条件。这些文件在此仅作为下游协议
 消费接口的参考事实，不改变 Oracle 的交付边界。

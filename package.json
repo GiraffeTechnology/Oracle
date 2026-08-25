@@ -16,8 +16,10 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test 'src/**/*.test.ts'",
     "check:no-financial-output": "node scripts/check-no-financial-output.mjs",
-    "verify": "pnpm run format:check && pnpm run typecheck && pnpm run check:no-financial-output && pnpm run check:erc-constants && pnpm run test",
-    "check:erc-constants": "node scripts/check-frozen-erc-constants.ts"
+    "verify": "pnpm run format:check && pnpm run typecheck && pnpm run check:scope-coverage && pnpm run check:no-financial-output && pnpm run check:hygiene && pnpm run check:erc-constants && pnpm run test",
+    "check:erc-constants": "node scripts/check-frozen-erc-constants.ts",
+    "check:scope-coverage": "node scripts/check-scope-coverage.mjs",
+    "check:hygiene": "node scripts/check-repository-hygiene.mjs"
   },
   "devDependencies": {
     "@types/node": "22.20.1",

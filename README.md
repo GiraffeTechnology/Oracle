@@ -26,7 +26,9 @@ The initial service exposes only:
 - `GET /readyz`
 - `GET /v1/oracle/statuses`
 
-See `docs/PRD_RWA_ORACLE_PROTOCOL_L2_L3_ZH.md` for the staged delivery plan.
+See `docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` (v0.3) for requirements and
+`docs/ACCEPTANCE_RWA_ORACLE_ZH.md` for how each requirement must be evidenced.
+`docs/STATUS.md` records the current per-requirement status.
 
 ## Continuous integration
 

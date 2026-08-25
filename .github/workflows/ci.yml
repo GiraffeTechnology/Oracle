@@ -50,6 +50,31 @@ jobs:
       - name: Verify
         run: pnpm run verify
 
+  acceptance-gates:
+    name: PRD acceptance gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # Acceptance standard section 6 requires these as CI jobs. No dependencies needed.
+      - name: Scope coverage (acceptance 8.4)
+        run: node scripts/check-scope-coverage.mjs
+
+      - name: Financial output gate (ORACLE-006)
+        run: node scripts/check-no-financial-output.mjs
+
+      - name: Secrets and personal data gate (NFR-001 / ORACLE-007)
+        run: node scripts/check-repository-hygiene.mjs
+
   erc-constants:
     name: frozen ERC constants
     runs-on: ubuntu-latest
