@@ -136,7 +136,7 @@ test("public verifier ignores caller-supplied time overrides", async () => {
     const response = await fetch(`http://localhost:${server.address().port}/v1/rwa/attestations/verify`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ attestation, now: issuedAt.toISOString() }),
+      body: JSON.stringify({ attestation, expectedSubject: { assetId: "asset-old", chainId: "test-chain", contract: "test-contract", tokenId: "1", purpose: "test" }, now: issuedAt.toISOString() }),
     });
     assert.deepEqual(await response.json(), { valid: false, errorCode: "NOT_CURRENT" });
   } finally {

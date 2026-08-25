@@ -47,6 +47,6 @@ test("offline verifier rejects cross-purpose replay", () => {
   const clock = () => new Date("2026-08-24T00:00:00.000Z");
   const service = new AttestationService({ signerSetId: "oracle-v1", privateKey, publicKey, revocations: new RevocationRegistry(), clock });
   const attestation = service.issue({ subject: { assetId: "asset-001", chainId: "test-chain", contract: "contract-001", tokenId: "1", purpose: "settlement" }, factType: "eligible", factValue: true, sourceAuthority: "synthetic-registry", sourceRecordHash: HASH, validForSeconds: 60, nonce: "nonce-001" });
-  assert.equal(service.verify(attestation, { expectedSubject: { assetId: "asset-001", purpose: "settlement" } }).valid, true);
-  assert.deepEqual(service.verify(attestation, { expectedSubject: { assetId: "asset-001", purpose: "finance" } }), { valid: false, errorCode: "SUBJECT_MISMATCH" });
+  assert.equal(service.verify(attestation, { expectedSubject: { assetId: "asset-001", chainId: "test-chain", contract: "contract-001", tokenId: "1", purpose: "settlement" } }).valid, true);
+  assert.deepEqual(service.verify(attestation, { expectedSubject: { assetId: "asset-001", chainId: "test-chain", contract: "contract-001", tokenId: "1", purpose: "finance" } }), { valid: false, errorCode: "SUBJECT_MISMATCH" });
 });

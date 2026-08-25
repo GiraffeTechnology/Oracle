@@ -108,7 +108,7 @@ test("attestation is subject-bound, expires and can be revoked", () => {
     validForSeconds: 60,
     nonce: "nonce-001",
   });
-  assert.equal(requireValidOracleAttestation(service, attestation, { assetId: "asset-001", purpose: "transfer-eligibility" }, NOW).attestationId, attestation.envelope.attestationId);
+  assert.equal(requireValidOracleAttestation(service, attestation, { assetId: "asset-001", chainId: "test-chain", contract: "synthetic-contract", tokenId: "1", purpose: "transfer-eligibility" }, NOW).attestationId, attestation.envelope.attestationId);
   assert.deepEqual(service.verify(attestation, { expectedSubject: { assetId: "asset-002" }, now: NOW }), { valid: false, errorCode: "SUBJECT_MISMATCH" });
   assert.deepEqual(service.verify(attestation, { now: new Date(NOW.getTime() + 60000) }), { valid: false, errorCode: "NOT_CURRENT" });
   revocations.revoke({ attestationId: attestation.envelope.attestationId, reasonHash: HASH_B, revokedAt: NOW.toISOString(), authorityId: "synthetic-oracle" });

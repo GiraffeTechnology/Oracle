@@ -5,6 +5,7 @@ import { ADMIN_HTML, renderAssetDetailHtml } from "./admin-ui.js";
 import { publicL2Profile } from "./config/deployment-profile.js";
 import { publicProtocolProfile } from "./protocol/protocol-profile.js";
 import { assertAssetFactsOnly } from "./services/product-boundary.js";
+import { verifyOracleAttestation } from "./sdk/verifier.js";
 
 const JSON_HEADERS = Object.freeze({
   "content-type": "application/json; charset=utf-8",
@@ -89,9 +90,7 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
       }
       try {
         const body = await readJson(request);
-        const result = runtime.attestations.verify(body.attestation, {
-          expectedSubject: body.expectedSubject,
-        });
+        const result = verifyOracleAttestation(runtime.attestations, body.attestation, body.expectedSubject);
         sendJson(response, 200, result);
       } catch (error) {
         sendJson(response, error.message === "PAYLOAD_TOO_LARGE" ? 413 : 400, {

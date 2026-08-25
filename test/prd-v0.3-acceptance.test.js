@@ -12,6 +12,7 @@ import { RecordStore } from "../src/domain/record-store.js";
 import { RevocationRegistry } from "../src/domain/revocation-registry.js";
 import { createSyntheticRuntime } from "../src/oracle-runtime.js";
 import { assertAssetFactsOnly, assertOneToOneIssuanceRequest } from "../src/services/product-boundary.js";
+import { verifyOracleAttestation } from "../src/sdk/verifier.js";
 
 const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
@@ -67,6 +68,7 @@ test("ORACLE-003 binds every attestation to chain contract token and purpose", (
   }
   assert.equal(attestation.envelope.sourceAuthority, "authority");
   assert.equal(attestation.envelope.revocationRef, "revocations-v1");
+  assert.deepEqual(verifyOracleAttestation(service, attestation, { assetId: "asset-001", purpose: "transfer" }, NOW), { valid: false, errorCode: "EXPECTED_SUBJECT_INCOMPLETE" });
 });
 
 test("ORACLE-005 and ORACLE-006 reject subject-compliance and financial-output fields", () => {
