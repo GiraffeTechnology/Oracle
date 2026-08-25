@@ -18,10 +18,10 @@
     "test:erc:hoodi-adapter": "node scripts/test-erc-hoodi-adapter.cjs",
     "test:erc:hoodi-readonly": "node scripts/test-erc-hoodi-readonly-provider.cjs",
     "test:erc:submission-solidity": "node scripts/test-erc-submission-solidity.mjs",
-    "scan": "node scripts/repository-scan.mjs",
-    "verify": "node scripts/syntax-check.mjs && node --test \"test/*.test.js\" && node scripts/repository-scan.mjs",
+    "scan": "node scripts/repository-scan.mjs && node scripts/product-boundary-scan.mjs",
+    "verify": "node scripts/syntax-check.mjs && node --test \"test/*.test.js\" && node scripts/repository-scan.mjs && node scripts/product-boundary-scan.mjs",
     "verify:erc": "node scripts/run-erc-tests.mjs",
-    "verify:prd": "node scripts/syntax-check.mjs && node --test \"test/*.test.js\" && node scripts/repository-scan.mjs && node scripts/verify-prd-v0.3.mjs"
+    "verify:prd": "node scripts/syntax-check.mjs && node --test \"test/*.test.js\" && node scripts/repository-scan.mjs && node scripts/product-boundary-scan.mjs && node scripts/verify-prd-v0.3.mjs"
   },
   "license": "UNLICENSED",
   "devDependencies": {

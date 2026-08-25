@@ -19,6 +19,7 @@ pnpm install --frozen-lockfile
 node scripts/syntax-check.mjs
 node --test "test/*.test.js"
 node scripts/repository-scan.mjs
+node scripts/product-boundary-scan.mjs
 node scripts/verify-release.mjs
 node scripts/verify-prd-v0.3.mjs
 ```
@@ -45,4 +46,3 @@ NFR-004 与 Stage F 至少需要真实安全扫描、正式性能/容量、连�
 ## 输出格式
 
 按 ID 使用验收标准规定的六值状态，引用确切 commit、文件、测试、命令、证据 SHA 和缺口。最后单列 G-A~G-F、P1~P8、§0.1 裁决与 §0.2 契约。只有全部适用项在同一 commit 为 `VERIFIED` 且真实外部门禁齐全，才允许 `allComplete=true`。
-
