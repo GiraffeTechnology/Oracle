@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "prdVersion": "v0.4",
-  "generatedAt": "2026-08-25T00:16:20.538Z",
+  "prdVersion": "v0.3",
+  "generatedAt": "2026-08-25T16:42:22.483Z",
   "commands": {
     "syntax": {
       "command": "node scripts/syntax-check.mjs",
       "ok": true
     },
     "unit": {
-      "command": "node --test \"test/*.test.js\"",
+      "command": "node --test --test-reporter=spec \"test/*.test.js\"",
       "ok": true
     },
     "repositoryScan": {
@@ -36,9 +36,17 @@
     ],
     "allComplete": false
   },
+  "traceability": {
+    "authoritativeRequirementCount": 24,
+    "mappedRequirementCount": 24,
+    "unmappedRequirementIds": []
+  },
   "iterations": [
     {
       "id": "I0",
+      "requirementIds": [
+        "NFR-001"
+      ],
       "complete": true,
       "artifacts": [
         {
@@ -46,7 +54,11 @@
           "present": true
         },
         {
-          "path": "docs/PRD_RWA_ORACLE_PROTOCOL_L2_L3_ZH.md",
+          "path": "docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md",
+          "present": true
+        },
+        {
+          "path": "docs/ACCEPTANCE_RWA_ORACLE_ZH.md",
           "present": true
         },
         {
@@ -88,6 +100,11 @@
     },
     {
       "id": "I1",
+      "requirementIds": [
+        "ORACLE-001",
+        "ORACLE-007",
+        "ORACLE-008"
+      ],
       "complete": true,
       "artifacts": [
         {
@@ -141,6 +158,10 @@
     },
     {
       "id": "I2",
+      "requirementIds": [
+        "ORACLE-001",
+        "ORACLE-007"
+      ],
       "complete": true,
       "artifacts": [
         {
@@ -174,6 +195,9 @@
     },
     {
       "id": "I3",
+      "requirementIds": [
+        "CONSUMER-001"
+      ],
       "complete": true,
       "artifacts": [
         {
@@ -207,6 +231,10 @@
     },
     {
       "id": "I4",
+      "requirementIds": [
+        "ORACLE-002",
+        "NFR-002"
+      ],
       "complete": true,
       "artifacts": [
         {
@@ -244,6 +272,12 @@
     },
     {
       "id": "I5",
+      "requirementIds": [
+        "ORACLE-003",
+        "ORACLE-010",
+        "NFR-001",
+        "NFR-002"
+      ],
       "complete": true,
       "artifacts": [
         {
@@ -281,6 +315,11 @@
     },
     {
       "id": "I6",
+      "requirementIds": [
+        "ORACLE-005",
+        "ORACLE-006",
+        "ORACLE-007"
+      ],
       "complete": true,
       "artifacts": [
         {
@@ -326,6 +365,9 @@
     },
     {
       "id": "I7",
+      "requirementIds": [
+        "ORACLE-004"
+      ],
       "complete": true,
       "artifacts": [
         {
@@ -367,6 +409,14 @@
     },
     {
       "id": "I8",
+      "requirementIds": [
+        "ORACLE-008",
+        "ORACLE-009",
+        "CONSUMER-004",
+        "CONSUMER-005",
+        "CONSUMER-006",
+        "CONSUMER-008"
+      ],
       "complete": true,
       "artifacts": [
         {
@@ -400,6 +450,10 @@
     },
     {
       "id": "I9",
+      "requirementIds": [
+        "ORACLE-001",
+        "NFR-003"
+      ],
       "complete": true,
       "artifacts": [
         {
@@ -433,6 +487,10 @@
     },
     {
       "id": "I10",
+      "requirementIds": [
+        "ORACLE-011",
+        "NFR-001"
+      ],
       "complete": true,
       "artifacts": [
         {
@@ -482,6 +540,13 @@
     },
     {
       "id": "I11",
+      "requirementIds": [
+        "ORACLE-010",
+        "CONSUMER-002",
+        "CONSUMER-003",
+        "CONSUMER-007",
+        "CONSUMER-009"
+      ],
       "complete": true,
       "artifacts": [
         {
@@ -523,6 +588,9 @@
     },
     {
       "id": "I12",
+      "requirementIds": [
+        "NFR-004"
+      ],
       "complete": false,
       "artifacts": [
         {
@@ -632,5 +700,5 @@
       ]
     }
   ],
-  "reportSha256": "dff415672950906e368135245cf644c4f3d6aef9abdc0fad0a1e070f15ac244a"
+  "reportSha256": "fda8218241750403a42019b58a5a51220c0a148d0170e1f7632b2d34bdfcc1aa"
 }

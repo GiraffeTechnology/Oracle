@@ -1,13 +1,13 @@
-# 已废止：Giraffe RWA Oracle PRD 与交付验收标准对照
+# Giraffe RWA Oracle PRD v0.3 与 13 个迭代交付验收对照
 
-> 本文件仅保留历史审计。自 2026-08-25 起，权威验收规则为 `ACCEPTANCE_RWA_ORACLE_ZH.md` v0.3；旧 I0–I12 结构不得覆盖新 ORACLE/CONSUMER/NFR 验收矩阵。
+> 权威需求与验收规则分别为 `PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` v0.3 和 `ACCEPTANCE_RWA_ORACLE_ZH.md` v0.3。I0–I12 仅是交付顺序；机器映射位于 `config/iteration-acceptance.json`，不得覆盖或降低 ORACLE/CONSUMER/NFR 验收要求。
 
 ## 0. 文档控制
 
 | 项目 | 内容 |
 | --- | --- |
 | 文档用途 | 将 PRD 的 13 个迭代与“可验证”交付标准逐项对应 |
-| 权威 PRD | `docs/PRD_RWA_ORACLE_PROTOCOL_L2_L3_ZH.md` v0.4 |
+| 权威 PRD | `docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` v0.3 |
 | 适用范围 | Giraffe RWA Oracle L2 及其与独立 L3 协议的配置、验证和兼容边界 |
 | 迭代范围 | I0–I12，共 13 个迭代 |
 | 交付标准 | 可重复执行、可审计、可复核、失败可见 |

@@ -10,14 +10,14 @@
 4. `scripts/verify-prd-v0.3.mjs`；
 5. `docs/STATUS.md`。
 
-旧 `PRD_RWA_ORACLE_PROTOCOL_L2_L3_ZH.md`、旧 `PRD_DELIVERY_ACCEPTANCE_STANDARD_ZH.md`、`config/iteration-acceptance.json` 与 `verify-iterations.mjs` 仅保留历史审计，不得覆盖新基线。
+旧 `PRD_RWA_ORACLE_PROTOCOL_L2_L3_ZH.md` 仅保留历史审计，不得覆盖新基线。I0–I12 仍作为交付分解使用，但 `config/iteration-acceptance.json` 与 `verify-iterations.mjs` 已强制绑定 v0.3 的 ORACLE/CONSUMER/NFR 编号；任何遗漏、未知编号或版本漂移均失败关闭。
 
 ## CI 顺序
 
 ```text
 pnpm install --frozen-lockfile
 node scripts/syntax-check.mjs
-node --test "test/*.test.js"
+node --test --test-reporter=spec "test/*.test.js"
 node scripts/repository-scan.mjs
 node scripts/product-boundary-scan.mjs
 node scripts/verify-release.mjs

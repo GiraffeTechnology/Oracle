@@ -6,6 +6,7 @@ import { validateI12Evidence } from "../src/services/i12-evidence.js";
 
 const root = process.cwd();
 const manifest = JSON.parse(await readFile(path.join(root, "config", "iteration-acceptance.json"), "utf8"));
+const requirementManifest = JSON.parse(await readFile(path.join(root, "config", "prd-v0.3-acceptance.json"), "utf8"));
 
 async function exists(relative) {
   try {
@@ -22,10 +23,35 @@ function runNode(args) {
 }
 
 const syntax = runNode(["scripts/syntax-check.mjs"]);
-const tests = runNode(["--test", "test/*.test.js"]);
+// Pin the human-readable reporter because iteration evidence matches exact test
+// names. Node's default reporter is environment-dependent (TAP vs spec).
+const tests = runNode(["--test", "--test-reporter=spec", "test/*.test.js"]);
 const scan = runNode(["scripts/repository-scan.mjs"]);
 const testOutput = `${tests.stdout}\n${tests.stderr}`;
 const results = [];
+const authoritativeRequirementIds = new Set(requirementManifest.requirements.map(({ id }) => id));
+const mappedRequirementIds = new Set();
+
+if (manifest.prdVersion !== requirementManifest.prdVersion) {
+  throw new Error(`ITERATION_PRD_VERSION_MISMATCH:${manifest.prdVersion}:${requirementManifest.prdVersion}`);
+}
+
+for (const iteration of manifest.iterations) {
+  if (!Array.isArray(iteration.requirementIds) || iteration.requirementIds.length === 0) {
+    throw new Error(`ITERATION_REQUIREMENT_MAPPING_MISSING:${iteration.id}`);
+  }
+  for (const requirementId of iteration.requirementIds) {
+    if (!authoritativeRequirementIds.has(requirementId)) {
+      throw new Error(`ITERATION_REQUIREMENT_UNKNOWN:${iteration.id}:${requirementId}`);
+    }
+    mappedRequirementIds.add(requirementId);
+  }
+}
+
+const unmappedRequirementIds = [...authoritativeRequirementIds].filter((id) => !mappedRequirementIds.has(id));
+if (unmappedRequirementIds.length > 0) {
+  throw new Error(`ITERATION_REQUIREMENT_UNMAPPED:${unmappedRequirementIds.join(",")}`);
+}
 
 for (const iteration of manifest.iterations) {
   const artifacts = [];
@@ -43,7 +69,7 @@ for (const iteration of manifest.iterations) {
     externalEvidence.push({ path: relative, present, valid, errorCode });
   }
   const complete = syntax.ok && scan.ok && artifacts.every(({ present }) => present) && requiredTests.every(({ passed }) => passed) && externalEvidence.every(({ present, valid }) => present && valid);
-  results.push({ id: iteration.id, complete, artifacts, tests: requiredTests, externalEvidence });
+  results.push({ id: iteration.id, requirementIds: iteration.requirementIds, complete, artifacts, tests: requiredTests, externalEvidence });
 }
 
 const report = {
@@ -52,13 +78,18 @@ const report = {
   generatedAt: new Date().toISOString(),
   commands: {
     syntax: { command: "node scripts/syntax-check.mjs", ok: syntax.ok },
-    unit: { command: "node --test \"test/*.test.js\"", ok: tests.ok },
+    unit: { command: "node --test --test-reporter=spec \"test/*.test.js\"", ok: tests.ok },
     repositoryScan: { command: "node scripts/repository-scan.mjs", ok: scan.ok },
   },
   summary: {
     completed: results.filter(({ complete }) => complete).map(({ id }) => id),
     blocked: results.filter(({ complete }) => !complete).map(({ id }) => id),
     allComplete: results.every(({ complete }) => complete),
+  },
+  traceability: {
+    authoritativeRequirementCount: authoritativeRequirementIds.size,
+    mappedRequirementCount: mappedRequirementIds.size,
+    unmappedRequirementIds,
   },
   iterations: results,
 };
