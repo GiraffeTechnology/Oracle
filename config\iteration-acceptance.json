@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "prdVersion": "v0.4",
+  "iterations": [
+    {
+      "id": "I0",
+      "artifacts": ["README.md", "docs/PRD_RWA_ORACLE_PROTOCOL_L2_L3_ZH.md", "docs/adr/0001-oracle-only-service-boundary.md", "docs/THREAT_MODEL.md", "scripts/syntax-check.mjs", "scripts/repository-scan.mjs", "pnpm-lock.yaml"],
+      "tests": ["loads fail-closed development defaults", "rejects production mode before authorization", "rejects non-loopback binds"],
+      "externalEvidence": []
+    },
+    {
+      "id": "I1",
+      "artifacts": ["src/domain/source-registry.js", "src/domain/key-set-registry.js", "src/domain/schema-registry.js", "src/services/business-calendar.js", "schemas/asset-record.v1.json", "schemas/certificate-record.v1.json", "schemas/warehouse-record.v1.json"],
+      "tests": ["requires a registered active source and approved schema", "rejects caller-supplied endpoint fields", "revoked source key sets fail closed", "business calendar skips weekends"],
+      "externalEvidence": []
+    },
+    {
+      "id": "I2",
+      "artifacts": ["src/services/ingestion-gateway.js", "src/domain/canonical-json.js", "src/ports/evidence-vault-port.js"],
+      "tests": ["signed ingestion authenticates, redacts and is idempotent", "canonical JSON and evidence hashes ignore object insertion order", "ingestion rejects signature, replay and caller-controlled endpoint"],
+      "externalEvidence": []
+    },
+    {
+      "id": "I3",
+      "artifacts": ["src/domain/record-store.js", "db/mysql/001_initial.sql", "src/services/review-queue.js"],
+      "tests": ["record store maintains append-only certificate versions", "MySQL migration contains all required durable projections", "failed asset verification leaves no partial in-memory records"],
+      "externalEvidence": []
+    },
+    {
+      "id": "I4",
+      "artifacts": ["src/domain/oracle-status.js", "src/domain/state-engine.js", "src/domain/reason-code-registry.js", "src/services/state-rebuilder.js"],
+      "tests": ["state engine rejects illegal and non-increasing transitions", "state rebuilder reconstructs the current status", "failed asset verification leaves no partial in-memory records"],
+      "externalEvidence": []
+    },
+    {
+      "id": "I5",
+      "artifacts": ["src/domain/attestation-service.js", "src/sdk/verifier.js", "src/domain/signer-set-policy.js"],
+      "tests": ["attestation is subject-bound, expires and can be revoked", "attestation service rejects duplicate nonces", "offline verifier rejects cross-purpose replay", "signer policy rejects insufficient threshold"],
+      "externalEvidence": []
+    },
+    {
+      "id": "I6",
+      "artifacts": ["src/app.js", "docs/openapi.yaml", "src/services/rate-limiter.js", "src/services/export-gate.js"],
+      "tests": ["synthetic runtime exposes minimally disclosed asset facts", "read APIs emit deterministic ETags", "rate limiter rejects excess requests", "export gate requires purpose and permission", "public schemas exclude financial opinions"],
+      "externalEvidence": []
+    },
+    {
+      "id": "I7",
+      "artifacts": ["src/domain/revocation-registry.js", "src/services/outbox.js", "src/services/outbox-dispatcher.js", "src/services/subscription-signer.js"],
+      "tests": ["attestation revocation requires independent approval", "outbox dispatcher retries and then publishes", "subscription signer binds payload and delivery id", "revoked signer set fails every verification path"],
+      "externalEvidence": []
+    },
+    {
+      "id": "I8",
+      "artifacts": ["src/domain/settlement-coordinator.js", "src/services/business-calendar.js", "config/settlement.wenbao-sandbox.json"],
+      "tests": ["settlement requires complete evidence and upgrades the certificate", "settlement timeout and dispute never change the holder", "business calendar skips weekends"],
+      "externalEvidence": []
+    },
+    {
+      "id": "I9",
+      "artifacts": ["src/adapters/fixed-source-transport.js", "src/adapters/resilient-source-adapter.js", "config/l2.production.json"],
+      "tests": ["fixed source transport accepts references but no endpoint", "resilient adapters negotiate versions and recover after circuit open", "three source adapters reject conflict delay offline and unknown capability"],
+      "externalEvidence": []
+    },
+    {
+      "id": "I10",
+      "artifacts": ["src/admin-ui.js", "src/services/authorizer.js", "src/services/dual-control.js", "src/domain/audit-journal.js", "src/services/audit-export.js"],
+      "tests": ["admin dashboard is read-only and protected against framing", "dual control rejects self approval and scope changes", "audit journal forms a verifiable append-only hash chain", "admin cannot directly set VALID", "audit export detects tampering and injection"],
+      "externalEvidence": []
+    },
+    {
+      "id": "I11",
+      "artifacts": ["src/sdk/verifier.js", "src/protocol/protocol-profile.js", "config/l3.protocol.wd-0.1.1.json", "docs/L2_L3_CONFIGURATION.md"],
+      "tests": ["L3 artifact intake verifies exact bytes and fails closed on changes", "L3 compatibility requires both candidate interfaces plus ERC-8325", "L3 pending observation preserves owner and blocks transfers", "L3 finalize observation verifies atomic version and event set without relying on event order"],
+      "externalEvidence": []
+    },
+    {
+      "id": "I12",
+      "artifacts": ["SECURITY.md", "docs/OPERATIONS.md", "docs/RELEASE_CHECKLIST.md", "docs/I12_SYNTHETIC_SIGNER_ROTATION_DRILL_ZH.md", "sbom.cdx.json", "Dockerfile", "scripts/verify-release.mjs", "scripts/run-i12-synthetic-signer-rotation.mjs"],
+      "tests": ["backup manifest detects tampering", "retention policy calculates versioned expiry dates", "release manifest detects artifact tampering", "fault injection preserves audit and outbox invariants", "synthetic signer rotation stays offline and cannot satisfy I12 acceptance"],
+      "externalEvidence": ["evidence/acceptance/i12-security-scans.json", "evidence/acceptance/i12-performance-capacity.json", "evidence/acceptance/i12-72h-stability.json", "evidence/acceptance/i12-restore-drill.json", "evidence/acceptance/i12-signer-rotation.json", "evidence/acceptance/i12-data-protection-response.json", "evidence/acceptance/i12-reproducible-build.json", "evidence/acceptance/i12-independent-reviews.json"]
+    }
+  ]
+}

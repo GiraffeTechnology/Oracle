@@ -1,0 +1,10 @@
+{
+  "profileId": "giraffe-settlement/wenbao-sandbox-v1",
+  "environment": "sandbox",
+  "businessCalendarRef": "deployment://calendar/wenbao",
+  "targetBusinessDays": 3,
+  "requiredEvidence": ["registryChangeRef", "certificateHash", "warehouseConfirmation"],
+  "onTimeout": "REVIEW_REQUIRED",
+  "onDispute": "REVIEW_REQUIRED",
+  "productionClaimAllowed": false
+}

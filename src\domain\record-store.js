@@ -1,0 +1,91 @@
+export class RecordStore {
+  #assets = new Map();
+  #certificates = new Map();
+  #warehouse = new Map();
+  #assetByFingerprint = new Map();
+  #assetByCertificateHash = new Map();
+  #assetByWarehouseReceiptHash = new Map();
+
+  assertAsset(record) {
+    if (!record?.assetId || !record.assetFingerprintHash) throw new Error("ASSET_RECORD_INCOMPLETE");
+    const existing = this.#assets.get(record.assetId);
+    if (existing && existing.assetFingerprintHash !== record.assetFingerprintHash) {
+      throw new Error("ASSET_FINGERPRINT_CONFLICT");
+    }
+    const claimedBy = this.#assetByFingerprint.get(record.assetFingerprintHash);
+    if (claimedBy && claimedBy !== record.assetId) throw new Error("ASSET_FINGERPRINT_ALREADY_CLAIMED");
+    return true;
+  }
+
+  putAsset(record) {
+    this.assertAsset(record);
+    const stored = Object.freeze({ ...record });
+    this.#assets.set(record.assetId, stored);
+    this.#assetByFingerprint.set(record.assetFingerprintHash, record.assetId);
+    return stored;
+  }
+
+  assertCertificate(record) {
+    if (!record?.assetId || !record.certificateHash || !Number.isInteger(record.certificateVersion)) {
+      throw new Error("CERTIFICATE_RECORD_INCOMPLETE");
+    }
+    const claimedBy = this.#assetByCertificateHash.get(record.certificateHash);
+    if (claimedBy && claimedBy !== record.assetId) throw new Error("CERTIFICATE_HASH_ALREADY_CLAIMED");
+    const history = this.#certificates.get(record.assetId) ?? [];
+    const current = history.at(-1);
+    if (!current && record.certificateVersion !== 1) throw new Error("CERTIFICATE_INITIAL_VERSION_INVALID");
+    if (current) {
+      if (record.certificateVersion !== current.certificateVersion + 1) throw new Error("CERTIFICATE_VERSION_INVALID");
+      if (record.previousCertificateHash !== current.certificateHash) throw new Error("CERTIFICATE_PREVIOUS_HASH_INVALID");
+      if (record.certificateHash === current.certificateHash) throw new Error("CERTIFICATE_HASH_NOT_CHANGED");
+    }
+    if (history.some((item) => item.certificateHash === record.certificateHash)) {
+      throw new Error("CERTIFICATE_HASH_ALREADY_USED");
+    }
+    return true;
+  }
+
+  appendCertificate(record) {
+    this.assertCertificate(record);
+    const history = this.#certificates.get(record.assetId) ?? [];
+    const stored = Object.freeze({ ...record });
+    this.#certificates.set(record.assetId, Object.freeze([...history, stored]));
+    this.#assetByCertificateHash.set(record.certificateHash, record.assetId);
+    return stored;
+  }
+
+  assertWarehouse(record) {
+    if (!record?.assetId || !record.warehouseReceiptHash) throw new Error("WAREHOUSE_RECORD_INCOMPLETE");
+    const current = this.#warehouse.get(record.assetId);
+    if (current && current.warehouseReceiptHash !== record.warehouseReceiptHash) {
+      throw new Error("WAREHOUSE_RECEIPT_CONFLICT");
+    }
+    const claimedBy = this.#assetByWarehouseReceiptHash.get(record.warehouseReceiptHash);
+    if (claimedBy && claimedBy !== record.assetId) throw new Error("WAREHOUSE_RECEIPT_ALREADY_CLAIMED");
+    return true;
+  }
+
+  putWarehouse(record) {
+    this.assertWarehouse(record);
+    const stored = Object.freeze({ ...record });
+    this.#warehouse.set(record.assetId, stored);
+    this.#assetByWarehouseReceiptHash.set(record.warehouseReceiptHash, record.assetId);
+    return stored;
+  }
+
+  getAsset(assetId) {
+    return this.#assets.get(assetId) ?? null;
+  }
+
+  certificateHistory(assetId) {
+    return [...(this.#certificates.get(assetId) ?? [])];
+  }
+
+  currentCertificate(assetId) {
+    return this.#certificates.get(assetId)?.at(-1) ?? null;
+  }
+
+  getWarehouse(assetId) {
+    return this.#warehouse.get(assetId) ?? null;
+  }
+}

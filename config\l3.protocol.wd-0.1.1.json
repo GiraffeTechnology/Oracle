@@ -1,0 +1,52 @@
+{
+  "profileId": "giraffe-rwa-certificate-settlement/wd-0.1.1",
+  "status": "working-draft",
+  "productionClaimAllowed": false,
+  "artifacts": {
+    "formalZhSha256": "8179c5405674a3e54350261136c77470704f2460b9a0d7d6b28a506ab969224a",
+    "formalEnSha256": "300303bd7c9952b9a7fa78fcf5402572833883320cd3f3a519daf224a93e7b9a",
+    "submissionCandidateSha256": "c335f2e10475cf96e5e78e092b826f82b937a9d0f2f0eee8c647296fc2b952fc",
+    "referenceImplementationSha256": "9e27355d8826915119b1651e77d8db0a3bec93ab7e9485c642d8417ae96b3951",
+    "testVectorsSha256": "e70985ce2ba848c7b5c27032947dc85291ad6026c708f11c9c49b39d10a7b361"
+  },
+  "interfaces": {
+    "versionedCertificate": "0xebaa86a0",
+    "deferredSettlement": "0x2773d4c9",
+    "assetBoundTokenId": "0x4a967b01"
+  },
+  "requiredAdvertisedInterfaces": [
+    "0xebaa86a0",
+    "0x2773d4c9",
+    "0x4a967b01"
+  ],
+  "settlementStatuses": {
+    "NONE": 0,
+    "PENDING": 1,
+    "FINALIZED": 2,
+    "CANCELLED": 3
+  },
+  "events": [
+    "CertificateInitialized",
+    "CertificateSuperseded",
+    "SettlementStarted",
+    "SettlementFinalized",
+    "SettlementCancelled",
+    "Transfer"
+  ],
+  "oracleStatusMapping": {
+    "NONE": "VALID",
+    "PENDING": "TRANSFER_PENDING",
+    "FINALIZED": "VALID",
+    "CANCELLED": "VALID"
+  },
+  "rules": {
+    "ownerRemainsFromWhilePending": true,
+    "allTransfersBlockedWhilePending": true,
+    "finalizeAtomic": true,
+    "certificateVersionIncrement": 1,
+    "cancelChangesCertificate": false,
+    "errorsAreStableAbi": false,
+    "eventOrderIsConsensus": false,
+    "authorityDataEncoding": "abi.encode(uint64 validUntil,uint256 nonce,bytes signature)"
+  }
+}

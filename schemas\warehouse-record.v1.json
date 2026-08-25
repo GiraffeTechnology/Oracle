@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:giraffe:oracle:schema:warehouse-record.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["assetId", "warehouseId", "warehouseReceiptHash", "warehouseStatus", "observedAt"],
+  "properties": {
+    "assetId": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{3,128}$" },
+    "warehouseId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "warehouseReceiptHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "warehouseStatus": { "enum": ["IN_CUSTODY", "FROZEN", "RELEASE_PENDING", "RELEASED", "REVIEW_REQUIRED"] },
+    "holderCommitment": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "encumbranceStatus": { "type": "string", "maxLength": 64 },
+    "observedAt": { "type": "string", "format": "date-time" }
+  }
+}

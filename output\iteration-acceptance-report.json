@@ -1,0 +1,636 @@
+{
+  "schemaVersion": 1,
+  "prdVersion": "v0.4",
+  "generatedAt": "2026-08-25T00:16:20.538Z",
+  "commands": {
+    "syntax": {
+      "command": "node scripts/syntax-check.mjs",
+      "ok": true
+    },
+    "unit": {
+      "command": "node --test \"test/*.test.js\"",
+      "ok": true
+    },
+    "repositoryScan": {
+      "command": "node scripts/repository-scan.mjs",
+      "ok": true
+    }
+  },
+  "summary": {
+    "completed": [
+      "I0",
+      "I1",
+      "I2",
+      "I3",
+      "I4",
+      "I5",
+      "I6",
+      "I7",
+      "I8",
+      "I9",
+      "I10",
+      "I11"
+    ],
+    "blocked": [
+      "I12"
+    ],
+    "allComplete": false
+  },
+  "iterations": [
+    {
+      "id": "I0",
+      "complete": true,
+      "artifacts": [
+        {
+          "path": "README.md",
+          "present": true
+        },
+        {
+          "path": "docs/PRD_RWA_ORACLE_PROTOCOL_L2_L3_ZH.md",
+          "present": true
+        },
+        {
+          "path": "docs/adr/0001-oracle-only-service-boundary.md",
+          "present": true
+        },
+        {
+          "path": "docs/THREAT_MODEL.md",
+          "present": true
+        },
+        {
+          "path": "scripts/syntax-check.mjs",
+          "present": true
+        },
+        {
+          "path": "scripts/repository-scan.mjs",
+          "present": true
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "present": true
+        }
+      ],
+      "tests": [
+        {
+          "name": "loads fail-closed development defaults",
+          "passed": true
+        },
+        {
+          "name": "rejects production mode before authorization",
+          "passed": true
+        },
+        {
+          "name": "rejects non-loopback binds",
+          "passed": true
+        }
+      ],
+      "externalEvidence": []
+    },
+    {
+      "id": "I1",
+      "complete": true,
+      "artifacts": [
+        {
+          "path": "src/domain/source-registry.js",
+          "present": true
+        },
+        {
+          "path": "src/domain/key-set-registry.js",
+          "present": true
+        },
+        {
+          "path": "src/domain/schema-registry.js",
+          "present": true
+        },
+        {
+          "path": "src/services/business-calendar.js",
+          "present": true
+        },
+        {
+          "path": "schemas/asset-record.v1.json",
+          "present": true
+        },
+        {
+          "path": "schemas/certificate-record.v1.json",
+          "present": true
+        },
+        {
+          "path": "schemas/warehouse-record.v1.json",
+          "present": true
+        }
+      ],
+      "tests": [
+        {
+          "name": "requires a registered active source and approved schema",
+          "passed": true
+        },
+        {
+          "name": "rejects caller-supplied endpoint fields",
+          "passed": true
+        },
+        {
+          "name": "revoked source key sets fail closed",
+          "passed": true
+        },
+        {
+          "name": "business calendar skips weekends",
+          "passed": true
+        }
+      ],
+      "externalEvidence": []
+    },
+    {
+      "id": "I2",
+      "complete": true,
+      "artifacts": [
+        {
+          "path": "src/services/ingestion-gateway.js",
+          "present": true
+        },
+        {
+          "path": "src/domain/canonical-json.js",
+          "present": true
+        },
+        {
+          "path": "src/ports/evidence-vault-port.js",
+          "present": true
+        }
+      ],
+      "tests": [
+        {
+          "name": "signed ingestion authenticates, redacts and is idempotent",
+          "passed": true
+        },
+        {
+          "name": "canonical JSON and evidence hashes ignore object insertion order",
+          "passed": true
+        },
+        {
+          "name": "ingestion rejects signature, replay and caller-controlled endpoint",
+          "passed": true
+        }
+      ],
+      "externalEvidence": []
+    },
+    {
+      "id": "I3",
+      "complete": true,
+      "artifacts": [
+        {
+          "path": "src/domain/record-store.js",
+          "present": true
+        },
+        {
+          "path": "db/mysql/001_initial.sql",
+          "present": true
+        },
+        {
+          "path": "src/services/review-queue.js",
+          "present": true
+        }
+      ],
+      "tests": [
+        {
+          "name": "record store maintains append-only certificate versions",
+          "passed": true
+        },
+        {
+          "name": "MySQL migration contains all required durable projections",
+          "passed": true
+        },
+        {
+          "name": "failed asset verification leaves no partial in-memory records",
+          "passed": true
+        }
+      ],
+      "externalEvidence": []
+    },
+    {
+      "id": "I4",
+      "complete": true,
+      "artifacts": [
+        {
+          "path": "src/domain/oracle-status.js",
+          "present": true
+        },
+        {
+          "path": "src/domain/state-engine.js",
+          "present": true
+        },
+        {
+          "path": "src/domain/reason-code-registry.js",
+          "present": true
+        },
+        {
+          "path": "src/services/state-rebuilder.js",
+          "present": true
+        }
+      ],
+      "tests": [
+        {
+          "name": "state engine rejects illegal and non-increasing transitions",
+          "passed": true
+        },
+        {
+          "name": "state rebuilder reconstructs the current status",
+          "passed": true
+        },
+        {
+          "name": "failed asset verification leaves no partial in-memory records",
+          "passed": true
+        }
+      ],
+      "externalEvidence": []
+    },
+    {
+      "id": "I5",
+      "complete": true,
+      "artifacts": [
+        {
+          "path": "src/domain/attestation-service.js",
+          "present": true
+        },
+        {
+          "path": "src/sdk/verifier.js",
+          "present": true
+        },
+        {
+          "path": "src/domain/signer-set-policy.js",
+          "present": true
+        }
+      ],
+      "tests": [
+        {
+          "name": "attestation is subject-bound, expires and can be revoked",
+          "passed": true
+        },
+        {
+          "name": "attestation service rejects duplicate nonces",
+          "passed": true
+        },
+        {
+          "name": "offline verifier rejects cross-purpose replay",
+          "passed": true
+        },
+        {
+          "name": "signer policy rejects insufficient threshold",
+          "passed": true
+        }
+      ],
+      "externalEvidence": []
+    },
+    {
+      "id": "I6",
+      "complete": true,
+      "artifacts": [
+        {
+          "path": "src/app.js",
+          "present": true
+        },
+        {
+          "path": "docs/openapi.yaml",
+          "present": true
+        },
+        {
+          "path": "src/services/rate-limiter.js",
+          "present": true
+        },
+        {
+          "path": "src/services/export-gate.js",
+          "present": true
+        }
+      ],
+      "tests": [
+        {
+          "name": "synthetic runtime exposes minimally disclosed asset facts",
+          "passed": true
+        },
+        {
+          "name": "read APIs emit deterministic ETags",
+          "passed": true
+        },
+        {
+          "name": "rate limiter rejects excess requests",
+          "passed": true
+        },
+        {
+          "name": "export gate requires purpose and permission",
+          "passed": true
+        },
+        {
+          "name": "public schemas exclude financial opinions",
+          "passed": true
+        }
+      ],
+      "externalEvidence": []
+    },
+    {
+      "id": "I7",
+      "complete": true,
+      "artifacts": [
+        {
+          "path": "src/domain/revocation-registry.js",
+          "present": true
+        },
+        {
+          "path": "src/services/outbox.js",
+          "present": true
+        },
+        {
+          "path": "src/services/outbox-dispatcher.js",
+          "present": true
+        },
+        {
+          "path": "src/services/subscription-signer.js",
+          "present": true
+        }
+      ],
+      "tests": [
+        {
+          "name": "attestation revocation requires independent approval",
+          "passed": true
+        },
+        {
+          "name": "outbox dispatcher retries and then publishes",
+          "passed": true
+        },
+        {
+          "name": "subscription signer binds payload and delivery id",
+          "passed": true
+        },
+        {
+          "name": "revoked signer set fails every verification path",
+          "passed": true
+        }
+      ],
+      "externalEvidence": []
+    },
+    {
+      "id": "I8",
+      "complete": true,
+      "artifacts": [
+        {
+          "path": "src/domain/settlement-coordinator.js",
+          "present": true
+        },
+        {
+          "path": "src/services/business-calendar.js",
+          "present": true
+        },
+        {
+          "path": "config/settlement.wenbao-sandbox.json",
+          "present": true
+        }
+      ],
+      "tests": [
+        {
+          "name": "settlement requires complete evidence and upgrades the certificate",
+          "passed": true
+        },
+        {
+          "name": "settlement timeout and dispute never change the holder",
+          "passed": true
+        },
+        {
+          "name": "business calendar skips weekends",
+          "passed": true
+        }
+      ],
+      "externalEvidence": []
+    },
+    {
+      "id": "I9",
+      "complete": true,
+      "artifacts": [
+        {
+          "path": "src/adapters/fixed-source-transport.js",
+          "present": true
+        },
+        {
+          "path": "src/adapters/resilient-source-adapter.js",
+          "present": true
+        },
+        {
+          "path": "config/l2.production.json",
+          "present": true
+        }
+      ],
+      "tests": [
+        {
+          "name": "fixed source transport accepts references but no endpoint",
+          "passed": true
+        },
+        {
+          "name": "resilient adapters negotiate versions and recover after circuit open",
+          "passed": true
+        },
+        {
+          "name": "three source adapters reject conflict delay offline and unknown capability",
+          "passed": true
+        }
+      ],
+      "externalEvidence": []
+    },
+    {
+      "id": "I10",
+      "complete": true,
+      "artifacts": [
+        {
+          "path": "src/admin-ui.js",
+          "present": true
+        },
+        {
+          "path": "src/services/authorizer.js",
+          "present": true
+        },
+        {
+          "path": "src/services/dual-control.js",
+          "present": true
+        },
+        {
+          "path": "src/domain/audit-journal.js",
+          "present": true
+        },
+        {
+          "path": "src/services/audit-export.js",
+          "present": true
+        }
+      ],
+      "tests": [
+        {
+          "name": "admin dashboard is read-only and protected against framing",
+          "passed": true
+        },
+        {
+          "name": "dual control rejects self approval and scope changes",
+          "passed": true
+        },
+        {
+          "name": "audit journal forms a verifiable append-only hash chain",
+          "passed": true
+        },
+        {
+          "name": "admin cannot directly set VALID",
+          "passed": true
+        },
+        {
+          "name": "audit export detects tampering and injection",
+          "passed": true
+        }
+      ],
+      "externalEvidence": []
+    },
+    {
+      "id": "I11",
+      "complete": true,
+      "artifacts": [
+        {
+          "path": "src/sdk/verifier.js",
+          "present": true
+        },
+        {
+          "path": "src/protocol/protocol-profile.js",
+          "present": true
+        },
+        {
+          "path": "config/l3.protocol.wd-0.1.1.json",
+          "present": true
+        },
+        {
+          "path": "docs/L2_L3_CONFIGURATION.md",
+          "present": true
+        }
+      ],
+      "tests": [
+        {
+          "name": "L3 artifact intake verifies exact bytes and fails closed on changes",
+          "passed": true
+        },
+        {
+          "name": "L3 compatibility requires both candidate interfaces plus ERC-8325",
+          "passed": true
+        },
+        {
+          "name": "L3 pending observation preserves owner and blocks transfers",
+          "passed": true
+        },
+        {
+          "name": "L3 finalize observation verifies atomic version and event set without relying on event order",
+          "passed": true
+        }
+      ],
+      "externalEvidence": []
+    },
+    {
+      "id": "I12",
+      "complete": false,
+      "artifacts": [
+        {
+          "path": "SECURITY.md",
+          "present": true
+        },
+        {
+          "path": "docs/OPERATIONS.md",
+          "present": true
+        },
+        {
+          "path": "docs/RELEASE_CHECKLIST.md",
+          "present": true
+        },
+        {
+          "path": "docs/I12_SYNTHETIC_SIGNER_ROTATION_DRILL_ZH.md",
+          "present": true
+        },
+        {
+          "path": "sbom.cdx.json",
+          "present": true
+        },
+        {
+          "path": "Dockerfile",
+          "present": true
+        },
+        {
+          "path": "scripts/verify-release.mjs",
+          "present": true
+        },
+        {
+          "path": "scripts/run-i12-synthetic-signer-rotation.mjs",
+          "present": true
+        }
+      ],
+      "tests": [
+        {
+          "name": "backup manifest detects tampering",
+          "passed": true
+        },
+        {
+          "name": "retention policy calculates versioned expiry dates",
+          "passed": true
+        },
+        {
+          "name": "release manifest detects artifact tampering",
+          "passed": true
+        },
+        {
+          "name": "fault injection preserves audit and outbox invariants",
+          "passed": true
+        },
+        {
+          "name": "synthetic signer rotation stays offline and cannot satisfy I12 acceptance",
+          "passed": true
+        }
+      ],
+      "externalEvidence": [
+        {
+          "path": "evidence/acceptance/i12-security-scans.json",
+          "present": false,
+          "valid": false,
+          "errorCode": "EVIDENCE_NOT_FOUND"
+        },
+        {
+          "path": "evidence/acceptance/i12-performance-capacity.json",
+          "present": false,
+          "valid": false,
+          "errorCode": "EVIDENCE_NOT_FOUND"
+        },
+        {
+          "path": "evidence/acceptance/i12-72h-stability.json",
+          "present": false,
+          "valid": false,
+          "errorCode": "EVIDENCE_NOT_FOUND"
+        },
+        {
+          "path": "evidence/acceptance/i12-restore-drill.json",
+          "present": false,
+          "valid": false,
+          "errorCode": "EVIDENCE_NOT_FOUND"
+        },
+        {
+          "path": "evidence/acceptance/i12-signer-rotation.json",
+          "present": false,
+          "valid": false,
+          "errorCode": "EVIDENCE_NOT_FOUND"
+        },
+        {
+          "path": "evidence/acceptance/i12-data-protection-response.json",
+          "present": false,
+          "valid": false,
+          "errorCode": "EVIDENCE_NOT_FOUND"
+        },
+        {
+          "path": "evidence/acceptance/i12-reproducible-build.json",
+          "present": false,
+          "valid": false,
+          "errorCode": "EVIDENCE_NOT_FOUND"
+        },
+        {
+          "path": "evidence/acceptance/i12-independent-reviews.json",
+          "present": false,
+          "valid": false,
+          "errorCode": "EVIDENCE_NOT_FOUND"
+        }
+      ]
+    }
+  ],
+  "reportSha256": "dff415672950906e368135245cf644c4f3d6aef9abdc0fad0a1e070f15ac244a"
+}
