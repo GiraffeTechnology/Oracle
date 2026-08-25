@@ -66,6 +66,9 @@ jobs:
           node-version-file: .nvmrc
 
       # Acceptance standard section 6 requires these as CI jobs. No dependencies needed.
+      - name: Decision consistency (DECISIONS_ZH.md)
+        run: node scripts/check-decision-consistency.mjs
+
       - name: Scope coverage (acceptance 8.4)
         run: node scripts/check-scope-coverage.mjs
 

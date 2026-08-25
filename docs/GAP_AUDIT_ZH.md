@@ -78,7 +78,7 @@
 **A 类 — 结构性（最高优先，且成本最低）**
 
 1. 分支合并：`feature` 的实现与本分支的 PRD/验收/CI 必须落到同一 commit，否则任何证据都不成立；
-2. PRD 版本裁决：v0.3（本分支）与 v0.4（feature 分支）文件名与 ID 体系均不同，须二选一；
+2. ~~PRD 版本裁决~~ 已由 `DECISIONS_ZH.md` D-001 关闭：v0.3 为准，合并时映射 I0–I12；
 3. 建立 I0–I12 与 ORACLE/CONSUMER/NFR 的追溯映射，使 §8.4 可机械执行；
 4. `feature` 分支的 `scripts/verify-iterations.mjs` 存在 reporter 缺陷（管道输出为 TAP，
    而断言匹配 `✔`），导致机器验收报告恒为全阻断；加 `--test-reporter=spec` 即修复。

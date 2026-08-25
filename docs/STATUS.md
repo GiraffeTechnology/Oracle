@@ -81,9 +81,8 @@ ORACLE/CONSUMER/NFR 体系无追溯映射。依验收标准 §3，跨分支证�
 
 ## 7. 未决冲突（需裁决，非工程项）
 
-1. **PRD 版本分叉**：本分支为 v0.3（`PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md`）；
-   分支 `feature/oracle-all-iterations` 为 v0.4（`PRD_RWA_ORACLE_PROTOCOL_L2_L3_ZH.md`，
-   文件名与 ID 体系均不同）。两者不能同时为权威版本。
+1. ~~PRD 版本分叉~~ **已由 `DECISIONS_ZH.md` D-001 裁决**：v0.3 为唯一权威版本。
+   分支 `feature/oracle-all-iterations` 的 v0.4 与 I0–I12 编号须在合并时映射到本体系。
 2. **PRD §0.1 ArtFi 结构性互斥**三项冲突（份额化、撮合、慈善版数据集）尚未裁决。
 3. **PRD §0.2 范围与排期契约**未签署。
 
