@@ -6,14 +6,14 @@
 
 | 范围 | 状态 | 证据边界 |
 | --- | --- | --- |
-| ORACLE-001~011 | `VERIFIED`（本地工程候选） | `npm run verify:prd` 中的语法、97+ Node 测试、仓库扫描与逐 ID 验证；仍需同一 commit CI 复验 |
+| ORACLE-001~011 | `VERIFIED`（本地工程候选） | `npm run verify:prd` 中的语法、111 项 Node 测试、仓库扫描与逐 ID 验证；仍需同一 commit CI 复验 |
 | CONSUMER-001~009 | `VERIFIED`（Oracle 侧合成消费者） | 仅证明 Oracle 侧可以强制 fail-closed；不表示 L3 ERC 已实现或部署 |
 | NFR-001~003 | `VERIFIED`（本地工程候选） | 受保护签名适配、双人控制、顺序/重放与来源故障注入 |
 | NFR-004 | `PENDING-GATE` | 真实 72 小时、正式负载/容量、恢复、受保护签名人轮换等验收证据未齐 |
 | PREMISE-P1~P8 | `PENDING-GATE` | 书面依据、取证日期、复核周期与责任人尚未形成全部可公开审计记录 |
 | Stage F | `PENDING-GATE` | 独立法律、隐私、安全、合约、运营审查，以及范围/报价和逐司法辖区 go/no-go 未齐 |
 
-机器可读快照由 `scripts/verify-prd-v0.3.mjs` 生成至 `output/prd-v0.3-acceptance-report.json`。该脚本在任何适用门禁未满足时必须非零退出并保持 `allComplete=false`。
+机器可读快照由 `scripts/verify-prd-v0.3.mjs` 生成至 `output/prd-v0.3-acceptance-report.json`。该脚本在任何适用门禁未满足时必须非零退出并保持 `allComplete=false`。外部证据必须通过内容校验并绑定同一候选 commit；仅创建文件不能解除门禁。历史提交的 72 小时或其它证据不得替代当前候选证据。
 
 ## 产品线裁决
 
