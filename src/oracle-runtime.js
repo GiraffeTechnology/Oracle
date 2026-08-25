@@ -23,6 +23,6 @@ export function createSyntheticRuntime({ clock = () => new Date() } = {}) {
   const { privateKey, publicKey } = generateKeyPairSync("ed25519");
   const attestations = new AttestationService({ signerSetId: "synthetic-oracle-signers", privateKey, publicKey, revocations, clock });
   const tokenIndex = new TokenIndex();
-  const settlements = new SettlementCoordinator({ recordStore, stateEngine, auditJournal, tokenIndex, clock });
+  const settlements = new SettlementCoordinator({ recordStore, stateEngine, auditJournal, tokenIndex, attestations, clock });
   return Object.freeze({ sourceRegistry, schemaRegistry, recordStore, stateEngine, auditJournal, revocations, attestations, settlements, tokenIndex });
 }

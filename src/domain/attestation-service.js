@@ -61,6 +61,18 @@ export class AttestationService {
     return this.#attestations.get(attestationId) ?? null;
   }
 
+  revokeBySubject({ assetId, purpose, reasonHash, revokedAt, authorityId }) {
+    if (![assetId, purpose, reasonHash, revokedAt, authorityId].every((value) => typeof value === "string" && value)) {
+      throw new Error("ATTESTATION_REVOCATION_SCOPE_INVALID");
+    }
+    const revoked = [];
+    for (const attestation of this.#attestations.values()) {
+      if (attestation.envelope.subject.assetId !== assetId || attestation.envelope.subject.purpose !== purpose) continue;
+      revoked.push(this.revocations.revoke({ attestationId: attestation.envelope.attestationId, reasonHash, revokedAt, authorityId }));
+    }
+    return Object.freeze(revoked);
+  }
+
   verify(attestation, { expectedSubject, now = this.clock() } = {}) {
     try { this.signerPolicy?.assertActive(); } catch { return { valid: false, errorCode: "SIGNER_SET_NOT_ACTIVE" }; }
     const { envelope, envelopeHash, signature } = attestation ?? {};

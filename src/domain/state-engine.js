@@ -20,6 +20,9 @@ export class StateEngine {
   }
 
   assertTransition({ subjectId, to, evidenceVersion }) {
+    if (!Number.isSafeInteger(evidenceVersion) || evidenceVersion < 1) {
+      throw new Error("EVIDENCE_VERSION_INVALID");
+    }
     const from = this.current(subjectId);
     if (!TRANSITIONS[from]?.has(to)) throw new Error(`STATE_TRANSITION_REJECTED:${from}:${to}`);
     const previous = [...this.#history].reverse().find((entry) => entry.subjectId === subjectId);

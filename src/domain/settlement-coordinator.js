@@ -3,11 +3,12 @@ import { OracleStatus } from "./oracle-status.js";
 export class SettlementCoordinator {
   #settlements = new Map();
 
-  constructor({ recordStore, stateEngine, auditJournal, tokenIndex = null, clock = () => new Date() }) {
+  constructor({ recordStore, stateEngine, auditJournal, tokenIndex = null, attestations = null, clock = () => new Date() }) {
     this.recordStore = recordStore;
     this.stateEngine = stateEngine;
     this.auditJournal = auditJournal;
     this.tokenIndex = tokenIndex;
+    this.attestations = attestations;
     this.clock = clock;
   }
 
@@ -27,13 +28,23 @@ export class SettlementCoordinator {
       throw new Error("SETTLEMENT_SNAPSHOT_CONFLICT");
     }
     const now = this.clock();
-    if (new Date(deadlineAt) <= now) throw new Error("SETTLEMENT_DEADLINE_INVALID");
+    const deadline = new Date(deadlineAt);
+    if (!Number.isFinite(deadline.getTime()) || deadline <= now) throw new Error("SETTLEMENT_DEADLINE_INVALID");
+    this.stateEngine.assertTransition({ subjectId: assetId, to: OracleStatus.TRANSFER_PENDING, evidenceVersion });
+    if (![snapshotHash, actorId].every((value) => typeof value === "string" && value)) throw new Error("SETTLEMENT_SNAPSHOT_INCOMPLETE");
     this.stateEngine.transition({
       subjectId: assetId,
       to: OracleStatus.TRANSFER_PENDING,
       reasonHash: snapshotHash,
       evidenceVersion,
       occurredAt: now.toISOString(),
+    });
+    this.attestations?.revokeBySubject({
+      assetId,
+      purpose: "transfer-eligibility",
+      reasonHash: snapshotHash,
+      revokedAt: now.toISOString(),
+      authorityId: actorId,
     });
     const record = Object.freeze({ settlementId, assetId, token: Object.freeze({ ...token }), sellerWallet, buyerWallet, externalExecutionRef, snapshotHash, oldCertificateHash, warehouseReceiptHash, deadlineAt, status: "PENDING", startedAt: now.toISOString() });
     this.#settlements.set(settlementId, record);
@@ -48,8 +59,10 @@ export class SettlementCoordinator {
     if (certificate?.wenbaoChangeRef !== registryChangeRef || certificate?.warehouseReceiptHash !== current.warehouseReceiptHash) {
       throw new Error("SETTLEMENT_CERTIFICATE_EVIDENCE_MISMATCH");
     }
+    if (certificate?.assetId !== current.assetId) throw new Error("SETTLEMENT_CERTIFICATE_ASSET_MISMATCH");
     if (this.clock() > new Date(current.deadlineAt)) throw new Error("SETTLEMENT_DEADLINE_EXCEEDED");
     this.stateEngine.assertTransition({ subjectId: current.assetId, to: OracleStatus.VALID, evidenceVersion });
+    this.recordStore.assertCertificate(certificate);
     this.recordStore.appendCertificate(certificate);
     const now = this.clock().toISOString();
     this.stateEngine.transition({ subjectId: current.assetId, to: OracleStatus.VALID, reasonHash: certificate.certificateHash, evidenceVersion, occurredAt: now });
