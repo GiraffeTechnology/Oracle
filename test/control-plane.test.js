@@ -97,6 +97,16 @@ test("outbox dispatcher retries and then publishes", async () => {
   assert.equal(outbox.pending().length, 0);
 });
 
+test("cancelled settlements emit an explicit refund-required notification", () => {
+  const { runtime, control, outbox } = controlFixture();
+  control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-refund", asset: { assetId: "asset-refund", assetFingerprintHash: HASH_A }, certificate: { assetId: "asset-refund", certificateHash: HASH_B, certificateVersion: 1 }, warehouse: { assetId: "asset-refund", warehouseReceiptHash: HASH_C }, evidenceVersion: 1 });
+  control.bindToken({ actorId: "oracle-a", idempotencyKey: "bind-refund", binding: { assetId: "asset-refund", chainId: "test-chain", contract: "contract-refund", tokenId: "1" } });
+  control.beginSettlement({ actorId: "oracle-a", idempotencyKey: "begin-refund", request: { settlementId: "settlement-refund", assetId: "asset-refund", token: { chainId: "test-chain", contract: "contract-refund", tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", externalExecutionRef: "external-refund", oldCertificateHash: HASH_B, warehouseReceiptHash: HASH_C, deadlineAt: new Date(NOW.getTime() + 86400000).toISOString(), evidenceVersion: 2 } });
+  control.cancelSettlement({ actorId: "oracle-a", idempotencyKey: "cancel-refund", request: { settlementId: "settlement-refund", reasonHash: HASH_A, evidenceVersion: 3 } });
+  assert.equal(outbox.pending().filter((event) => event.eventType === "settlement.refund-required").length, 1);
+  assert.equal(runtime.settlements.get("settlement-refund").failureReasonHash, HASH_A);
+});
+
 test("MySQL adapter commits success and rolls back failure", async () => {
   const events = [];
   const connection = { async beginTransaction() { events.push("begin"); }, async commit() { events.push("commit"); }, async rollback() { events.push("rollback"); }, release() { events.push("release"); } };

@@ -96,6 +96,7 @@ export class OracleControlPlane {
     return this.commandJournal.execute(idempotencyKey, { type: "settlement.cancel", request }, () => {
       const result = this.runtime.settlements.cancel({ ...request, actorId });
       this.outbox.enqueue({ eventType: "settlement.cancelled", subjectId: result.assetId, payloadHash: request.reasonHash, createdAt: result.cancelledAt });
+      this.outbox.enqueue({ eventType: "settlement.refund-required", subjectId: result.assetId, payloadHash: request.reasonHash, createdAt: result.cancelledAt });
       return result;
     });
   }

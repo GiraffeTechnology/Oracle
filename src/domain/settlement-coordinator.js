@@ -78,7 +78,7 @@ export class SettlementCoordinator {
     return record;
   }
 
-  finalize({ settlementId, certificate, registryChangeRef, warehouseConfirmed, ownerBindingConfirmed, actorId, evidenceVersion }) {
+  finalize({ settlementId, certificate, registryChangeRef, snapshotHash, warehouseConfirmed, ownerBindingConfirmed, actorId, evidenceVersion }) {
     const current = this.#settlements.get(settlementId);
     if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
     if (!registryChangeRef || warehouseConfirmed !== true || ownerBindingConfirmed !== true) throw new Error("SETTLEMENT_CONFIRMATION_INCOMPLETE");
@@ -86,13 +86,15 @@ export class SettlementCoordinator {
       throw new Error("SETTLEMENT_CERTIFICATE_EVIDENCE_MISMATCH");
     }
     if (certificate?.assetId !== current.assetId) throw new Error("SETTLEMENT_CERTIFICATE_ASSET_MISMATCH");
+    if (certificate?.tokenId !== current.token.tokenId) throw new Error("SETTLEMENT_CERTIFICATE_TOKEN_MISMATCH");
+    if (snapshotHash !== current.snapshotHash) throw new Error("SETTLEMENT_SNAPSHOT_EVIDENCE_MISMATCH");
     if (this.clock() > new Date(current.deadlineAt)) throw new Error("SETTLEMENT_DEADLINE_EXCEEDED");
     this.stateEngine.assertTransition({ subjectId: current.assetId, to: OracleStatus.VALID, evidenceVersion });
     this.recordStore.assertCertificate(certificate);
     this.recordStore.appendCertificate(certificate);
     const now = this.clock().toISOString();
     this.stateEngine.transition({ subjectId: current.assetId, to: OracleStatus.VALID, reasonHash: certificate.certificateHash, evidenceVersion, occurredAt: now });
-    const finalized = Object.freeze({ ...current, status: "FINALIZED", registryChangeRef, finalizedAt: now });
+    const finalized = Object.freeze({ ...current, status: "FINALIZED", registryChangeRef, newCertificateHash: certificate.certificateHash, finalizedAt: now });
     this.#settlements.set(settlementId, finalized);
     this.auditJournal.append({ type: "settlement.finalized", subjectId: current.assetId, payloadHash: certificate.certificateHash, actorId, occurredAt: now });
     return finalized;
@@ -103,7 +105,7 @@ export class SettlementCoordinator {
     if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
     const now = this.clock().toISOString();
     this.stateEngine.transition({ subjectId: current.assetId, to: OracleStatus.REVIEW_REQUIRED, reasonHash, evidenceVersion, occurredAt: now });
-    const cancelled = Object.freeze({ ...current, status: "CANCELLED", reasonHash, cancelledAt: now });
+    const cancelled = Object.freeze({ ...current, status: "CANCELLED", failureReasonHash: reasonHash, cancelledAt: now });
     this.#settlements.set(settlementId, cancelled);
     this.auditJournal.append({ type: "settlement.cancelled", subjectId: current.assetId, payloadHash: reasonHash, actorId, occurredAt: now });
     return cancelled;
@@ -114,7 +116,7 @@ export class SettlementCoordinator {
     if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
     const now = this.clock().toISOString();
     this.stateEngine.transition({ subjectId: current.assetId, to: OracleStatus.REVIEW_REQUIRED, reasonHash, evidenceVersion, occurredAt: now });
-    const disputed = Object.freeze({ ...current, status: "DISPUTED", reasonHash, disputedAt: now });
+    const disputed = Object.freeze({ ...current, status: "DISPUTED", failureReasonHash: reasonHash, disputedAt: now });
     this.#settlements.set(settlementId, disputed);
     this.auditJournal.append({ type: "settlement.disputed", subjectId: current.assetId, payloadHash: reasonHash, actorId, occurredAt: now });
     return disputed;
@@ -126,7 +128,7 @@ export class SettlementCoordinator {
     if (this.clock() <= new Date(current.deadlineAt)) throw new Error("SETTLEMENT_DEADLINE_NOT_REACHED");
     const now = this.clock().toISOString();
     this.stateEngine.transition({ subjectId: current.assetId, to: OracleStatus.REVIEW_REQUIRED, reasonHash, evidenceVersion, occurredAt: now });
-    const timedOut = Object.freeze({ ...current, status: "TIMED_OUT", reasonHash, timedOutAt: now });
+    const timedOut = Object.freeze({ ...current, status: "TIMED_OUT", failureReasonHash: reasonHash, timedOutAt: now });
     this.#settlements.set(settlementId, timedOut);
     this.auditJournal.append({ type: "settlement.timed-out", subjectId: current.assetId, payloadHash: reasonHash, actorId, occurredAt: now });
     return timedOut;

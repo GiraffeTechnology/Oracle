@@ -59,8 +59,9 @@ test("settlement certificate must belong to the settlement asset", () => {
   begin(runtime);
   assert.throws(() => runtime.settlements.finalize({
     settlementId: "settlement-1",
-    certificate: { assetId: "asset-2", certificateHash: A, previousCertificateHash: B, certificateVersion: 2, wenbaoChangeRef: "change-1", warehouseReceiptHash: C },
+    certificate: { assetId: "asset-2", tokenId: "1", certificateHash: A, previousCertificateHash: B, certificateVersion: 2, wenbaoChangeRef: "change-1", warehouseReceiptHash: C },
     registryChangeRef: "change-1",
+    snapshotHash: runtime.settlements.get("settlement-1").snapshotHash,
     warehouseConfirmed: true,
     ownerBindingConfirmed: true,
     actorId: "registry",
@@ -76,8 +77,9 @@ test("failed finalization cannot append a certificate before state validation", 
   const before = runtime.recordStore.certificateHistory("asset-1");
   assert.throws(() => runtime.settlements.finalize({
     settlementId: "settlement-1",
-    certificate: { assetId: "asset-1", certificateHash: A, previousCertificateHash: B, certificateVersion: 2, wenbaoChangeRef: "change-1", warehouseReceiptHash: C },
+    certificate: { assetId: "asset-1", tokenId: "1", certificateHash: A, previousCertificateHash: B, certificateVersion: 2, wenbaoChangeRef: "change-1", warehouseReceiptHash: C },
     registryChangeRef: "change-1",
+    snapshotHash: runtime.settlements.get("settlement-1").snapshotHash,
     warehouseConfirmed: true,
     ownerBindingConfirmed: true,
     actorId: "registry",
