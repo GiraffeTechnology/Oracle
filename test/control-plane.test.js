@@ -101,7 +101,7 @@ test("cancelled settlements emit an explicit refund-required notification", () =
   const { runtime, control, outbox } = controlFixture();
   control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-refund", asset: { assetId: "asset-refund", assetFingerprintHash: HASH_A }, certificate: { assetId: "asset-refund", certificateHash: HASH_B, certificateVersion: 1 }, warehouse: { assetId: "asset-refund", warehouseReceiptHash: HASH_C }, evidenceVersion: 1 });
   control.bindToken({ actorId: "oracle-a", idempotencyKey: "bind-refund", binding: { assetId: "asset-refund", chainId: "test-chain", contract: "contract-refund", tokenId: "1" } });
-  control.beginSettlement({ actorId: "oracle-a", idempotencyKey: "begin-refund", request: { settlementId: "settlement-refund", assetId: "asset-refund", token: { chainId: "test-chain", contract: "contract-refund", tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", externalExecutionRef: "external-refund", oldCertificateHash: HASH_B, warehouseReceiptHash: HASH_C, deadlineAt: new Date(NOW.getTime() + 86400000).toISOString(), evidenceVersion: 2 } });
+  control.beginSettlement({ actorId: "oracle-a", idempotencyKey: "begin-refund", request: { settlementId: "settlement-refund", assetId: "asset-refund", token: { chainId: "test-chain", contract: "contract-refund", tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", externalExecutionRef: "external-refund", oldCertificateHash: HASH_B, warehouseReceiptHash: HASH_C, evidenceVersion: 2 } });
   control.cancelSettlement({ actorId: "oracle-a", idempotencyKey: "cancel-refund", request: { settlementId: "settlement-refund", reasonHash: HASH_A, evidenceVersion: 3 } });
   assert.equal(outbox.pending().filter((event) => event.eventType === "settlement.refund-required").length, 1);
   assert.equal(runtime.settlements.get("settlement-refund").failureReasonHash, HASH_A);
@@ -113,12 +113,12 @@ test("disputed and timed-out settlements emit deterministic refund notifications
   const prepare = (suffix, fingerprint, certificate, receipt) => {
     control.verifyAsset({ actorId: "oracle-a", idempotencyKey: `verify-${suffix}`, asset: { assetId: `asset-${suffix}`, assetFingerprintHash: fingerprint }, certificate: { assetId: `asset-${suffix}`, certificateHash: certificate, certificateVersion: 1 }, warehouse: { assetId: `asset-${suffix}`, warehouseReceiptHash: receipt }, evidenceVersion: 1 });
     control.bindToken({ actorId: "oracle-a", idempotencyKey: `bind-${suffix}`, binding: { assetId: `asset-${suffix}`, chainId: "test-chain", contract: `contract-${suffix}`, tokenId: "1" } });
-    control.beginSettlement({ actorId: "oracle-a", idempotencyKey: `begin-${suffix}`, request: { settlementId: `settlement-${suffix}`, assetId: `asset-${suffix}`, token: { chainId: "test-chain", contract: `contract-${suffix}`, tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", externalExecutionRef: `external-${suffix}`, oldCertificateHash: certificate, warehouseReceiptHash: receipt, deadlineAt: new Date(NOW.getTime() + 60000).toISOString(), evidenceVersion: 2 } });
+    control.beginSettlement({ actorId: "oracle-a", idempotencyKey: `begin-${suffix}`, request: { settlementId: `settlement-${suffix}`, assetId: `asset-${suffix}`, token: { chainId: "test-chain", contract: `contract-${suffix}`, tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", externalExecutionRef: `external-${suffix}`, oldCertificateHash: certificate, warehouseReceiptHash: receipt, evidenceVersion: 2 } });
   };
   prepare("dispute", HASH_A, HASH_B, HASH_C);
   control.disputeSettlement({ actorId: "oracle-a", idempotencyKey: "dispute", request: { settlementId: "settlement-dispute", reasonHash: HASH_A, evidenceVersion: 3 } });
   prepare("timeout", "d".repeat(64), "e".repeat(64), "f".repeat(64));
-  now = new Date(NOW.getTime() + 120000);
+  now = new Date(NOW.getTime() + 5 * 86400000);
   control.timeoutSettlement({ actorId: "oracle-a", idempotencyKey: "timeout", request: { settlementId: "settlement-timeout", reasonHash: HASH_B, evidenceVersion: 3 } });
   assert.deepEqual(outbox.pending().filter((event) => event.eventType === "settlement.refund-required").map((event) => event.subjectId).sort(), ["asset-dispute", "asset-timeout"]);
   assert.equal(runtime.recordStore.certificateHistory("asset-dispute").length, 1);

@@ -20,7 +20,8 @@ export class SettlementCoordinator {
     if (Object.hasOwn(request ?? {}, "snapshotHash") || Object.hasOwn(request ?? {}, "t0SnapshotHash")) {
       throw new Error("SETTLEMENT_CALLER_SNAPSHOT_REFUSED");
     }
-    const { settlementId, assetId, token, sellerWallet, buyerWallet, externalExecutionRef, oldCertificateHash, warehouseReceiptHash, deadlineAt, actorId, evidenceVersion } = request ?? {};
+    if (Object.hasOwn(request ?? {}, "deadlineAt")) throw new Error("SETTLEMENT_CALLER_DEADLINE_REFUSED");
+    const { settlementId, assetId, token, sellerWallet, buyerWallet, externalExecutionRef, oldCertificateHash, warehouseReceiptHash, actorId, evidenceVersion } = request ?? {};
     const certificate = this.recordStore.currentCertificate(assetId);
     const warehouse = this.recordStore.getWarehouse(assetId);
     if (!this.recordStore.getAsset(assetId) || !certificate || !warehouse) {
@@ -35,11 +36,9 @@ export class SettlementCoordinator {
       throw new Error("SETTLEMENT_SNAPSHOT_CONFLICT");
     }
     const now = this.clock();
-    const deadline = new Date(deadlineAt);
-    if (!Number.isFinite(deadline.getTime()) || deadline <= now) throw new Error("SETTLEMENT_DEADLINE_INVALID");
     const targetBusinessDays = this.settlementProfile?.targetBusinessDays;
-    const latestDeadline = this.businessCalendar?.addBusinessDays(now, targetBusinessDays);
-    if (latestDeadline && deadline > latestDeadline) throw new Error("SETTLEMENT_DEADLINE_EXCEEDS_PROFILE");
+    if (!this.businessCalendar || !Number.isInteger(targetBusinessDays) || targetBusinessDays < 1 || !this.settlementProfile?.businessCalendarRef) throw new Error("SETTLEMENT_CALENDAR_PROFILE_REQUIRED");
+    const deadline = this.businessCalendar.addBusinessDays(now, targetBusinessDays);
     if (![settlementId, actorId].every((value) => typeof value === "string" && value)) throw new Error("SETTLEMENT_SNAPSHOT_INCOMPLETE");
     const normalizedDeadlineAt = deadline.toISOString();
     const intent = Object.freeze({

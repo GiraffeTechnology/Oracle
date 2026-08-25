@@ -32,7 +32,6 @@ function begin(runtime, overrides = {}) {
     externalExecutionRef: "external-1",
     oldCertificateHash: B,
     warehouseReceiptHash: C,
-    deadlineAt: "2026-08-26T00:00:00.000Z",
     actorId: "operator",
     evidenceVersion: 2,
     ...overrides,
@@ -46,12 +45,13 @@ test("state transitions reject omitted NaN fractional and non-positive evidence 
   }
 });
 
-test("settlement rejects missing and malformed deadlines", () => {
-  for (const deadlineAt of [undefined, "not-a-date"]) {
+test("settlement generates its deadline and rejects caller overrides", () => {
+  for (const deadlineAt of [undefined, "not-a-date", "2026-08-26T00:00:00.000Z"]) {
     const runtime = preparedRuntime();
-    assert.throws(() => begin(runtime, { deadlineAt }), /SETTLEMENT_DEADLINE_INVALID/);
+    assert.throws(() => begin(runtime, { deadlineAt }), /SETTLEMENT_CALLER_DEADLINE_REFUSED/);
     assert.equal(runtime.stateEngine.current("asset-1"), OracleStatus.VALID);
   }
+  assert.equal(begin(preparedRuntime()).deadlineAt, "2026-08-28T00:00:00.000Z");
 });
 
 test("settlement certificate must belong to the settlement asset", () => {

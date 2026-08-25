@@ -130,7 +130,7 @@ test("settlement requires complete evidence and upgrades the certificate", () =>
   runtime.recordStore.putWarehouse({ assetId: "asset-001", warehouseReceiptHash: HASH_A, warehouseStatus: "HELD" });
   runtime.stateEngine.transition({ subjectId: "asset-001", to: OracleStatus.VALID, reasonHash: HASH_A, evidenceVersion: 1, occurredAt: NOW.toISOString() });
   runtime.tokenIndex.bind({ chainId: "test-chain", contract: "contract-001", tokenId: "1", assetId: "asset-001" });
-  const pending = runtime.settlements.begin({ settlementId: "settlement-001", assetId: "asset-001", token: { chainId: "test-chain", contract: "contract-001", tokenId: "1" }, sellerWallet: "seller-wallet", buyerWallet: "buyer-wallet", externalExecutionRef: "external-execution-001", oldCertificateHash: HASH_B, warehouseReceiptHash: HASH_A, deadlineAt: new Date(NOW.getTime() + 86400000).toISOString(), actorId: "synthetic-market", evidenceVersion: 2 });
+  const pending = runtime.settlements.begin({ settlementId: "settlement-001", assetId: "asset-001", token: { chainId: "test-chain", contract: "contract-001", tokenId: "1" }, sellerWallet: "seller-wallet", buyerWallet: "buyer-wallet", externalExecutionRef: "external-execution-001", oldCertificateHash: HASH_B, warehouseReceiptHash: HASH_A, actorId: "synthetic-market", evidenceVersion: 2 });
   assert.equal(pending.businessCalendarRef, "synthetic://calendar/wenbao-v1");
   assert.equal(pending.targetBusinessDays, 3);
   assert.equal(pending.snapshotHash.length, 64);
@@ -145,12 +145,14 @@ test("settlement requires complete evidence and upgrades the certificate", () =>
   assert.equal(runtime.auditJournal.verify(), true);
 });
 
-test("settlement enforces the versioned T+3 business calendar ceiling", () => {
+test("settlement records the Oracle-generated versioned T+3 deadline", () => {
   const runtime = createSyntheticRuntime({ clock: () => NOW });
   runtime.recordStore.putAsset({ assetId: "asset-calendar", assetFingerprintHash: HASH_A });
   runtime.recordStore.appendCertificate({ assetId: "asset-calendar", certificateHash: HASH_B, certificateVersion: 1 });
   runtime.recordStore.putWarehouse({ assetId: "asset-calendar", warehouseReceiptHash: HASH_C });
   runtime.stateEngine.transition({ subjectId: "asset-calendar", to: OracleStatus.VALID, reasonHash: HASH_A, evidenceVersion: 1, occurredAt: NOW.toISOString() });
   runtime.tokenIndex.bind({ chainId: "test-chain", contract: "calendar-contract", tokenId: "1", assetId: "asset-calendar" });
-  assert.throws(() => runtime.settlements.begin({ settlementId: "calendar-too-late", assetId: "asset-calendar", token: { chainId: "test-chain", contract: "calendar-contract", tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", externalExecutionRef: "execution", oldCertificateHash: HASH_B, warehouseReceiptHash: HASH_C, deadlineAt: new Date(NOW.getTime() + 8 * 86400000).toISOString(), actorId: "operator", evidenceVersion: 2 }), /SETTLEMENT_DEADLINE_EXCEEDS_PROFILE/);
+  const settlement = runtime.settlements.begin({ settlementId: "calendar-deadline", assetId: "asset-calendar", token: { chainId: "test-chain", contract: "calendar-contract", tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", externalExecutionRef: "execution", oldCertificateHash: HASH_B, warehouseReceiptHash: HASH_C, actorId: "operator", evidenceVersion: 2 });
+  assert.equal(settlement.deadlineAt, "2026-08-27T00:00:00.000Z");
+  assert.equal(settlement.businessCalendarRef, "synthetic://calendar/wenbao-v1");
 });

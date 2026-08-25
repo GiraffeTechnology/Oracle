@@ -113,8 +113,8 @@ test("settlement timeout and dispute never change the holder", () => {
   runtime.recordStore.putWarehouse({ assetId: "asset-timeout", warehouseReceiptHash: "b".repeat(64) });
   runtime.stateEngine.transition({ subjectId: "asset-timeout", to: "VALID", reasonHash: HASH, evidenceVersion: 1, occurredAt: now.toISOString() });
   runtime.tokenIndex.bind({ chainId: "test-chain", contract: "contract-timeout", tokenId: "1", assetId: "asset-timeout" });
-  runtime.settlements.begin({ settlementId: "settlement-timeout", assetId: "asset-timeout", token: { chainId: "test-chain", contract: "contract-timeout", tokenId: "1" }, sellerWallet: "seller-wallet", buyerWallet: "buyer-wallet", externalExecutionRef: "execution-timeout", oldCertificateHash: HASH, warehouseReceiptHash: "b".repeat(64), deadlineAt: "2026-08-24T00:01:00.000Z", actorId: "operator", evidenceVersion: 2 });
-  now = new Date("2026-08-24T00:02:00.000Z");
+  runtime.settlements.begin({ settlementId: "settlement-timeout", assetId: "asset-timeout", token: { chainId: "test-chain", contract: "contract-timeout", tokenId: "1" }, sellerWallet: "seller-wallet", buyerWallet: "buyer-wallet", externalExecutionRef: "execution-timeout", oldCertificateHash: HASH, warehouseReceiptHash: "b".repeat(64), actorId: "operator", evidenceVersion: 2 });
+  now = new Date("2026-08-28T00:02:00.000Z");
   runtime.settlements.timeout({ settlementId: "settlement-timeout", reasonHash: "d".repeat(64), actorId: "operator", evidenceVersion: 3 });
   assert.equal(runtime.settlements.get("settlement-timeout").status, "TIMED_OUT");
   assert.equal(runtime.recordStore.currentCertificate("asset-timeout").certificateVersion, 1);
