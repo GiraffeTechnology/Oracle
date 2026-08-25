@@ -24,6 +24,13 @@ test("synthetic signer rotation stays offline and cannot satisfy I12 acceptance"
   assert.equal(report.newSignerAccepted, true);
   assert.equal(report.oldSignerRejected, true);
   assert.equal(report.rotationAudited, true);
+  assert.equal(report.rotationPolicySha256, "df15dee447c36e185571667edf03772f24a502b554e4e85dcaa16552e2c4e7b6");
+  assert.equal(report.twoDistinctApprovalsVerified, true);
+  assert.equal(report.requesterSelfApprovalRejected, true);
+  assert.equal(report.timelockSeconds, 300);
+  assert.equal(report.earlyActivationRejected, true);
+  assert.equal(report.rollbackWindowSeconds, 3600);
+  assert.equal(report.rollbackPassed, true);
   assert.equal(report.auditChainVerified, true);
   assert.equal(report.tamperedAuditChainRejected, true);
   assert.equal(report.privateMaterialObserved, false);
@@ -36,4 +43,3 @@ test("synthetic signer rotation stays offline and cannot satisfy I12 acceptance"
   assert.equal(report.transactionSigned, false);
   assert.equal(report.nonceConsumed, false);
 });
-

@@ -12,6 +12,7 @@ import { SignerSetPolicy } from "../src/domain/signer-set-policy.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixedOutput = path.join(root, "output", "i12-synthetic-signer-rotation.json");
+const policyFile = path.join(root, "config", "nfr-001-signer-rotation-policy.json");
 const writeFixedOutput = process.argv.includes("--write-fixed-output");
 const unknownArguments = process.argv.slice(2).filter((value) => value !== "--write-fixed-output");
 if (unknownArguments.length) throw new Error("SYNTHETIC_ROTATION_ARGUMENT_REFUSED");
@@ -43,6 +44,19 @@ function issue(service, nonce) {
 }
 
 const startedAt = new Date();
+const policyBytes = await readFile(policyFile);
+const rotationPolicy = JSON.parse(policyBytes.toString("utf8"));
+const rotationPolicySha256 = createHash("sha256").update(policyBytes).digest("hex");
+assert.equal(rotationPolicy.scope, "TEST_ONLY_NO_REAL_VALUE");
+assert.equal(rotationPolicy.productionKeyMaterialAllowed, false);
+assert.equal(rotationPolicy.networkAccessAllowed, false);
+assert.equal(rotationPolicy.transactionSigningAllowed, false);
+assert.equal(rotationPolicy.approval.minimumDistinctApprovers, 2);
+assert.equal(rotationPolicy.approval.requesterMayApprove, false);
+assert.equal(rotationPolicy.approval.timelockSeconds, 300);
+assert.equal(rotationPolicy.rollback.windowSeconds, 3600);
+assert.equal(rotationPolicy.rollback.minimumDistinctApprovers, 2);
+assert.equal(rotationPolicy.rollback.newSignerFailureRequired, true);
 let oldKeys = generateKeyPairSync("ed25519");
 let newKeys = generateKeyPairSync("ed25519");
 
@@ -52,39 +66,62 @@ try {
   const oldActivePolicy = new SignerSetPolicy({ signerSetId: oldSignerSetId, threshold: 1, signers: [oldSignerSetId] });
   const oldRetiredPolicy = new SignerSetPolicy({ signerSetId: oldSignerSetId, threshold: 1, signers: [oldSignerSetId], status: "RETIRED" });
   const newActivePolicy = new SignerSetPolicy({ signerSetId: newSignerSetId, threshold: 1, signers: [newSignerSetId] });
+  const newRetiredPolicy = new SignerSetPolicy({ signerSetId: newSignerSetId, threshold: 1, signers: [newSignerSetId], status: "RETIRED" });
   const revocations = new RevocationRegistry();
   const clock = () => startedAt;
 
   const oldActive = new AttestationService({ signerSetId: oldSignerSetId, privateKey: oldKeys.privateKey, publicKey: oldKeys.publicKey, signerPolicy: oldActivePolicy, revocations, clock });
   const oldRetired = new AttestationService({ signerSetId: oldSignerSetId, privateKey: oldKeys.privateKey, publicKey: oldKeys.publicKey, signerPolicy: oldRetiredPolicy, revocations, clock });
   const newActive = new AttestationService({ signerSetId: newSignerSetId, privateKey: newKeys.privateKey, publicKey: newKeys.publicKey, signerPolicy: newActivePolicy, revocations, clock });
+  const newRetired = new AttestationService({ signerSetId: newSignerSetId, privateKey: newKeys.privateKey, publicKey: newKeys.publicKey, signerPolicy: newRetiredPolicy, revocations, clock });
 
   const oldAttestation = issue(oldActive, "synthetic-old-before-rotation");
   assert.equal(oldActive.verify(oldAttestation).valid, true, "old signer must be valid before rotation");
 
   const audit = new AuditJournal();
-  const actorId = "synthetic-rotation-controller";
+  const requesterId = "synthetic-rotation-requester";
+  const approverIds = ["synthetic-rotation-approver-a", "synthetic-rotation-approver-b"];
   const subjectId = "synthetic-oracle-attestation-signer";
+  const requestedAt = new Date(startedAt.getTime() + 1000);
+  const earliestActivationAt = new Date(requestedAt.getTime() + rotationPolicy.approval.timelockSeconds * 1000);
+  const attemptedEarlyActivationAt = new Date(earliestActivationAt.getTime() - 1);
+  assert.equal(attemptedEarlyActivationAt >= earliestActivationAt, false, "timelock must reject early activation");
+  assert.equal(new Set(approverIds).size, rotationPolicy.approval.minimumDistinctApprovers);
+  assert.equal(approverIds.includes(requesterId), false, "requester cannot self-approve");
   audit.append({
     type: "signer.rotation.requested",
     subjectId,
     payloadHash: evidenceHash({ from: oldSignerSetId, to: newSignerSetId, mode: "SYNTHETIC_OFFLINE" }),
+    actorId: requesterId,
+    occurredAt: requestedAt.toISOString(),
+  });
+  approverIds.forEach((actorId, index) => audit.append({
+    type: "signer.rotation.approved",
+    subjectId,
+    payloadHash: evidenceHash({ from: oldSignerSetId, to: newSignerSetId, approvalIndex: index + 1 }),
     actorId,
-    occurredAt: new Date(startedAt.getTime() + 1000).toISOString(),
+    occurredAt: new Date(requestedAt.getTime() + (index + 1) * 1000).toISOString(),
+  }));
+  audit.append({
+    type: "signer.rotation.timelock-elapsed",
+    subjectId,
+    payloadHash: evidenceHash({ earliestActivationAt: earliestActivationAt.toISOString() }),
+    actorId: requesterId,
+    occurredAt: earliestActivationAt.toISOString(),
   });
   audit.append({
     type: "signer.rotation.new-activated",
     subjectId,
     payloadHash: evidenceHash({ signerSetId: newSignerSetId, status: "ACTIVE" }),
-    actorId,
-    occurredAt: new Date(startedAt.getTime() + 2000).toISOString(),
+    actorId: requesterId,
+    occurredAt: new Date(earliestActivationAt.getTime() + 1000).toISOString(),
   });
   audit.append({
     type: "signer.rotation.prior-retired",
     subjectId,
     payloadHash: evidenceHash({ signerSetId: oldSignerSetId, status: "RETIRED" }),
-    actorId,
-    occurredAt: new Date(startedAt.getTime() + 3000).toISOString(),
+    actorId: requesterId,
+    occurredAt: new Date(earliestActivationAt.getTime() + 2000).toISOString(),
   });
 
   const newAttestation = issue(newActive, "synthetic-new-after-rotation");
@@ -98,6 +135,35 @@ try {
   assert.deepEqual(oldSignatureAgainstNewSet, { valid: false, errorCode: "SIGNATURE_INVALID" });
   assert.deepEqual(oldRetiredVerification, { valid: false, errorCode: "SIGNER_SET_NOT_ACTIVE" });
   assert.equal(oldIssueErrorCode, "SIGNER_SET_NOT_ACTIVE");
+
+  const rollbackRequestedAt = new Date(earliestActivationAt.getTime() + 3000);
+  const rollbackDeadline = new Date(earliestActivationAt.getTime() + rotationPolicy.rollback.windowSeconds * 1000);
+  assert.equal(rollbackRequestedAt <= rollbackDeadline, true, "rollback must occur inside the approved window");
+  const rollbackApproverIds = ["synthetic-rollback-approver-a", "synthetic-rollback-approver-b"];
+  assert.equal(new Set(rollbackApproverIds).size, rotationPolicy.rollback.minimumDistinctApprovers);
+  audit.append({
+    type: "signer.rotation.rollback-requested",
+    subjectId,
+    payloadHash: evidenceHash({ failedSignerSetId: newSignerSetId, failureObserved: true }),
+    actorId: requesterId,
+    occurredAt: rollbackRequestedAt.toISOString(),
+  });
+  rollbackApproverIds.forEach((actorId, index) => audit.append({
+    type: "signer.rotation.rollback-approved",
+    subjectId,
+    payloadHash: evidenceHash({ failedSignerSetId: newSignerSetId, approvalIndex: index + 1 }),
+    actorId,
+    occurredAt: new Date(rollbackRequestedAt.getTime() + (index + 1) * 1000).toISOString(),
+  }));
+  audit.append({
+    type: "signer.rotation.rolled-back",
+    subjectId,
+    payloadHash: evidenceHash({ activeSignerSetId: oldSignerSetId, retiredSignerSetId: newSignerSetId }),
+    actorId: requesterId,
+    occurredAt: new Date(rollbackRequestedAt.getTime() + 3000).toISOString(),
+  });
+  assert.equal(oldActive.verify(oldAttestation).valid, true);
+  assert.deepEqual(newRetired.verify(newAttestation), { valid: false, errorCode: "SIGNER_SET_NOT_ACTIVE" });
   assert.equal(audit.verify(), true);
 
   const auditEvents = audit.list();
@@ -113,6 +179,7 @@ try {
     startedAt: startedAt.toISOString(),
     completedAt: new Date().toISOString(),
     runnerSha256,
+    rotationPolicySha256,
     oldSignerSetId,
     newSignerSetId,
     oldPublicKeyFingerprintSha256: publicKeyFingerprint(oldKeys.publicKey),
@@ -131,6 +198,12 @@ try {
     oldSignerRejected: true,
     oldSignerRejectionCodes: ["SIGNATURE_INVALID", "SIGNER_SET_NOT_ACTIVE"],
     rotationAudited: true,
+    twoDistinctApprovalsVerified: true,
+    requesterSelfApprovalRejected: true,
+    timelockSeconds: rotationPolicy.approval.timelockSeconds,
+    earlyActivationRejected: true,
+    rollbackWindowSeconds: rotationPolicy.rollback.windowSeconds,
+    rollbackPassed: true,
     auditChainVerified: true,
     tamperedAuditChainRejected: true,
     privateMaterialObserved: false,
