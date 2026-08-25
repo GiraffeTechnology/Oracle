@@ -72,6 +72,13 @@ CONSUMER-001~009 全部 `NOT-IMPLEMENTED`：合成消费者未建立，无法证
 主网、真实资产、真实资金启用为 `PENDING-GATE`，前置条件为 G-F 全部退出条件。
 依验收标准 §2.1，技术测试全绿**不解除**该门禁；亦不得记为 `BLOCKED` 或 `OUT-OF-SCOPE`。
 
+## 6.1 仓库整体覆盖
+
+本快照仅审计本 commit。仓库另一分支 `feature/oracle-all-iterations` 已实现 PRD v0.3 绝大
+部分 L2 能力（34 个源模块、83 项通过测试），但该分支无 CI，且其 I0–I12 编号与本 PRD 的
+ORACLE/CONSUMER/NFR 体系无追溯映射。依验收标准 §3，跨分支证据不用于本 commit 的状态认定。
+仓库整体的覆盖与差距见 `GAP_AUDIT_ZH.md`。
+
 ## 7. 未决冲突（需裁决，非工程项）
 
 1. **PRD 版本分叉**：本分支为 v0.3（`PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md`）；
