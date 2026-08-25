@@ -42,4 +42,12 @@ test("synthetic signer rotation stays offline and cannot satisfy I12 acceptance"
   assert.equal(report.walletUsed, false);
   assert.equal(report.transactionSigned, false);
   assert.equal(report.nonceConsumed, false);
+
+  const frozenReport = JSON.parse(readFileSync("output/i12-synthetic-signer-rotation.json", "utf8"));
+  assert.equal(frozenReport.runnerSha256, runnerSha256);
+  assert.equal(frozenReport.rotationPolicySha256, report.rotationPolicySha256);
+  assert.equal(frozenReport.twoDistinctApprovalsVerified, true);
+  assert.equal(frozenReport.earlyActivationRejected, true);
+  assert.equal(frozenReport.rollbackPassed, true);
+  assert.equal(frozenReport.acceptanceEligible, false);
 });
