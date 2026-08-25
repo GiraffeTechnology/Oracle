@@ -11,6 +11,8 @@
  *   1. D-001's authoritative PRD exists and its stated version matches the file.
  *   2. D-002's priority testnet and chain ID appear in the testnet task brief.
  *   3. No document declares a different network as the priority testnet.
+ *   4. Both documents still state that the priority network is a test chain, not a
+ *      production chain, and that passing on it releases no production gate.
  */
 import { readFile, readdir } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
@@ -105,6 +107,27 @@ if (netMatch === null || chainMatch === null) {
   process.stdout.write(
     `  ok   ${names.length} documents checked for a conflicting priority network\n`,
   );
+
+  /**
+   * The priority testnet is a test chain. Both documents must say so, and must keep the
+   * production gate separate: under acceptance section 2.1 the mainnet go/no-go is a legal
+   * gate that no technical result releases. These clauses are load-bearing, so their absence
+   * fails the build rather than being noticed later.
+   */
+  const REQUIRED_CLAUSES = [
+    { file: 'DECISIONS_ZH.md', text: `**${network} 是测试链，不是生产链。**` },
+    { file: 'DECISIONS_ZH.md', text: '不解除' },
+    { file: 'TESTNET_TASK_HOODI_ZH.md', text: `**${network} 是测试链，不是生产链。**` },
+    { file: 'TESTNET_TASK_HOODI_ZH.md', text: '不得部署到主网，不得使用真实资金。' },
+    { file: 'TESTNET_TASK_HOODI_ZH.md', text: '不解除生产门禁' },
+  ];
+  for (const { file, text } of REQUIRED_CLAUSES) {
+    const contents = await readFile(join(docs, file), 'utf8');
+    if (!contents.includes(text)) {
+      failures.push(`${file} is missing the required clause: ${text}`);
+    }
+  }
+  process.stdout.write(`  ok   ${REQUIRED_CLAUSES.length} required test-chain clauses present\n`);
 }
 
 if (failures.length > 0) {
