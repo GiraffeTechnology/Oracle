@@ -8,6 +8,13 @@ import { SettlementCoordinator } from "./domain/settlement-coordinator.js";
 import { SourceRegistry } from "./domain/source-registry.js";
 import { StateEngine } from "./domain/state-engine.js";
 import { TokenIndex } from "./domain/token-index.js";
+import { BusinessCalendar } from "./services/business-calendar.js";
+
+const SYNTHETIC_SETTLEMENT_PROFILE = Object.freeze({
+  profileId: "giraffe-settlement/synthetic-v1",
+  businessCalendarRef: "synthetic://calendar/wenbao-v1",
+  targetBusinessDays: 3,
+});
 
 export function createSyntheticRuntime({ clock = () => new Date() } = {}) {
   const sourceRegistry = new SourceRegistry([
@@ -23,6 +30,7 @@ export function createSyntheticRuntime({ clock = () => new Date() } = {}) {
   const { privateKey, publicKey } = generateKeyPairSync("ed25519");
   const attestations = new AttestationService({ signerSetId: "synthetic-oracle-signers", privateKey, publicKey, revocations, clock });
   const tokenIndex = new TokenIndex();
-  const settlements = new SettlementCoordinator({ recordStore, stateEngine, auditJournal, tokenIndex, attestations, clock });
+  const businessCalendar = new BusinessCalendar({ calendarId: "wenbao-v1", timeZone: "Asia/Shanghai" });
+  const settlements = new SettlementCoordinator({ recordStore, stateEngine, auditJournal, tokenIndex, attestations, businessCalendar, settlementProfile: SYNTHETIC_SETTLEMENT_PROFILE, clock });
   return Object.freeze({ sourceRegistry, schemaRegistry, recordStore, stateEngine, auditJournal, revocations, attestations, settlements, tokenIndex });
 }

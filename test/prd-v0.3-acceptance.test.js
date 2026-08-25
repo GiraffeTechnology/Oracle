@@ -10,6 +10,7 @@ import { ConsumerStatus, SyntheticConsumerStateMachine } from "../src/domain/con
 import { OracleStatus, ORACLE_STATUSES } from "../src/domain/oracle-status.js";
 import { RecordStore } from "../src/domain/record-store.js";
 import { RevocationRegistry } from "../src/domain/revocation-registry.js";
+import { StateEngine } from "../src/domain/state-engine.js";
 import { createSyntheticRuntime } from "../src/oracle-runtime.js";
 import { assertAssetFactsOnly, assertOneToOneIssuanceRequest } from "../src/services/product-boundary.js";
 import { verifyOracleAttestation } from "../src/sdk/verifier.js";
@@ -56,6 +57,18 @@ async function listen(server, run) {
 test("ORACLE-002 exposes exactly eight fail-closed public states", () => {
   assert.deepEqual(ORACLE_STATUSES, ["VALID", "INVALID", "TRANSFER_PENDING", "FROZEN", "REVOKED", "EXPIRED", "REVIEW_REQUIRED", "NOT_VERIFIED"]);
   for (const status of ORACLE_STATUSES) assert.equal(OracleStatus[status], status);
+  const targets = [OracleStatus.VALID, OracleStatus.INVALID, OracleStatus.REVIEW_REQUIRED];
+  for (const [index, target] of targets.entries()) {
+    const states = new StateEngine();
+    states.transition({ subjectId: `initial-${target}`, to: target, reasonHash: HASH_A, evidenceVersion: index + 1, occurredAt: NOW.toISOString() });
+    assert.equal(states.current(`initial-${target}`), target);
+  }
+  for (const [index, target] of [OracleStatus.TRANSFER_PENDING, OracleStatus.FROZEN, OracleStatus.REVOKED, OracleStatus.EXPIRED].entries()) {
+    const states = new StateEngine();
+    states.transition({ subjectId: `valid-${target}`, to: OracleStatus.VALID, reasonHash: HASH_A, evidenceVersion: 1, occurredAt: NOW.toISOString() });
+    states.transition({ subjectId: `valid-${target}`, to: target, reasonHash: HASH_B, evidenceVersion: index + 2, occurredAt: NOW.toISOString() });
+    assert.equal(states.current(`valid-${target}`), target);
+  }
 });
 
 test("ORACLE-003 binds every attestation to chain contract token and purpose", () => {
@@ -148,6 +161,13 @@ test("CONSUMER-004 and CONSUMER-009 fail closed without a verified attestation",
   assert.throws(() => machine.transition({ tokenRef: "token", to: "VERIFIED", attestation: consumerAttestation(), verify: () => false }), /CONSUMER_ATTESTATION_REQUIRED/);
   assert.equal(machine.current("token"), ConsumerStatus.DRAFT);
   assert.throws(() => machine.transition({ tokenRef: "token", to: "TRANSFER_PENDING", attestation: consumerAttestation(), verify: accept }), /CONSUMER_TRANSITION_REJECTED/);
+  machine.transition({ tokenRef: "token", to: "VERIFIED", attestation: consumerAttestation("verified"), verify: accept });
+  machine.transition({ tokenRef: "token", to: "ACTIVE", attestation: consumerAttestation("active"), verify: accept });
+  assert.equal(machine.assertOperationAllowed("token", "transfer"), true);
+  machine.transition({ tokenRef: "token", to: "TRANSFER_PENDING", attestation: consumerAttestation("pending"), verify: accept });
+  for (const operation of ["transfer", "redeem", "pledge", "relist"]) {
+    assert.throws(() => machine.assertOperationAllowed("token", operation), new RegExp(`CONSUMER_OPERATION_BLOCKED:TRANSFER_PENDING:${operation}`));
+  }
 });
 
 test("ORACLE-011 renders all four settlement presentation states without implying completed title", () => {
@@ -156,6 +176,10 @@ test("ORACLE-011 renders all four settlement presentation states without implyin
   assert.match(renderAssetDetailHtml({ ...common, settlement: { status: "PENDING" } }), /登记处理中/);
   assert.match(renderAssetDetailHtml({ ...common, status: "VALID", settlement: { status: "FINALIZED" } }), /交割完成/);
   assert.match(renderAssetDetailHtml({ ...common, settlement: { status: "DISPUTED" } }), /交割失败\/争议/);
+  const evidencePage = renderAssetDetailHtml({ ...common, asset: { ...common.asset, sourceAuthority: "approved-source", attestationExpiresAt: "2026-08-25T00:00:00.000Z" }, warehouse: { ...common.warehouse, observedAt: "2026-08-24T00:00:00.000Z" }, settlement: { status: "PENDING", businessCalendarRef: "synthetic:\/\/calendar\/wenbao-v1", deadlineAt: "2026-08-27T00:00:00.000Z" } });
+  assert.match(evidencePage, /approved-source/);
+  assert.match(evidencePage, /data-display-time-zone="browser-local"/);
+  assert.match(evidencePage, /synthetic:\/\/calendar\/wenbao-v1/);
 });
 
 test("minimum write paths remain fail closed when external writes are disabled", async () => {

@@ -105,7 +105,7 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
       "/v1/rwa/settlements",
       "/v1/rwa/revocations",
     ]);
-    const protectedWritePattern = /^\/v1\/rwa\/settlements\/[a-zA-Z0-9_-]{3,128}\/(finalize|cancel)$/;
+    const protectedWritePattern = /^\/v1\/rwa\/settlements\/[a-zA-Z0-9_-]{3,128}\/(finalize|cancel|dispute|timeout)$/;
     if (request.method === "POST" && (requestUrl.pathname.startsWith("/v1/rwa/admin/") || protectedWritePaths.has(requestUrl.pathname) || protectedWritePattern.test(requestUrl.pathname))) {
       if (!controlPlane || !authenticateAdmin || config.externalWritesEnabled !== true) {
         sendJson(response, 503, { ok: false, errorCode: "ADMIN_WRITES_DISABLED" });
@@ -116,7 +116,7 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
         if (!actorId) throw new Error("ADMIN_AUTHENTICATION_REQUIRED");
         const body = await readJson(request);
         const idempotencyKey = request.headers["idempotency-key"];
-        const settlementAction = requestUrl.pathname.match(/^\/v1\/rwa\/settlements\/([a-zA-Z0-9_-]{3,128})\/(finalize|cancel)$/);
+        const settlementAction = requestUrl.pathname.match(/^\/v1\/rwa\/settlements\/([a-zA-Z0-9_-]{3,128})\/(finalize|cancel|dispute|timeout)$/);
         const routes = {
           "/v1/rwa/admin/assets/verify": () => controlPlane.verifyAsset({ actorId, idempotencyKey, ...body }),
           "/v1/rwa/admin/tokens/bind": () => controlPlane.bindToken({ actorId, idempotencyKey, binding: body }),
@@ -127,15 +127,21 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
           "/v1/rwa/admin/settlements/begin": () => controlPlane.beginSettlement({ actorId, idempotencyKey, request: body }),
           "/v1/rwa/admin/settlements/finalize": () => controlPlane.finalizeSettlement({ actorId, idempotencyKey, request: body }),
           "/v1/rwa/admin/settlements/cancel": () => controlPlane.cancelSettlement({ actorId, idempotencyKey, request: body }),
+          "/v1/rwa/admin/settlements/dispute": () => controlPlane.disputeSettlement({ actorId, idempotencyKey, request: body }),
+          "/v1/rwa/admin/settlements/timeout": () => controlPlane.timeoutSettlement({ actorId, idempotencyKey, request: body }),
           "/v1/rwa/settlements": () => controlPlane.beginSettlement({ actorId, idempotencyKey, request: body }),
           "/v1/rwa/revocations": () => body.phase === "execute"
             ? controlPlane.executeRevocation({ actorId, ...body })
             : controlPlane.requestRevocation({ actorId, ...body }),
         };
+        const settlementOperations = settlementAction ? {
+          finalize: () => controlPlane.finalizeSettlement({ actorId, idempotencyKey, request: { ...body, settlementId: settlementAction[1] } }),
+          cancel: () => controlPlane.cancelSettlement({ actorId, idempotencyKey, request: { ...body, settlementId: settlementAction[1] } }),
+          dispute: () => controlPlane.disputeSettlement({ actorId, idempotencyKey, request: { ...body, settlementId: settlementAction[1] } }),
+          timeout: () => controlPlane.timeoutSettlement({ actorId, idempotencyKey, request: { ...body, settlementId: settlementAction[1] } }),
+        } : null;
         const operation = settlementAction
-          ? settlementAction[2] === "finalize"
-            ? () => controlPlane.finalizeSettlement({ actorId, idempotencyKey, request: { ...body, settlementId: settlementAction[1] } })
-            : () => controlPlane.cancelSettlement({ actorId, idempotencyKey, request: { ...body, settlementId: settlementAction[1] } })
+          ? settlementOperations[settlementAction[2]]
           : routes[requestUrl.pathname];
         if (!operation) {
           sendJson(response, 404, { ok: false, errorCode: "ADMIN_ROUTE_NOT_FOUND" });

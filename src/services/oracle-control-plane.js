@@ -100,4 +100,27 @@ export class OracleControlPlane {
       return result;
     });
   }
+
+  disputeSettlement({ actorId, idempotencyKey, request }) {
+    this.authorizer.require(actorId, "settlement:manage");
+    return this.commandJournal.execute(idempotencyKey, { type: "settlement.dispute", request }, () => {
+      const result = this.runtime.settlements.dispute({ ...request, actorId });
+      this.#enqueueSettlementFailure(result, request.reasonHash, result.disputedAt, "settlement.disputed");
+      return result;
+    });
+  }
+
+  timeoutSettlement({ actorId, idempotencyKey, request }) {
+    this.authorizer.require(actorId, "settlement:manage");
+    return this.commandJournal.execute(idempotencyKey, { type: "settlement.timeout", request }, () => {
+      const result = this.runtime.settlements.timeout({ ...request, actorId });
+      this.#enqueueSettlementFailure(result, request.reasonHash, result.timedOutAt, "settlement.timed-out");
+      return result;
+    });
+  }
+
+  #enqueueSettlementFailure(result, reasonHash, createdAt, eventType) {
+    this.outbox.enqueue({ eventType, subjectId: result.assetId, payloadHash: reasonHash, createdAt });
+    this.outbox.enqueue({ eventType: "settlement.refund-required", subjectId: result.assetId, payloadHash: reasonHash, createdAt });
+  }
 }

@@ -90,6 +90,26 @@ paths:
       responses:
         '200': { description: Settlement cancelled without changing the holder or certificate }
         '503': { description: External writes disabled }
+  /v1/rwa/settlements/{settlementId}/dispute:
+    post:
+      operationId: disputeSettlement
+      security: [{ mutualTLS: [], signedRequest: [] }]
+      parameters:
+        - { name: settlementId, in: path, required: true, schema: { type: string } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Settlement disputed and refund notification queued without changing holder or certificate }
+        '503': { description: External writes disabled }
+  /v1/rwa/settlements/{settlementId}/timeout:
+    post:
+      operationId: timeoutSettlement
+      security: [{ mutualTLS: [], signedRequest: [] }]
+      parameters:
+        - { name: settlementId, in: path, required: true, schema: { type: string } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Expired settlement timed out and refund notification queued without changing holder or certificate }
+        '503': { description: External writes disabled }
   /v1/rwa/tokens/{chainId}/{contract}/{tokenId}:
     get:
       operationId: getTokenBinding

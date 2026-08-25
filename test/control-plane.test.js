@@ -16,14 +16,14 @@ const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
 const HASH_C = "c".repeat(64);
 
-function controlFixture() {
-  const runtime = createSyntheticRuntime({ clock: () => NOW });
+function controlFixture(clock = () => NOW) {
+  const runtime = createSyntheticRuntime({ clock });
   const authorizer = new Authorizer();
   authorizer.registerActor("oracle-a", ["ORACLE_OPERATOR", "SECURITY_OFFICER"]);
   authorizer.registerActor("approver-b", ["APPROVER"]);
   authorizer.registerActor("reader-c", ["READER"]);
   const outbox = new Outbox();
-  const control = new OracleControlPlane({ runtime, authorizer, dualControl: new DualControlQueue(), commandJournal: new CommandJournal(), outbox, clock: () => NOW });
+  const control = new OracleControlPlane({ runtime, authorizer, dualControl: new DualControlQueue(), commandJournal: new CommandJournal(), outbox, clock });
   return { runtime, authorizer, outbox, control };
 }
 
@@ -105,6 +105,24 @@ test("cancelled settlements emit an explicit refund-required notification", () =
   control.cancelSettlement({ actorId: "oracle-a", idempotencyKey: "cancel-refund", request: { settlementId: "settlement-refund", reasonHash: HASH_A, evidenceVersion: 3 } });
   assert.equal(outbox.pending().filter((event) => event.eventType === "settlement.refund-required").length, 1);
   assert.equal(runtime.settlements.get("settlement-refund").failureReasonHash, HASH_A);
+});
+
+test("disputed and timed-out settlements emit deterministic refund notifications", () => {
+  let now = NOW;
+  const { runtime, control, outbox } = controlFixture(() => now);
+  const prepare = (suffix, fingerprint, certificate, receipt) => {
+    control.verifyAsset({ actorId: "oracle-a", idempotencyKey: `verify-${suffix}`, asset: { assetId: `asset-${suffix}`, assetFingerprintHash: fingerprint }, certificate: { assetId: `asset-${suffix}`, certificateHash: certificate, certificateVersion: 1 }, warehouse: { assetId: `asset-${suffix}`, warehouseReceiptHash: receipt }, evidenceVersion: 1 });
+    control.bindToken({ actorId: "oracle-a", idempotencyKey: `bind-${suffix}`, binding: { assetId: `asset-${suffix}`, chainId: "test-chain", contract: `contract-${suffix}`, tokenId: "1" } });
+    control.beginSettlement({ actorId: "oracle-a", idempotencyKey: `begin-${suffix}`, request: { settlementId: `settlement-${suffix}`, assetId: `asset-${suffix}`, token: { chainId: "test-chain", contract: `contract-${suffix}`, tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", externalExecutionRef: `external-${suffix}`, oldCertificateHash: certificate, warehouseReceiptHash: receipt, deadlineAt: new Date(NOW.getTime() + 60000).toISOString(), evidenceVersion: 2 } });
+  };
+  prepare("dispute", HASH_A, HASH_B, HASH_C);
+  control.disputeSettlement({ actorId: "oracle-a", idempotencyKey: "dispute", request: { settlementId: "settlement-dispute", reasonHash: HASH_A, evidenceVersion: 3 } });
+  prepare("timeout", "d".repeat(64), "e".repeat(64), "f".repeat(64));
+  now = new Date(NOW.getTime() + 120000);
+  control.timeoutSettlement({ actorId: "oracle-a", idempotencyKey: "timeout", request: { settlementId: "settlement-timeout", reasonHash: HASH_B, evidenceVersion: 3 } });
+  assert.deepEqual(outbox.pending().filter((event) => event.eventType === "settlement.refund-required").map((event) => event.subjectId).sort(), ["asset-dispute", "asset-timeout"]);
+  assert.equal(runtime.recordStore.certificateHistory("asset-dispute").length, 1);
+  assert.equal(runtime.recordStore.certificateHistory("asset-timeout").length, 1);
 });
 
 test("MySQL adapter commits success and rolls back failure", async () => {

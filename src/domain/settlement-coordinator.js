@@ -5,12 +5,14 @@ export class SettlementCoordinator {
   #settlements = new Map();
   #intentHashes = new Map();
 
-  constructor({ recordStore, stateEngine, auditJournal, tokenIndex = null, attestations = null, clock = () => new Date() }) {
+  constructor({ recordStore, stateEngine, auditJournal, tokenIndex = null, attestations = null, businessCalendar = null, settlementProfile = null, clock = () => new Date() }) {
     this.recordStore = recordStore;
     this.stateEngine = stateEngine;
     this.auditJournal = auditJournal;
     this.tokenIndex = tokenIndex;
     this.attestations = attestations;
+    this.businessCalendar = businessCalendar;
+    this.settlementProfile = settlementProfile;
     this.clock = clock;
   }
 
@@ -35,6 +37,9 @@ export class SettlementCoordinator {
     const now = this.clock();
     const deadline = new Date(deadlineAt);
     if (!Number.isFinite(deadline.getTime()) || deadline <= now) throw new Error("SETTLEMENT_DEADLINE_INVALID");
+    const targetBusinessDays = this.settlementProfile?.targetBusinessDays;
+    const latestDeadline = this.businessCalendar?.addBusinessDays(now, targetBusinessDays);
+    if (latestDeadline && deadline > latestDeadline) throw new Error("SETTLEMENT_DEADLINE_EXCEEDS_PROFILE");
     if (![settlementId, actorId].every((value) => typeof value === "string" && value)) throw new Error("SETTLEMENT_SNAPSHOT_INCOMPLETE");
     const normalizedDeadlineAt = deadline.toISOString();
     const intent = Object.freeze({
@@ -48,6 +53,8 @@ export class SettlementCoordinator {
       oldCertificateHash,
       warehouseReceiptHash,
       deadlineAt: normalizedDeadlineAt,
+      businessCalendarRef: this.settlementProfile?.businessCalendarRef ?? null,
+      targetBusinessDays: targetBusinessDays ?? null,
     });
     const intentHash = evidenceHash(intent);
     const existing = this.#settlements.get(settlementId);
@@ -71,7 +78,7 @@ export class SettlementCoordinator {
       revokedAt: now.toISOString(),
       authorityId: actorId,
     });
-    const record = Object.freeze({ settlementId, assetId, token: Object.freeze({ ...token }), sellerWallet, buyerWallet, externalExecutionRef, snapshotHash, oldCertificateHash, warehouseReceiptHash, deadlineAt: normalizedDeadlineAt, status: "PENDING", startedAt: now.toISOString() });
+    const record = Object.freeze({ settlementId, assetId, token: Object.freeze({ ...token }), sellerWallet, buyerWallet, externalExecutionRef, snapshotHash, oldCertificateHash, warehouseReceiptHash, deadlineAt: normalizedDeadlineAt, businessCalendarRef: this.settlementProfile?.businessCalendarRef ?? null, targetBusinessDays: targetBusinessDays ?? null, status: "PENDING", startedAt: now.toISOString() });
     this.#settlements.set(settlementId, record);
     this.#intentHashes.set(settlementId, intentHash);
     this.auditJournal.append({ type: "settlement.started", subjectId: assetId, payloadHash: snapshotHash, actorId, occurredAt: now.toISOString() });

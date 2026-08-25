@@ -30,6 +30,14 @@ export class SyntheticConsumerStateMachine {
     return this.#state.get(tokenRef) ?? ConsumerStatus.DRAFT;
   }
 
+  assertOperationAllowed(tokenRef, operation) {
+    const controlled = new Set(["transfer", "redeem", "pledge", "relist"]);
+    if (!controlled.has(operation)) throw new Error("CONSUMER_OPERATION_INVALID");
+    const status = this.current(tokenRef);
+    if (status !== ConsumerStatus.ACTIVE) throw new Error(`CONSUMER_OPERATION_BLOCKED:${status}:${operation}`);
+    return true;
+  }
+
   transition({ tokenRef, to, attestation, verify }) {
     if (!tokenRef || !Object.hasOwn(ConsumerStatus, to)) throw new Error("CONSUMER_STATE_INVALID");
     if (!attestation || typeof verify !== "function" || verify(attestation) !== true) {
