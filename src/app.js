@@ -1,9 +1,10 @@
 import http from "node:http";
 import { createHash } from "node:crypto";
 import { ORACLE_STATUSES } from "./domain/oracle-status.js";
-import { ADMIN_HTML } from "./admin-ui.js";
+import { ADMIN_HTML, renderAssetDetailHtml } from "./admin-ui.js";
 import { publicL2Profile } from "./config/deployment-profile.js";
 import { publicProtocolProfile } from "./protocol/protocol-profile.js";
+import { assertAssetFactsOnly } from "./services/product-boundary.js";
 
 const JSON_HEADERS = Object.freeze({
   "content-type": "application/json; charset=utf-8",
@@ -29,6 +30,22 @@ function sendCacheableJson(request, response, body) {
   }
   response.writeHead(200, { ...JSON_HEADERS, etag, "cache-control": "private, no-cache" });
   response.end(`${JSON.stringify(body)}\n`);
+}
+
+function publicAsset(asset) {
+  if (!asset) return null;
+  const { currentOwnerCommitment, warehouseId, ...safe } = asset;
+  void currentOwnerCommitment;
+  void warehouseId;
+  return safe;
+}
+
+function publicWarehouse(warehouse) {
+  if (!warehouse) return null;
+  const { holderCommitment, warehouseId, ...safe } = warehouse;
+  void holderCommitment;
+  void warehouseId;
+  return safe;
 }
 
 function adminErrorStatus(errorCode) {
@@ -59,6 +76,12 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
 
   return http.createServer(async (request, response) => {
     const requestUrl = new URL(request.url, "http://localhost");
+    try {
+      assertAssetFactsOnly(Object.fromEntries(requestUrl.searchParams));
+    } catch (error) {
+      sendJson(response, 400, { ok: false, errorCode: error.message });
+      return;
+    }
     if (request.method === "POST" && requestUrl.pathname === "/v1/rwa/attestations/verify") {
       if (!runtime) {
         sendJson(response, 503, { valid: false, errorCode: "VERIFIER_NOT_CONFIGURED" });
@@ -79,7 +102,12 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
       return;
     }
 
-    if (request.method === "POST" && requestUrl.pathname.startsWith("/v1/rwa/admin/")) {
+    const protectedWritePaths = new Set([
+      "/v1/rwa/settlements",
+      "/v1/rwa/revocations",
+    ]);
+    const protectedWritePattern = /^\/v1\/rwa\/settlements\/[a-zA-Z0-9_-]{3,128}\/(finalize|cancel)$/;
+    if (request.method === "POST" && (requestUrl.pathname.startsWith("/v1/rwa/admin/") || protectedWritePaths.has(requestUrl.pathname) || protectedWritePattern.test(requestUrl.pathname))) {
       if (!controlPlane || !authenticateAdmin || config.externalWritesEnabled !== true) {
         sendJson(response, 503, { ok: false, errorCode: "ADMIN_WRITES_DISABLED" });
         return;
@@ -89,6 +117,7 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
         if (!actorId) throw new Error("ADMIN_AUTHENTICATION_REQUIRED");
         const body = await readJson(request);
         const idempotencyKey = request.headers["idempotency-key"];
+        const settlementAction = requestUrl.pathname.match(/^\/v1\/rwa\/settlements\/([a-zA-Z0-9_-]{3,128})\/(finalize|cancel)$/);
         const routes = {
           "/v1/rwa/admin/assets/verify": () => controlPlane.verifyAsset({ actorId, idempotencyKey, ...body }),
           "/v1/rwa/admin/tokens/bind": () => controlPlane.bindToken({ actorId, idempotencyKey, binding: body }),
@@ -99,8 +128,16 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
           "/v1/rwa/admin/settlements/begin": () => controlPlane.beginSettlement({ actorId, idempotencyKey, request: body }),
           "/v1/rwa/admin/settlements/finalize": () => controlPlane.finalizeSettlement({ actorId, idempotencyKey, request: body }),
           "/v1/rwa/admin/settlements/cancel": () => controlPlane.cancelSettlement({ actorId, idempotencyKey, request: body }),
+          "/v1/rwa/settlements": () => controlPlane.beginSettlement({ actorId, idempotencyKey, request: body }),
+          "/v1/rwa/revocations": () => body.phase === "execute"
+            ? controlPlane.executeRevocation({ actorId, ...body })
+            : controlPlane.requestRevocation({ actorId, ...body }),
         };
-        const operation = routes[requestUrl.pathname];
+        const operation = settlementAction
+          ? settlementAction[2] === "finalize"
+            ? () => controlPlane.finalizeSettlement({ actorId, idempotencyKey, request: { ...body, settlementId: settlementAction[1] } })
+            : () => controlPlane.cancelSettlement({ actorId, idempotencyKey, request: { ...body, settlementId: settlementAction[1] } })
+          : routes[requestUrl.pathname];
         if (!operation) {
           sendJson(response, 404, { ok: false, errorCode: "ADMIN_ROUTE_NOT_FOUND" });
           return;
@@ -129,11 +166,23 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
       response.end(ADMIN_HTML);
       return;
     }
+    const assetPageMatch = requestUrl.pathname.match(/^\/assets\/([a-zA-Z0-9_-]{3,128})$/);
+    if (assetPageMatch && runtime) {
+      const asset = runtime.recordStore.getAsset(assetPageMatch[1]);
+      if (!asset) {
+        sendJson(response, 404, { ok: false, errorCode: "ASSET_NOT_FOUND" });
+        return;
+      }
+      const settlement = runtime.settlements.byAsset?.(assetPageMatch[1]) ?? null;
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'", "x-content-type-options": "nosniff", "x-frame-options": "DENY", "referrer-policy": "no-referrer" });
+      response.end(renderAssetDetailHtml({ asset: publicAsset(asset), certificate: runtime.recordStore.currentCertificate(asset.assetId), warehouse: publicWarehouse(runtime.recordStore.getWarehouse(asset.assetId)), status: runtime.stateEngine.current(asset.assetId), settlement }));
+      return;
+    }
     if (requestUrl.pathname === "/healthz") {
       sendJson(response, 200, {
         ok: true,
         service: "giraffe-rwa-oracle",
-        version: "0.2.0",
+        version: "0.3.0",
       });
       return;
     }
@@ -182,10 +231,10 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
         return;
       }
       sendJson(response, 200, {
-        asset,
+        asset: publicAsset(asset),
         status: runtime.stateEngine.current(assetId),
         currentCertificate: runtime.recordStore.currentCertificate(assetId),
-        warehouse: runtime.recordStore.getWarehouse(assetId),
+        warehouse: publicWarehouse(runtime.recordStore.getWarehouse(assetId)),
       });
       return;
     }
@@ -196,7 +245,7 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
       return;
     }
 
-    const tokenMatch = requestUrl.pathname.match(/^\/v1\/rwa\/tokens\/([a-zA-Z0-9_-]{1,64})\/([a-zA-Z0-9:_-]{3,128})\/([a-zA-Z0-9_-]{1,128})(?:\/(certificate-history|eligibility))?$/);
+    const tokenMatch = requestUrl.pathname.match(/^\/v1\/rwa\/tokens\/([a-zA-Z0-9_-]{1,64})\/([a-zA-Z0-9:_-]{3,128})\/([a-zA-Z0-9_-]{1,128})(?:\/(certificate-history|transfer-eligibility|eligibility))?$/);
     if (tokenMatch && runtime) {
       const [, chainId, contract, tokenId, view] = tokenMatch;
       const binding = runtime.tokenIndex.byToken(chainId, contract, tokenId);
@@ -208,7 +257,7 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
         sendJson(response, 200, { binding, history: runtime.recordStore.certificateHistory(binding.assetId) });
         return;
       }
-      if (view === "eligibility") {
+      if (view === "eligibility" || view === "transfer-eligibility") {
         const status = runtime.stateEngine.current(binding.assetId);
         sendJson(response, 200, { binding, status, transferable: status === "VALID" });
         return;
@@ -246,4 +295,3 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
     sendJson(response, 404, { ok: false, errorCode: "NOT_FOUND" });
   });
 }
-

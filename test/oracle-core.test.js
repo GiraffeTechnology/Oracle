@@ -19,6 +19,24 @@ const HASH_B = "b".repeat(64);
 const HASH_C = "c".repeat(64);
 const NOW = new Date("2026-08-24T00:00:00.000Z");
 
+function completeAssetPayload(assetId = "asset-001") {
+  return {
+    assetId,
+    wenbaoRegistryRef: "registry-001",
+    assetFingerprintHash: HASH_A,
+    classificationCode: "synthetic-artwork",
+    transferEligibility: "VALID",
+    warehouseId: "synthetic-warehouse",
+    warehouseReceiptHash: HASH_B,
+    currentCertificateHash: HASH_C,
+    currentCertificateVersion: 1,
+    currentOwnerCommitment: HASH_B,
+    encumbranceStatus: "CLEAR",
+    oracleStatus: "VALID",
+    updatedAt: NOW.toISOString(),
+  };
+}
+
 test("canonical JSON and evidence hashes ignore object insertion order", () => {
   assert.equal(canonicalJson({ b: 2, a: 1 }), canonicalJson({ a: 1, b: 2 }));
   assert.equal(evidenceHash({ b: 2, a: 1 }), evidenceHash({ a: 1, b: 2 }));
@@ -27,13 +45,9 @@ test("canonical JSON and evidence hashes ignore object insertion order", () => {
 
 test("schema registry rejects extra fields and strips sensitive public fields", () => {
   const schemas = createDefaultSchemaRegistry();
-  const payload = schemas.validate("asset-record.v1", {
-    assetId: "asset-001",
-    assetFingerprintHash: HASH_A,
-    registryRef: "registry-001",
-    ownerCommitment: HASH_B,
-  });
-  assert.equal(schemas.publicProjection("asset-record.v1", payload).ownerCommitment, undefined);
+  const payload = schemas.validate("asset-record.v1", completeAssetPayload());
+  assert.equal(schemas.publicProjection("asset-record.v1", payload).currentOwnerCommitment, undefined);
+  assert.equal(schemas.publicProjection("asset-record.v1", payload).warehouseId, undefined);
   assert.throws(
     () => schemas.validate("asset-record.v1", { ...payload, marketPrice: 12 }),
     /PAYLOAD_FIELD_NOT_ALLOWED:marketPrice/,
@@ -43,7 +57,7 @@ test("schema registry rejects extra fields and strips sensitive public fields", 
 test("synthetic adapter enforces source and schema allowlists", () => {
   const sources = new SourceRegistry([{ id: "synthetic-registry", displayName: "Synthetic Registry", kind: "REGISTRY", keySetId: "synthetic-keys", schemaVersions: ["asset-record.v1"], active: true }]);
   const adapter = new SyntheticAuthorityAdapter({ sourceId: "synthetic-registry", schemaRegistry: createDefaultSchemaRegistry(), sourceRegistry: sources });
-  const result = adapter.ingest({ schemaVersion: "asset-record.v1", payload: { assetId: "asset-001", assetFingerprintHash: HASH_A, registryRef: "registry-001" } });
+  const result = adapter.ingest({ schemaVersion: "asset-record.v1", payload: completeAssetPayload() });
   assert.equal(result.sourceRecordHash.length, 64);
   assert.throws(() => adapter.ingest({ schemaVersion: "asset-record.v2", payload: {} }), /SOURCE_SCHEMA_NOT_ALLOWED/);
 });
@@ -89,6 +103,7 @@ test("attestation is subject-bound, expires and can be revoked", () => {
     subject: { assetId: "asset-001", chainId: "test-chain", contract: "synthetic-contract", tokenId: "1", purpose: "transfer-eligibility" },
     factType: "TRANSFER_STATUS",
     factValue: OracleStatus.VALID,
+    sourceAuthority: "synthetic-registry",
     sourceRecordHash: HASH_A,
     validForSeconds: 60,
     nonce: "nonce-001",
@@ -107,13 +122,14 @@ test("settlement requires complete evidence and upgrades the certificate", () =>
   runtime.recordStore.appendCertificate({ assetId: "asset-001", certificateHash: HASH_B, certificateVersion: 1 });
   runtime.recordStore.putWarehouse({ assetId: "asset-001", warehouseReceiptHash: HASH_A, warehouseStatus: "HELD" });
   runtime.stateEngine.transition({ subjectId: "asset-001", to: OracleStatus.VALID, reasonHash: HASH_A, evidenceVersion: 1, occurredAt: NOW.toISOString() });
-  runtime.settlements.begin({ settlementId: "settlement-001", assetId: "asset-001", snapshotHash: HASH_C, deadlineAt: new Date(NOW.getTime() + 86400000).toISOString(), actorId: "synthetic-market", evidenceVersion: 2 });
+  runtime.tokenIndex.bind({ chainId: "test-chain", contract: "contract-001", tokenId: "1", assetId: "asset-001" });
+  runtime.settlements.begin({ settlementId: "settlement-001", assetId: "asset-001", token: { chainId: "test-chain", contract: "contract-001", tokenId: "1" }, sellerWallet: "seller-wallet", buyerWallet: "buyer-wallet", externalExecutionRef: "external-execution-001", snapshotHash: HASH_C, oldCertificateHash: HASH_B, warehouseReceiptHash: HASH_A, deadlineAt: new Date(NOW.getTime() + 86400000).toISOString(), actorId: "synthetic-market", evidenceVersion: 2 });
   assert.equal(runtime.stateEngine.current("asset-001"), OracleStatus.TRANSFER_PENDING);
   assert.throws(
     () => runtime.settlements.finalize({ settlementId: "settlement-001", certificate: {}, registryChangeRef: null, warehouseConfirmed: false, actorId: "synthetic-registry", evidenceVersion: 3 }),
     /SETTLEMENT_CONFIRMATION_INCOMPLETE/,
   );
-  runtime.settlements.finalize({ settlementId: "settlement-001", certificate: { assetId: "asset-001", certificateHash: HASH_C, previousCertificateHash: HASH_B, certificateVersion: 2 }, registryChangeRef: "change-001", warehouseConfirmed: true, actorId: "synthetic-registry", evidenceVersion: 3 });
+  runtime.settlements.finalize({ settlementId: "settlement-001", certificate: { assetId: "asset-001", certificateHash: HASH_C, previousCertificateHash: HASH_B, certificateVersion: 2, wenbaoChangeRef: "change-001", warehouseReceiptHash: HASH_A }, registryChangeRef: "change-001", warehouseConfirmed: true, ownerBindingConfirmed: true, actorId: "synthetic-registry", evidenceVersion: 3 });
   assert.equal(runtime.stateEngine.current("asset-001"), OracleStatus.VALID);
   assert.equal(runtime.recordStore.currentCertificate("asset-001").certificateVersion, 2);
   assert.equal(runtime.auditJournal.verify(), true);

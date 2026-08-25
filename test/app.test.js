@@ -32,7 +32,7 @@ test("health endpoint returns service identity", async () => {
     assert.deepEqual(await response.json(), {
       ok: true,
       service: "giraffe-rwa-oracle",
-      version: "0.2.0",
+      version: "0.3.0",
     });
   });
 });
@@ -128,7 +128,7 @@ test("public verifier ignores caller-supplied time overrides", async () => {
   const issuedAt = new Date("2020-01-01T00:00:00.000Z");
   let serverNow = issuedAt;
   const runtime = createSyntheticRuntime({ clock: () => serverNow });
-  const attestation = runtime.attestations.issue({ subject: { assetId: "asset-old", purpose: "test" }, factType: "STATUS", factValue: "VALID", sourceRecordHash: "a".repeat(64), validForSeconds: 1, nonce: "old-nonce" });
+  const attestation = runtime.attestations.issue({ subject: { assetId: "asset-old", chainId: "test-chain", contract: "test-contract", tokenId: "1", purpose: "test" }, factType: "STATUS", factValue: "VALID", sourceAuthority: "synthetic-registry", sourceRecordHash: "a".repeat(64), validForSeconds: 1, nonce: "old-nonce" });
   serverNow = new Date("2020-01-01T00:00:02.000Z");
   const server = createApp({ config: loadConfig({}), sourceRegistry: runtime.sourceRegistry, runtime });
   await new Promise((resolve) => server.listen(0, "localhost", resolve));
@@ -175,4 +175,3 @@ test("token eligibility endpoint reflects Oracle status", async () => {
     await new Promise((resolve) => server.close(resolve));
   }
 });
-

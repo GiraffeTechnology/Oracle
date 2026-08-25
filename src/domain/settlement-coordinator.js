@@ -3,17 +3,28 @@ import { OracleStatus } from "./oracle-status.js";
 export class SettlementCoordinator {
   #settlements = new Map();
 
-  constructor({ recordStore, stateEngine, auditJournal, clock = () => new Date() }) {
+  constructor({ recordStore, stateEngine, auditJournal, tokenIndex = null, clock = () => new Date() }) {
     this.recordStore = recordStore;
     this.stateEngine = stateEngine;
     this.auditJournal = auditJournal;
+    this.tokenIndex = tokenIndex;
     this.clock = clock;
   }
 
-  begin({ settlementId, assetId, snapshotHash, deadlineAt, actorId, evidenceVersion }) {
+  begin({ settlementId, assetId, token, sellerWallet, buyerWallet, externalExecutionRef, snapshotHash, oldCertificateHash, warehouseReceiptHash, deadlineAt, actorId, evidenceVersion }) {
     if (this.#settlements.has(settlementId)) return this.#settlements.get(settlementId);
-    if (!this.recordStore.getAsset(assetId) || !this.recordStore.currentCertificate(assetId) || !this.recordStore.getWarehouse(assetId)) {
+    const certificate = this.recordStore.currentCertificate(assetId);
+    const warehouse = this.recordStore.getWarehouse(assetId);
+    if (!this.recordStore.getAsset(assetId) || !certificate || !warehouse) {
       throw new Error("SETTLEMENT_EVIDENCE_INCOMPLETE");
+    }
+    if (!token?.chainId || !token.contract || !token.tokenId || !sellerWallet || !buyerWallet || !externalExecutionRef) {
+      throw new Error("SETTLEMENT_SNAPSHOT_INCOMPLETE");
+    }
+    const binding = this.tokenIndex?.byToken(token.chainId, token.contract, token.tokenId);
+    if (!binding || binding.assetId !== assetId) throw new Error("SETTLEMENT_TOKEN_BINDING_INVALID");
+    if (oldCertificateHash !== certificate.certificateHash || warehouseReceiptHash !== warehouse.warehouseReceiptHash) {
+      throw new Error("SETTLEMENT_SNAPSHOT_CONFLICT");
     }
     const now = this.clock();
     if (new Date(deadlineAt) <= now) throw new Error("SETTLEMENT_DEADLINE_INVALID");
@@ -24,16 +35,19 @@ export class SettlementCoordinator {
       evidenceVersion,
       occurredAt: now.toISOString(),
     });
-    const record = Object.freeze({ settlementId, assetId, snapshotHash, deadlineAt, status: "PENDING", startedAt: now.toISOString() });
+    const record = Object.freeze({ settlementId, assetId, token: Object.freeze({ ...token }), sellerWallet, buyerWallet, externalExecutionRef, snapshotHash, oldCertificateHash, warehouseReceiptHash, deadlineAt, status: "PENDING", startedAt: now.toISOString() });
     this.#settlements.set(settlementId, record);
     this.auditJournal.append({ type: "settlement.started", subjectId: assetId, payloadHash: snapshotHash, actorId, occurredAt: now.toISOString() });
     return record;
   }
 
-  finalize({ settlementId, certificate, registryChangeRef, warehouseConfirmed, actorId, evidenceVersion }) {
+  finalize({ settlementId, certificate, registryChangeRef, warehouseConfirmed, ownerBindingConfirmed, actorId, evidenceVersion }) {
     const current = this.#settlements.get(settlementId);
     if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
-    if (!registryChangeRef || warehouseConfirmed !== true) throw new Error("SETTLEMENT_CONFIRMATION_INCOMPLETE");
+    if (!registryChangeRef || warehouseConfirmed !== true || ownerBindingConfirmed !== true) throw new Error("SETTLEMENT_CONFIRMATION_INCOMPLETE");
+    if (certificate?.wenbaoChangeRef !== registryChangeRef || certificate?.warehouseReceiptHash !== current.warehouseReceiptHash) {
+      throw new Error("SETTLEMENT_CERTIFICATE_EVIDENCE_MISMATCH");
+    }
     if (this.clock() > new Date(current.deadlineAt)) throw new Error("SETTLEMENT_DEADLINE_EXCEEDED");
     this.stateEngine.assertTransition({ subjectId: current.assetId, to: OracleStatus.VALID, evidenceVersion });
     this.recordStore.appendCertificate(certificate);
@@ -82,5 +96,8 @@ export class SettlementCoordinator {
   get(settlementId) {
     return this.#settlements.get(settlementId) ?? null;
   }
-}
 
+  byAsset(assetId) {
+    return [...this.#settlements.values()].reverse().find((record) => record.assetId === assetId) ?? null;
+  }
+}

@@ -1,4 +1,6 @@
-# Giraffe RWA Oracle PRD 与交付验收标准对照
+# 已废止：Giraffe RWA Oracle PRD 与交付验收标准对照
+
+> 本文件仅保留历史审计。自 2026-08-25 起，权威验收规则为 `ACCEPTANCE_RWA_ORACLE_ZH.md` v0.3；旧 I0–I12 结构不得覆盖新 ORACLE/CONSUMER/NFR 验收矩阵。
 
 ## 0. 文档控制
 
@@ -225,4 +227,3 @@ PRD 第 22 节的十项统一 DoD 对全部 I0–I12 生效。
 在机器验收报告产生且 `allComplete=true` 之前，准确状态统一为：
 
 > **13 个迭代正在按 PRD 重新验收；已有实现不自动等于完成，缺失证据保持显式阻断。**
-

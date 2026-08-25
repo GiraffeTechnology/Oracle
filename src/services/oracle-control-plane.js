@@ -1,5 +1,6 @@
 import { evidenceHash } from "../domain/canonical-json.js";
 import { OracleStatus } from "../domain/oracle-status.js";
+import { assertAssetFactsOnly } from "./product-boundary.js";
 
 export class OracleControlPlane {
   constructor({ runtime, authorizer, dualControl, commandJournal, outbox, clock = () => new Date() }) {
@@ -8,6 +9,7 @@ export class OracleControlPlane {
 
   verifyAsset({ actorId, idempotencyKey, asset, certificate, warehouse, evidenceVersion }) {
     this.authorizer.require(actorId, "asset:verify");
+    assertAssetFactsOnly({ asset, certificate, warehouse });
     return this.commandJournal.execute(idempotencyKey, { type: "asset.verify", asset, certificate, warehouse, evidenceVersion }, () => {
       this.runtime.recordStore.assertAsset(asset);
       this.runtime.recordStore.assertCertificate(certificate);
@@ -26,6 +28,7 @@ export class OracleControlPlane {
 
   issueAttestation({ actorId, idempotencyKey, request }) {
     this.authorizer.require(actorId, "attestation:issue");
+    assertAssetFactsOnly(request);
     if (this.runtime.stateEngine.current(request.subject.assetId) !== OracleStatus.VALID) throw new Error("ASSET_NOT_VALID_FOR_ATTESTATION");
     return this.commandJournal.execute(idempotencyKey, { type: "attestation.issue", request }, () => {
       const attestation = this.runtime.attestations.issue(request);

@@ -32,7 +32,21 @@ function ingestionFixture() {
     issuedAt: NOW.toISOString(),
     nonce: "nonce-001",
     idempotencyKey: "idem-001",
-    payload: { assetId: "asset-001", assetFingerprintHash: HASH_A, registryRef: "registry-001", ownerCommitment: HASH_B },
+    payload: {
+      assetId: "asset-001",
+      wenbaoRegistryRef: "registry-001",
+      assetFingerprintHash: HASH_A,
+      classificationCode: "synthetic-artwork",
+      transferEligibility: "VALID",
+      warehouseId: "synthetic-warehouse",
+      warehouseReceiptHash: HASH_C,
+      currentCertificateHash: HASH_B,
+      currentCertificateVersion: 1,
+      currentOwnerCommitment: HASH_B,
+      encumbranceStatus: "CLEAR",
+      oracleStatus: "VALID",
+      updatedAt: NOW.toISOString(),
+    },
   };
   const signature = sign(null, Buffer.from(canonicalJson(envelope)), privateKey).toString("base64url");
   return { gateway, envelope, signature, keys };
@@ -42,7 +56,8 @@ test("signed ingestion authenticates, redacts and is idempotent", () => {
   const { gateway, envelope, signature } = ingestionFixture();
   const first = gateway.ingest({ envelope, signature });
   assert.equal(first.replayed, false);
-  assert.equal(first.publicPayload.ownerCommitment, undefined);
+  assert.equal(first.publicPayload.currentOwnerCommitment, undefined);
+  assert.equal(first.publicPayload.warehouseId, undefined);
   assert.equal(gateway.ingest({ envelope, signature }).replayed, true);
 });
 

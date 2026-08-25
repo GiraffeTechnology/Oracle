@@ -21,7 +21,7 @@ export class MySqlOracleRepository {
 
   async getAsset(assetId, connection = this.pool) {
     const [rows] = await connection.execute(
-      "SELECT asset_id, asset_fingerprint_hash, registry_ref_hash, current_status, evidence_version, updated_at FROM assets WHERE asset_id = ?",
+      "SELECT asset_id, asset_fingerprint_hash, wenbao_registry_ref, transfer_eligibility, warehouse_receipt_hash, current_certificate_hash, current_certificate_version, encumbrance_status, oracle_status, evidence_version, updated_at FROM assets WHERE asset_id = ?",
       [assetId],
     );
     return rows[0] ?? null;
@@ -30,21 +30,24 @@ export class MySqlOracleRepository {
   async upsertAsset(connection, record) {
     await connection.execute(
       `INSERT INTO assets
-       (asset_id, asset_fingerprint_hash, registry_ref_hash, owner_commitment, current_status, evidence_version, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       (asset_id, asset_fingerprint_hash, wenbao_registry_ref, classification_code, transfer_eligibility, warehouse_id, warehouse_receipt_hash, current_certificate_hash, current_certificate_version, current_owner_commitment, encumbrance_status, oracle_status, evidence_version, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
-       registry_ref_hash = VALUES(registry_ref_hash), owner_commitment = VALUES(owner_commitment),
-       current_status = VALUES(current_status), evidence_version = VALUES(evidence_version), updated_at = VALUES(updated_at)`,
-      [record.assetId, record.assetFingerprintHash, record.registryRefHash, record.ownerCommitment ?? null, record.currentStatus, record.evidenceVersion, record.createdAt, record.updatedAt],
+       wenbao_registry_ref = VALUES(wenbao_registry_ref), transfer_eligibility = VALUES(transfer_eligibility),
+       warehouse_receipt_hash = VALUES(warehouse_receipt_hash), current_certificate_hash = VALUES(current_certificate_hash),
+       current_certificate_version = VALUES(current_certificate_version), current_owner_commitment = VALUES(current_owner_commitment),
+       encumbrance_status = VALUES(encumbrance_status), oracle_status = VALUES(oracle_status),
+       evidence_version = VALUES(evidence_version), updated_at = VALUES(updated_at)`,
+      [record.assetId, record.assetFingerprintHash, record.wenbaoRegistryRef, record.classificationCode ?? null, record.transferEligibility, record.warehouseId, record.warehouseReceiptHash, record.currentCertificateHash, record.currentCertificateVersion, record.currentOwnerCommitment, record.encumbranceStatus, record.oracleStatus, record.evidenceVersion, record.createdAt, record.updatedAt],
     );
   }
 
   async appendCertificate(connection, record) {
     await connection.execute(
       `INSERT INTO certificate_versions
-       (asset_id, certificate_version, certificate_hash, previous_certificate_hash, effective_at)
-       VALUES (?, ?, ?, ?, ?)`,
-      [record.assetId, record.certificateVersion, record.certificateHash, record.previousCertificateHash ?? null, record.effectiveAt],
+       (asset_id, token_id, certificate_version, certificate_hash, previous_certificate_hash, wenbao_change_ref, warehouse_receipt_hash, effective_at, superseded_at, certificate_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [record.assetId, record.tokenId, record.certificateVersion, record.certificateHash, record.previousCertificateHash ?? null, record.wenbaoChangeRef, record.warehouseReceiptHash, record.effectiveAt, record.supersededAt ?? null, record.status],
     );
   }
 
@@ -66,4 +69,3 @@ export class MySqlOracleRepository {
     );
   }
 }
-

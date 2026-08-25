@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Giraffe RWA Oracle API
-  version: 0.2.0
-  description: Read-only facts and offline-verification API. Financial outputs and transaction signing are excluded.
+  version: 0.3.0
+  description: Asset-fact and offline-verification API. External writes remain disabled until the authenticated control-plane gate is explicitly enabled for synthetic testing.
 servers: []
 components:
   securitySchemes:
@@ -53,6 +53,15 @@ paths:
       parameters:
         - { name: assetId, in: path, required: true, schema: { type: string, pattern: '^[a-zA-Z0-9_-]{3,128}$' } }
       responses: { '200': { description: Append-only certificate hash history } }
+  /v1/rwa/settlements:
+    post:
+      operationId: beginSettlement
+      security: [{ mutualTLS: [], signedRequest: [] }]
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      responses:
+        '200': { description: T+0 intent accepted idempotently }
+        '503': { description: External writes disabled }
   /v1/rwa/settlements/{settlementId}:
     get:
       operationId: getSettlement
@@ -61,6 +70,26 @@ paths:
       responses:
         '200': { description: Settlement fact state }
         '404': { description: Settlement not found }
+  /v1/rwa/settlements/{settlementId}/finalize:
+    post:
+      operationId: finalizeSettlement
+      security: [{ mutualTLS: [], signedRequest: [] }]
+      parameters:
+        - { name: settlementId, in: path, required: true, schema: { type: string } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Settlement finalized after complete authoritative evidence }
+        '503': { description: External writes disabled }
+  /v1/rwa/settlements/{settlementId}/cancel:
+    post:
+      operationId: cancelSettlement
+      security: [{ mutualTLS: [], signedRequest: [] }]
+      parameters:
+        - { name: settlementId, in: path, required: true, schema: { type: string } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Settlement cancelled without changing the holder or certificate }
+        '503': { description: External writes disabled }
   /v1/rwa/tokens/{chainId}/{contract}/{tokenId}:
     get:
       operationId: getTokenBinding
@@ -71,7 +100,15 @@ paths:
       responses:
         '200': { description: Token-to-asset binding and current Oracle state }
         '404': { description: Token binding not found }
-  /v1/rwa/tokens/{chainId}/{contract}/{tokenId}/eligibility:
+  /v1/rwa/tokens/{chainId}/{contract}/{tokenId}/certificate-history:
+    get:
+      operationId: getTokenCertificateHistory
+      parameters:
+        - { name: chainId, in: path, required: true, schema: { type: string } }
+        - { name: contract, in: path, required: true, schema: { type: string } }
+        - { name: tokenId, in: path, required: true, schema: { type: string } }
+      responses: { '200': { description: Append-only certificate hash history for the bound asset } }
+  /v1/rwa/tokens/{chainId}/{contract}/{tokenId}/transfer-eligibility:
     get:
       operationId: getTokenEligibility
       parameters:
@@ -104,4 +141,12 @@ paths:
       responses:
         '200': { description: Verification result }
         '400': { description: Invalid request }
-
+  /v1/rwa/revocations:
+    post:
+      operationId: manageRevocation
+      security: [{ mutualTLS: [], signedRequest: [] }]
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Dual-control revocation request or execution accepted }
+        '503': { description: External writes disabled }

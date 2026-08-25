@@ -32,9 +32,10 @@ function verifyPublicAuditChain(events) {
 
 function issue(service, nonce) {
   return service.issue({
-    subject: { assetId: "SYNTHETIC-I12-ASSET", purpose: "signer-rotation-drill" },
+    subject: { assetId: "SYNTHETIC-I12-ASSET", chainId: "synthetic-chain", contract: "synthetic-contract", tokenId: "1", purpose: "signer-rotation-drill" },
     factType: "synthetic-rotation",
     factValue: "TEST_ONLY",
+    sourceAuthority: "synthetic-rotation-authority",
     sourceRecordHash: evidenceHash({ fixture: "i12-synthetic-signer-rotation-v1" }),
     validForSeconds: 300,
     nonce,
@@ -163,4 +164,3 @@ try {
   oldKeys = null;
   newKeys = null;
 }
-

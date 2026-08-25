@@ -20,9 +20,12 @@ export class AttestationService {
     this.clock = clock;
   }
 
-  issue({ subject, factType, factValue, sourceRecordHash, validForSeconds, nonce }) {
+  issue({ subject, factType, factValue, sourceAuthority, sourceRecordHash, validForSeconds, nonce, revocationRef = null }) {
     this.signerPolicy?.assertActive();
-    if (!subject?.assetId || !subject.purpose || !sourceRecordHash || !nonce) throw new Error("ATTESTATION_REQUEST_INVALID");
+    const requiredSubject = ["assetId", "chainId", "contract", "tokenId", "purpose"];
+    if (!subject || requiredSubject.some((field) => !subject[field]) || !sourceAuthority || !sourceRecordHash || !nonce) {
+      throw new Error("ATTESTATION_REQUEST_INVALID");
+    }
     if (!Number.isInteger(validForSeconds) || validForSeconds < 1 || validForSeconds > 86400) {
       throw new Error("ATTESTATION_TTL_INVALID");
     }
@@ -35,11 +38,13 @@ export class AttestationService {
       subject: Object.freeze({ ...subject }),
       factType,
       factValue,
+      sourceAuthority,
       sourceRecordHash,
       observedAt: observedAt.toISOString(),
       validFrom: observedAt.toISOString(),
       expiresAt: expiresAt.toISOString(),
       nonce,
+      revocationRef,
       signerSetId: this.signerSetId,
     });
     const attestation = Object.freeze({
@@ -75,4 +80,3 @@ export class AttestationService {
     return { valid: true, errorCode: null };
   }
 }
-

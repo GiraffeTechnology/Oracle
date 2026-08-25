@@ -50,21 +50,20 @@ export function createDefaultSchemaRegistry() {
   const registry = new SchemaRegistry();
   registry.register({
     id: "asset-record.v1",
-    required: ["assetId", "assetFingerprintHash", "registryRef"],
-    allowed: ["assetId", "assetFingerprintHash", "registryRef", "ownerCommitment", "classificationCode"],
-    sensitive: ["ownerCommitment"],
+    required: ["assetId", "assetFingerprintHash", "wenbaoRegistryRef", "transferEligibility", "warehouseId", "warehouseReceiptHash", "currentCertificateHash", "currentCertificateVersion", "currentOwnerCommitment", "encumbranceStatus", "oracleStatus", "updatedAt"],
+    allowed: ["assetId", "assetFingerprintHash", "wenbaoRegistryRef", "classificationCode", "transferEligibility", "warehouseId", "warehouseReceiptHash", "currentCertificateHash", "currentCertificateVersion", "currentOwnerCommitment", "encumbranceStatus", "oracleStatus", "updatedAt"],
+    sensitive: ["currentOwnerCommitment", "warehouseId"],
   });
   registry.register({
     id: "certificate-record.v1",
-    required: ["assetId", "certificateHash", "certificateVersion"],
-    allowed: ["assetId", "certificateHash", "certificateVersion", "previousCertificateHash", "effectiveAt"],
+    required: ["assetId", "tokenId", "certificateVersion", "certificateHash", "previousCertificateHash", "wenbaoChangeRef", "warehouseReceiptHash", "effectiveAt", "status"],
+    allowed: ["assetId", "tokenId", "certificateVersion", "certificateHash", "previousCertificateHash", "wenbaoChangeRef", "warehouseReceiptHash", "effectiveAt", "supersededAt", "status"],
   });
   registry.register({
     id: "warehouse-record.v1",
-    required: ["assetId", "warehouseReceiptHash", "warehouseStatus"],
-    allowed: ["assetId", "warehouseReceiptHash", "warehouseStatus", "holderCommitment"],
-    sensitive: ["holderCommitment"],
+    required: ["assetId", "warehouseId", "warehouseReceiptHash", "warehouseStatus", "observedAt"],
+    allowed: ["assetId", "warehouseId", "warehouseReceiptHash", "warehouseStatus", "holderCommitment", "encumbranceStatus", "observedAt"],
+    sensitive: ["holderCommitment", "warehouseId"],
   });
   return registry;
 }
-

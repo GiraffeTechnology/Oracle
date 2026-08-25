@@ -9,6 +9,12 @@ test("I12 evidence validator rejects shortened stability claims", () => {
   assert.throws(() => validateI12Evidence("72h-stability", { ...base, durationSeconds: undefined }), /I12_STABILITY_INSUFFICIENT/);
   assert.throws(() => validateI12Evidence("72h-stability", { ...base, sampleCount: Number.NaN }), /I12_STABILITY_INSUFFICIENT/);
 });
+
+test("I12 stability enforces 99.9 percent availability and derives it for the frozen runner", () => {
+  const base = { schemaVersion: 1, type: "72h-stability", status: "PASS", artifactSha256: "a".repeat(64), durationSeconds: 259200, continuous: true, sampleCount: 4321, secretScanPassed: true, unexplainedFailures: 0 };
+  assert.equal(validateI12Evidence("72h-stability", base), true);
+  assert.throws(() => validateI12Evidence("72h-stability", { ...base, availabilityPercent: 99.8 }), /I12_AVAILABILITY_INSUFFICIENT/);
+});
 test("I12 evidence validator requires security privacy and legal acceptance", () => {
   const reviews = ["security", "privacy", "legal"].map((role) => ({ role, accepted: true, reviewerRef: `${role}-reviewer`, evidenceSha256: HASH }));
   const base = { schemaVersion: 1, type: "independent-reviews", status: "PASS", artifactSha256: HASH, reviews, unacceptedP0: 0 };
@@ -29,4 +35,3 @@ test("I12 evidence validator rejects omitted and non-finite capacity or recovery
   assert.throws(() => validateI12Evidence("restore-drill", { ...evidence, type: "restore-drill", databaseIntegrityVerified: true, auditHeadVerified: true }), /I12_RESTORE_DRILL_INSUFFICIENT/);
   assert.equal(validateI12Evidence("restore-drill", { ...evidence, type: "restore-drill", databaseIntegrityVerified: true, auditHeadVerified: true, rpoSecondsTarget: 300, rpoSecondsActual: 120, rtoSecondsTarget: 900, rtoSecondsActual: 600 }), true);
 });
-

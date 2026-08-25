@@ -14,6 +14,10 @@ export function validateI12Evidence(type, value) {
     if (typeof value.loadProfileRef !== "string" || !value.loadProfileRef.trim() || !finiteNumber(value.requestsCompleted, { minimum: 1, integer: true }) || !finiteNumber(value.p95Milliseconds, { minimum: Number.EPSILON }) || !finiteNumber(value.queueBacklogMaximum, { integer: true }) || value.faultInjectionPassed !== true) throw new Error("I12_PERFORMANCE_INSUFFICIENT");
   } else if (type === "72h-stability") {
     if (!finiteNumber(value.durationSeconds, { minimum: 259200 }) || value.continuous !== true || !finiteNumber(value.sampleCount, { minimum: 4320, integer: true }) || value.secretScanPassed !== true || !finiteNumber(value.unexplainedFailures, { integer: true }) || value.unexplainedFailures !== 0) throw new Error("I12_STABILITY_INSUFFICIENT");
+    const availabilityPercent = finiteNumber(value.availabilityPercent)
+      ? value.availabilityPercent
+      : ((value.sampleCount - value.unexplainedFailures) / value.sampleCount) * 100;
+    if (!finiteNumber(availabilityPercent, { minimum: 99.9 }) || availabilityPercent > 100) throw new Error("I12_AVAILABILITY_INSUFFICIENT");
   } else if (type === "restore-drill") {
     if (value.databaseIntegrityVerified !== true || value.auditHeadVerified !== true || !finiteNumber(value.rpoSecondsTarget) || !finiteNumber(value.rpoSecondsActual) || !finiteNumber(value.rtoSecondsTarget) || !finiteNumber(value.rtoSecondsActual) || value.rpoSecondsActual > value.rpoSecondsTarget || value.rtoSecondsActual > value.rtoSecondsTarget) throw new Error("I12_RESTORE_DRILL_INSUFFICIENT");
   } else if (type === "signer-rotation") {
@@ -35,4 +39,3 @@ export function validateI12Evidence(type, value) {
   } else throw new Error("I12_EVIDENCE_TYPE_UNKNOWN");
   return true;
 }
-

@@ -62,7 +62,7 @@ test("attestation revocation requires independent approval", () => {
     warehouse: { assetId: "asset-001", warehouseReceiptHash: HASH_C, warehouseStatus: "HELD" },
     evidenceVersion: 1,
   });
-  const issued = control.issueAttestation({ actorId: "oracle-a", idempotencyKey: "issue-001", request: { subject: { assetId: "asset-001", purpose: "transfer-eligibility" }, factType: "TRANSFER_STATUS", factValue: "VALID", sourceRecordHash: HASH_A, validForSeconds: 60, nonce: "attestation-nonce-001" } }).result;
+  const issued = control.issueAttestation({ actorId: "oracle-a", idempotencyKey: "issue-001", request: { subject: { assetId: "asset-001", chainId: "test-chain", contract: "contract-001", tokenId: "1", purpose: "transfer-eligibility" }, factType: "TRANSFER_STATUS", factValue: "VALID", sourceAuthority: "synthetic-registry", sourceRecordHash: HASH_A, validForSeconds: 60, nonce: "attestation-nonce-001" } }).result;
   control.requestRevocation({ actorId: "oracle-a", actionId: "revoke-001", attestationId: issued.envelope.attestationId, reasonHash: HASH_C });
   assert.throws(() => control.executeRevocation({ actorId: "oracle-a", actionId: "revoke-001", attestationId: issued.envelope.attestationId, reasonHash: HASH_C }), /APPROVAL_REQUIRED/);
   control.approveAction({ actorId: "approver-b", actionId: "revoke-001" });
@@ -82,7 +82,7 @@ test("token binding is one-to-one and idempotent", () => {
 test("attestation service rejects duplicate nonces", () => {
   const { control } = controlFixture();
   control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-001", asset: { assetId: "asset-001", assetFingerprintHash: HASH_A }, certificate: { assetId: "asset-001", certificateHash: HASH_B, certificateVersion: 1 }, warehouse: { assetId: "asset-001", warehouseReceiptHash: HASH_C }, evidenceVersion: 1 });
-  const request = { subject: { assetId: "asset-001", purpose: "transfer-eligibility" }, factType: "TRANSFER_STATUS", factValue: "VALID", sourceRecordHash: HASH_A, validForSeconds: 60, nonce: "same-nonce" };
+  const request = { subject: { assetId: "asset-001", chainId: "test-chain", contract: "contract-001", tokenId: "1", purpose: "transfer-eligibility" }, factType: "TRANSFER_STATUS", factValue: "VALID", sourceAuthority: "synthetic-registry", sourceRecordHash: HASH_A, validForSeconds: 60, nonce: "same-nonce" };
   control.issueAttestation({ actorId: "oracle-a", idempotencyKey: "issue-001", request });
   assert.throws(() => control.issueAttestation({ actorId: "oracle-a", idempotencyKey: "issue-002", request }), /ATTESTATION_NONCE_REUSED/);
 });
