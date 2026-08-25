@@ -1,5 +1,7 @@
 # Operations and production gates
 
+The normative synthetic NFR-004 load and fault profile is `config/nfr-004-load-profile.json`. An acceptance report must cover exactly 240,000 measured requests, all twelve fault cases, the declared latency/backlog/resource limits, and zero application 5xx or process restarts. A shorter loopback smoke test is preflight evidence only.
+
 ## Environments
 
 - `development`: local, loopback only, no external writes.
@@ -27,4 +29,3 @@
 The repository is not sufficient to authorize production. Production requires accepted security, privacy
 and legal reviews; verified backups; signer ceremony; source contracts; deployment inventory; rollback;
 and written approval for each real asset class and jurisdiction.
-

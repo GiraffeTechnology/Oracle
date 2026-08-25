@@ -11,7 +11,7 @@ export function validateI12Evidence(type, value) {
     for (const gate of ["sast", "dependency", "secret", "container", "iac", "api", "penetration"]) if (value.gates?.[gate] !== "PASS") throw new Error(`I12_SECURITY_GATE_INSUFFICIENT:${gate}`);
     if ((value.unacceptedP0 ?? 1) !== 0) throw new Error("I12_SECURITY_UNACCEPTED_P0");
   } else if (type === "performance-capacity") {
-    if (typeof value.loadProfileRef !== "string" || !value.loadProfileRef.trim() || !finiteNumber(value.requestsCompleted, { minimum: 1, integer: true }) || !finiteNumber(value.p95Milliseconds, { minimum: Number.EPSILON }) || !finiteNumber(value.queueBacklogMaximum, { integer: true }) || value.faultInjectionPassed !== true) throw new Error("I12_PERFORMANCE_INSUFFICIENT");
+    if (value.loadProfileRef !== "oracle-nfr004-mixed-synthetic-v1" || value.requestsCompleted !== 240000 || !finiteNumber(value.unexpectedFailureRatePercent) || value.unexpectedFailureRatePercent > 0.1 || value.application5xx !== 0 || value.processRestarts !== 0 || !finiteNumber(value.steadyP95Milliseconds, { minimum: Number.EPSILON }) || value.steadyP95Milliseconds > 150 || !finiteNumber(value.burstP95Milliseconds, { minimum: Number.EPSILON }) || value.burstP95Milliseconds > 300 || !finiteNumber(value.steadyBacklogMaximum, { integer: true }) || value.steadyBacklogMaximum > 64 || !finiteNumber(value.burstBacklogMaximum, { integer: true }) || value.burstBacklogMaximum > 256 || !finiteNumber(value.backlogDrainSeconds) || value.backlogDrainSeconds > 60 || !finiteNumber(value.cpuFiveMinuteAveragePercent) || value.cpuFiveMinuteAveragePercent >= 80 || !finiteNumber(value.memoryPeakPercent) || value.memoryPeakPercent >= 85 || value.faultInjectionPassed !== true || value.faultMatrixPassed !== 12) throw new Error("I12_PERFORMANCE_INSUFFICIENT");
   } else if (type === "72h-stability") {
     if (!finiteNumber(value.durationSeconds, { minimum: 259200 }) || value.continuous !== true || !finiteNumber(value.sampleCount, { minimum: 4320, integer: true }) || value.secretScanPassed !== true || !finiteNumber(value.unexplainedFailures, { integer: true }) || value.unexplainedFailures !== 0) throw new Error("I12_STABILITY_INSUFFICIENT");
     const availabilityPercent = finiteNumber(value.availabilityPercent)
@@ -29,12 +29,12 @@ export function validateI12Evidence(type, value) {
   } else if (type === "independent-reviews") {
     const reviews = new Map((value.reviews ?? []).map((review) => [review.role, review]));
     const reviewerRefs = new Set();
-    for (const role of ["security", "privacy", "legal"]) {
+    for (const role of ["security", "privacy", "legal", "contract", "operations"]) {
       const review = reviews.get(role);
       if (!review || review.accepted !== true || typeof review.reviewerRef !== "string" || !review.reviewerRef.trim() || !HASH.test(review.evidenceSha256 ?? "")) throw new Error(`I12_REVIEW_INSUFFICIENT:${role}`);
       reviewerRefs.add(review.reviewerRef.trim());
     }
-    if (reviewerRefs.size !== 3) throw new Error("I12_REVIEWS_NOT_INDEPENDENT");
+    if (reviewerRefs.size !== 5) throw new Error("I12_REVIEWS_NOT_INDEPENDENT");
     if ((value.unacceptedP0 ?? 1) !== 0) throw new Error("I12_UNACCEPTED_P0");
   } else throw new Error("I12_EVIDENCE_TYPE_UNKNOWN");
   return true;

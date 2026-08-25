@@ -15,8 +15,8 @@ test("I12 stability enforces 99.9 percent availability and derives it for the fr
   assert.equal(validateI12Evidence("72h-stability", base), true);
   assert.throws(() => validateI12Evidence("72h-stability", { ...base, availabilityPercent: 99.8 }), /I12_AVAILABILITY_INSUFFICIENT/);
 });
-test("I12 evidence validator requires security privacy and legal acceptance", () => {
-  const reviews = ["security", "privacy", "legal"].map((role) => ({ role, accepted: true, reviewerRef: `${role}-reviewer`, evidenceSha256: HASH }));
+test("I12 evidence validator requires five independent production-candidate reviews", () => {
+  const reviews = ["security", "privacy", "legal", "contract", "operations"].map((role) => ({ role, accepted: true, reviewerRef: `${role}-reviewer`, evidenceSha256: HASH }));
   const base = { schemaVersion: 1, type: "independent-reviews", status: "PASS", artifactSha256: HASH, reviews, unacceptedP0: 0 };
   assert.equal(validateI12Evidence("independent-reviews", base), true);
   assert.throws(() => validateI12Evidence("independent-reviews", { ...base, reviews: reviews.slice(0, 2) }), /I12_REVIEW_INSUFFICIENT:legal/);
@@ -32,6 +32,9 @@ test("I12 evidence validator rejects omitted and non-finite capacity or recovery
   const evidence = { schemaVersion: 1, status: "PASS", artifactSha256: HASH };
   assert.throws(() => validateI12Evidence("performance-capacity", { ...evidence, type: "performance-capacity", loadProfileRef: "controlled/load-profile", faultInjectionPassed: true }), /I12_PERFORMANCE_INSUFFICIENT/);
   assert.throws(() => validateI12Evidence("performance-capacity", { ...evidence, type: "performance-capacity", loadProfileRef: "controlled/load-profile", requestsCompleted: 1, p95Milliseconds: Infinity, queueBacklogMaximum: 0, faultInjectionPassed: true }), /I12_PERFORMANCE_INSUFFICIENT/);
+  const performance = { ...evidence, type: "performance-capacity", loadProfileRef: "oracle-nfr004-mixed-synthetic-v1", requestsCompleted: 240000, unexpectedFailureRatePercent: 0, application5xx: 0, processRestarts: 0, steadyP95Milliseconds: 100, burstP95Milliseconds: 200, steadyBacklogMaximum: 10, burstBacklogMaximum: 20, backlogDrainSeconds: 10, cpuFiveMinuteAveragePercent: 40, memoryPeakPercent: 50, faultInjectionPassed: true, faultMatrixPassed: 12 };
+  assert.equal(validateI12Evidence("performance-capacity", performance), true);
+  assert.throws(() => validateI12Evidence("performance-capacity", { ...performance, faultMatrixPassed: 11 }), /I12_PERFORMANCE_INSUFFICIENT/);
   assert.throws(() => validateI12Evidence("restore-drill", { ...evidence, type: "restore-drill", databaseIntegrityVerified: true, auditHeadVerified: true }), /I12_RESTORE_DRILL_INSUFFICIENT/);
   assert.equal(validateI12Evidence("restore-drill", { ...evidence, type: "restore-drill", databaseIntegrityVerified: true, auditHeadVerified: true, rpoSecondsTarget: 300, rpoSecondsActual: 120, rtoSecondsTarget: 900, rtoSecondsActual: 600 }), true);
 });
