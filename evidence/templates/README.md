@@ -10,3 +10,7 @@ self-attestation, or edited timestamps are not evidence. Confidential reports, c
 private keys, personal data, endpoints, and server addresses must not be committed.
 
 Required acceptance filenames are listed in `config/iteration-acceptance.json`.
+
+`stage-gate-evidence.blocked.example.json` additionally documents the P1-P8,
+single integrated CI/merge, and final contract/go-no-go evidence contracts used by
+the PRD v0.3 verifier. It is also non-acceptance evidence.

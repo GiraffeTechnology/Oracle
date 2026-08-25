@@ -36,6 +36,7 @@
     "evidence/acceptance/i12-data-protection-response.json",
     "evidence/acceptance/i12-reproducible-build.json",
     "evidence/acceptance/i12-independent-reviews.json",
+    "evidence/acceptance/integrated-ci.json",
     "evidence/acceptance/stage-f-contract-and-go-no-go.json"
   ]
 }

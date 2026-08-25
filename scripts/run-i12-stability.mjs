@@ -12,6 +12,8 @@ const rawDirectory = path.resolve("evidence", "raw");
 const acceptancePath = path.join(outputDirectory, "i12-72h-stability.json");
 const rawPath = path.join(rawDirectory, "i12-72h-observations.json");
 const observations = [];
+const candidateCommit = process.env.I12_CANDIDATE_COMMIT;
+if (!/^[a-f0-9]{40}$/.test(candidateCommit ?? "")) throw new Error("I12_CANDIDATE_COMMIT_INVALID");
 const runtime = createSyntheticRuntime();
 const started = Date.now();
 let lastSample = started;
@@ -50,6 +52,10 @@ for (let index = 0; Date.now() - started < REQUIRED_SECONDS * 1000; index += 1) 
 sample(observations.length);
 const secretScanPassed = scan();
 const completed = Date.now();
+const sampleIntervals = observations.slice(1).map((item, index) => (Date.parse(item.observedAt) - Date.parse(observations[index].observedAt)) / 1000);
+const maxSampleIntervalSeconds = Math.max(0, ...sampleIntervals);
+const successfulSamples = observations.filter((item) => item.ok).length;
+const availabilityPercent = (successfulSamples / observations.length) * 100;
 const raw = { schemaVersion: 1, startedAt: new Date(started).toISOString(), completedAt: new Date(completed).toISOString(), observations };
 const rawText = `${JSON.stringify(raw, null, 2)}\n`;
 const artifactSha256 = createHash("sha256").update(rawText).digest("hex");
@@ -57,10 +63,13 @@ const report = {
   schemaVersion: 1,
   type: "72h-stability",
   status: continuous && secretScanPassed && unexplainedFailures === 0 ? "PASS" : "FAIL",
+  candidateCommit,
   artifactSha256,
   durationSeconds: Math.floor((completed - started) / 1000),
   continuous,
   sampleCount: observations.length,
+  maxSampleIntervalSeconds,
+  availabilityPercent,
   secretScanPassed,
   unexplainedFailures,
   rawEvidenceRef: "evidence/raw/i12-72h-observations.json"

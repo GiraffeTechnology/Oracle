@@ -5,6 +5,7 @@
   "records": {
     "security-scans": {
       "type": "security-scans",
+      "candidateCommit": "<40-character-commit-sha>",
       "artifactSha256": "<sha256-of-controlled-raw-report>",
       "gates": {
         "sast": "MISSING",
@@ -19,6 +20,7 @@
     },
     "performance-capacity": {
       "type": "performance-capacity",
+      "candidateCommit": "<40-character-commit-sha>",
       "artifactSha256": "<sha256-of-controlled-raw-report>",
       "loadProfileRef": "<controlled-reference>",
       "requestsCompleted": 0,
@@ -28,15 +30,18 @@
     },
     "72h-stability": {
       "type": "72h-stability",
+      "candidateCommit": "<40-character-commit-sha>",
       "artifactSha256": "<sha256-of-controlled-raw-report>",
       "durationSeconds": 0,
       "continuous": false,
       "sampleCount": 0,
+      "maxSampleIntervalSeconds": 121,
       "secretScanPassed": false,
       "unexplainedFailures": 1
     },
     "restore-drill": {
       "type": "restore-drill",
+      "candidateCommit": "<40-character-commit-sha>",
       "artifactSha256": "<sha256-of-controlled-raw-report>",
       "databaseIntegrityVerified": false,
       "auditHeadVerified": false,
@@ -47,14 +52,23 @@
     },
     "signer-rotation": {
       "type": "signer-rotation",
+      "candidateCommit": "<40-character-commit-sha>",
       "artifactSha256": "<sha256-of-controlled-raw-report>",
       "newSignerAccepted": false,
       "oldSignerRejected": false,
       "rotationAudited": false,
-      "privateMaterialObserved": true
+      "auditChainVerified": false,
+      "dualApprovalVerified": false,
+      "timelockSeconds": 0,
+      "rollbackWindowSeconds": 0,
+      "rollbackVerified": false,
+      "privateMaterialObserved": true,
+      "networkUsed": true,
+      "transactionSigned": true
     },
     "data-protection-response": {
       "type": "data-protection-response",
+      "candidateCommit": "<40-character-commit-sha>",
       "artifactSha256": "<sha256-of-controlled-raw-report>",
       "dpiaAccepted": false,
       "retentionPolicyVerified": false,
@@ -64,6 +78,7 @@
     },
     "reproducible-build": {
       "type": "reproducible-build",
+      "candidateCommit": "<40-character-commit-sha>",
       "artifactSha256": "<sha256-of-controlled-raw-report>",
       "buildOneSha256": "<first-independent-build-sha256>",
       "buildTwoSha256": "<second-independent-build-sha256>",
@@ -72,6 +87,7 @@
     },
     "independent-reviews": {
       "type": "independent-reviews",
+      "candidateCommit": "<40-character-commit-sha>",
       "artifactSha256": "<sha256-of-controlled-raw-report>",
       "reviews": [
         { "role": "security", "accepted": false, "reviewerRef": "", "evidenceSha256": "<review-sha256>" },

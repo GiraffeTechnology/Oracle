@@ -10,5 +10,11 @@ const files = {
   "reproducible-build": "evidence/acceptance/i12-reproducible-build.json",
   "independent-reviews": "evidence/acceptance/i12-independent-reviews.json",
 };
-for (const [type, file] of Object.entries(files)) validateI12Evidence(type, JSON.parse(await readFile(file, "utf8")));
+const records = [];
+for (const [type, file] of Object.entries(files)) {
+  const record = JSON.parse(await readFile(file, "utf8"));
+  validateI12Evidence(type, record);
+  records.push(record);
+}
+if (new Set(records.map((record) => record.candidateCommit)).size !== 1) throw new Error("I12_CANDIDATE_COMMIT_MISMATCH");
 process.stdout.write("i12-evidence: pass\n");
