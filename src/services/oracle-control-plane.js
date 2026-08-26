@@ -11,7 +11,7 @@ function controlledFailureCode(error, fallback) {
 }
 
 function assertRotationEvidence(result) {
-  if (result?.oldSignerRejected !== true || result?.newSignerAccepted !== true || result?.rotationAudited !== true || result?.auditChainVerified !== true || result?.dualApprovalVerified !== true || result?.rollbackVerified !== true || result?.rollbackWindowSeconds < 3600 || result?.timelockSeconds < 300 || result?.privateMaterialObserved !== false || result?.networkUsed !== false || result?.transactionSigned !== false) throw new Error("SIGNER_ROTATION_BROKER_RESULT_INVALID");
+  if (result?.oldSignerRejected !== true || result?.newSignerAccepted !== true || result?.rotationAudited !== true || result?.auditChainVerified !== true || result?.dualApprovalVerified !== true || result?.rollbackVerified !== true || !Number.isFinite(result?.rollbackWindowSeconds) || result.rollbackWindowSeconds < 3600 || !Number.isFinite(result?.timelockSeconds) || result.timelockSeconds < 300 || result?.privateMaterialObserved !== false || result?.networkUsed !== false || result?.transactionSigned !== false) throw new Error("SIGNER_ROTATION_BROKER_RESULT_INVALID");
   return result;
 }
 
@@ -23,6 +23,7 @@ export class OracleControlPlane {
   verifyAsset({ actorId, idempotencyKey, asset, certificate, warehouse, evidenceVersion }) {
     this.authorizer.require(actorId, "asset:verify");
     assertAssetFactsOnly({ asset, certificate, warehouse });
+    if (!asset?.assetId || certificate?.assetId !== asset.assetId || warehouse?.assetId !== asset.assetId) throw new Error("ASSET_EVIDENCE_ID_MISMATCH");
     return this.commandJournal.execute(idempotencyKey, { type: "asset.verify", asset, certificate, warehouse, evidenceVersion }, () => {
       this.runtime.recordStore.assertAsset(asset);
       this.runtime.recordStore.assertCertificate(certificate);
@@ -43,6 +44,8 @@ export class OracleControlPlane {
     this.authorizer.require(actorId, "attestation:issue");
     assertAssetFactsOnly(request);
     if (this.runtime.stateEngine.current(request.subject.assetId) !== OracleStatus.VALID) throw new Error("ASSET_NOT_VALID_FOR_ATTESTATION");
+    const binding = this.runtime.tokenIndex.byAsset(request.subject.assetId);
+    if (!binding || binding.chainId !== request.subject.chainId || binding.contract !== request.subject.contract || binding.tokenId !== request.subject.tokenId) throw new Error("ATTESTATION_TOKEN_BINDING_MISMATCH");
     return this.commandJournal.execute(idempotencyKey, { type: "attestation.issue", request }, () => {
       const attestation = this.runtime.attestations.issue(request);
       const now = this.clock().toISOString();
@@ -106,18 +109,21 @@ export class OracleControlPlane {
   requestSignerRotation({ actorId, actionId, fromSignerSetId, toSignerSetId, rotationDigest }) {
     this.authorizer.require(actorId, "signer:rotate");
     if (![actionId, fromSignerSetId, toSignerSetId].every((value) => typeof value === "string" && value) || fromSignerSetId === toSignerSetId || !SHA256_HEX.test(rotationDigest ?? "")) throw new Error("SIGNER_ROTATION_REQUEST_INVALID");
+    if (this.runtime.attestations.signerSetId !== fromSignerSetId) throw new Error("SIGNER_ROTATION_SOURCE_NOT_ACTIVE");
     return this.dualControl.request({ actionId, actionType: "SIGNER_ROTATE", subjectId: `${fromSignerSetId}->${toSignerSetId}`, payloadHash: rotationDigest, requestedBy: actorId, requestedAt: this.clock().toISOString() });
   }
 
   async executeSignerRotation({ actorId, actionId, fromSignerSetId, toSignerSetId, rotationDigest }) {
     this.authorizer.require(actorId, "signer:rotate");
     if (![actionId, fromSignerSetId, toSignerSetId].every((value) => typeof value === "string" && value) || fromSignerSetId === toSignerSetId || !SHA256_HEX.test(rotationDigest ?? "")) throw new Error("SIGNER_ROTATION_REQUEST_INVALID");
+    if (this.runtime.attestations.signerSetId !== fromSignerSetId) throw new Error("SIGNER_ROTATION_SOURCE_NOT_ACTIVE");
     if (!this.signerRotationBroker?.rotate) throw new Error("SIGNER_ROTATION_BROKER_UNAVAILABLE");
     const subjectId = `${fromSignerSetId}->${toSignerSetId}`;
     const occurredAt = this.clock().toISOString();
     this.dualControl.beginExecution(actionId, { actionType: "SIGNER_ROTATE", subjectId, payloadHash: rotationDigest, executedBy: actorId, executionStartedAt: occurredAt });
     try {
       const result = assertRotationEvidence(await this.signerRotationBroker.rotate({ actionId, fromSignerSetId, toSignerSetId, rotationDigest }));
+      this.runtime.attestations.activateSignerSet(toSignerSetId, fromSignerSetId);
       this.runtime.auditJournal.append({ type: "signer.rotated", subjectId, payloadHash: rotationDigest, actorId, occurredAt });
       this.outbox.enqueue({ eventType: "signer.rotated", subjectId, payloadHash: rotationDigest, createdAt: occurredAt });
       this.dualControl.completeExecution(actionId, occurredAt);
@@ -145,6 +151,7 @@ export class OracleControlPlane {
   async reconcileSignerRotation({ actorId, actionId, fromSignerSetId, toSignerSetId, rotationDigest }) {
     this.authorizer.require(actorId, "signer:rotate");
     if (![actionId, fromSignerSetId, toSignerSetId].every((value) => typeof value === "string" && value) || fromSignerSetId === toSignerSetId || !SHA256_HEX.test(rotationDigest ?? "")) throw new Error("SIGNER_ROTATION_REQUEST_INVALID");
+    if (this.runtime.attestations.signerSetId !== fromSignerSetId) throw new Error("SIGNER_ROTATION_SOURCE_NOT_ACTIVE");
     if (!this.signerRotationBroker?.reconcile) throw new Error("SIGNER_ROTATION_RECONCILER_UNAVAILABLE");
     const subjectId = `${fromSignerSetId}->${toSignerSetId}`;
     const occurredAt = this.clock().toISOString();
@@ -156,6 +163,7 @@ export class OracleControlPlane {
         return Object.freeze({ applied: false, safelyNotApplied: true, privateMaterialIncluded: false });
       }
       const result = assertRotationEvidence(reconciliation);
+      this.runtime.attestations.activateSignerSet(toSignerSetId, fromSignerSetId);
       this.runtime.auditJournal.append({ type: "signer.rotated", subjectId, payloadHash: rotationDigest, actorId, occurredAt });
       this.outbox.enqueue({ eventType: "signer.rotated", subjectId, payloadHash: rotationDigest, createdAt: occurredAt });
       this.dualControl.completeExecution(actionId, occurredAt);

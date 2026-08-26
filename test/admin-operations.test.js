@@ -10,6 +10,7 @@ import { DualControlQueue } from "../src/services/dual-control.js";
 import { OracleControlPlane } from "../src/services/oracle-control-plane.js";
 
 const HASH = "a".repeat(64);
+const ACTIVE_SIGNER_SET = "synthetic-oracle-signers";
 
 function fixture() {
   const runtime = createSyntheticRuntime({ clock: () => new Date("2026-08-27T00:00:00.000Z") });
@@ -37,6 +38,8 @@ test("authenticated admin snapshot exposes operational facts without private mat
   runtime.auditJournal.append({ type: "test.audit", subjectId: "asset-001", payloadHash: HASH, actorId: "auditor", occurredAt: "2026-08-27T00:00:00.000Z" });
   const exported = await adminOperations.exportAudit("auditor", "regulatory-audit");
   assert.equal(exported.manifest.recordCount, 1);
+  assert.equal(runtime.auditJournal.list().at(-1).type, "audit.exported");
+  assert.equal(exported.records.some((event) => event.type === "audit.exported"), false);
   await assert.rejects(() => adminOperations.exportAudit("auditor", "financial-analysis"), /EXPORT_PURPOSE_INVALID/);
 });
 
@@ -52,14 +55,15 @@ test("source disable requires an independent approval", () => {
 
 test("signer rotation delegates only after independent approval and validates broker result", async () => {
   const { runtime, controlPlane } = fixture();
-  controlPlane.requestSignerRotation({ actorId: "security-a", actionId: "rotate-001", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH });
-  await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-001", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH }), /DUAL_CONTROL_APPROVAL_REQUIRED/);
+  controlPlane.requestSignerRotation({ actorId: "security-a", actionId: "rotate-001", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH });
+  await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-001", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH }), /DUAL_CONTROL_APPROVAL_REQUIRED/);
   controlPlane.approveAction({ actorId: "approver-b", actionId: "rotate-001" });
-  const result = await controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-001", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH });
+  const result = await controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-001", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH });
   assert.equal(result.privateMaterialIncluded, false);
   assert.equal("rawSignature" in result, false);
   assert.equal(result.evidenceSha256, HASH);
-  await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-001", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH }), /DUAL_CONTROL_APPROVAL_REQUIRED/);
+  assert.equal(runtime.attestations.signerSetId, "new");
+  await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-001", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH }), /SIGNER_ROTATION_SOURCE_NOT_ACTIVE/);
   assert.equal(runtime.auditJournal.list().at(-1).type, "signer.rotated");
 });
 
@@ -71,9 +75,9 @@ test("signer rotation rejects malformed scope and incomplete broker evidence", a
     signerRotationBroker: { async rotate() { return { oldSignerRejected: true, newSignerAccepted: true }; } },
   });
   assert.throws(() => controlPlane.requestSignerRotation({ actorId: "security-a", actionId: "bad", fromSignerSetId: "same", toSignerSetId: "same", rotationDigest: HASH }), /SIGNER_ROTATION_REQUEST_INVALID/);
-  controlPlane.requestSignerRotation({ actorId: "security-a", actionId: "rotate-incomplete", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH });
+  controlPlane.requestSignerRotation({ actorId: "security-a", actionId: "rotate-incomplete", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH });
   controlPlane.approveAction({ actorId: "approver-b", actionId: "rotate-incomplete" });
-  await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-incomplete", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH }), /SIGNER_ROTATION_BROKER_RESULT_INVALID/);
+  await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-incomplete", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH }), /SIGNER_ROTATION_BROKER_RESULT_INVALID/);
 });
 
 test("controlled action failure never persists a dependency message", async () => {
@@ -83,9 +87,9 @@ test("controlled action failure never persists a dependency message", async () =
     runtime, authorizer, dualControl, commandJournal: new CommandJournal(), outbox: runtime.outbox,
     signerRotationBroker: { async rotate() { throw new Error("credential leaked at C:\\private\\signer.key"); } },
   });
-  controlPlane.requestSignerRotation({ actorId: "security-a", actionId: "rotate-secret", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH });
+  controlPlane.requestSignerRotation({ actorId: "security-a", actionId: "rotate-secret", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH });
   controlPlane.approveAction({ actorId: "approver-b", actionId: "rotate-secret" });
-  await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-secret", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH }));
+  await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-secret", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH }));
   const action = dualControl.list()[0];
   assert.equal(action.status, "RECOVERY_REQUIRED");
   assert.equal(action.errorCode, "SIGNER_ROTATION_RECOVERY_REQUIRED");
@@ -102,15 +106,16 @@ test("ambiguous signer rotation is reconciled without replaying rotation", async
     async rotate() { rotateCalls += 1; throw new Error("response lost after apply"); },
     async reconcile() { reconcileCalls += 1; return { applied: true, ...evidence }; },
   } });
-  controlPlane.requestSignerRotation({ actorId: "security-a", actionId: "rotate-recovery", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH });
+  controlPlane.requestSignerRotation({ actorId: "security-a", actionId: "rotate-recovery", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH });
   controlPlane.approveAction({ actorId: "approver-b", actionId: "rotate-recovery" });
-  await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-recovery", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH }));
+  await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-recovery", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH }));
   assert.equal(dualControl.list()[0].status, "RECOVERY_REQUIRED");
-  const result = await controlPlane.reconcileSignerRotation({ actorId: "security-a", actionId: "rotate-recovery", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH });
+  const result = await controlPlane.reconcileSignerRotation({ actorId: "security-a", actionId: "rotate-recovery", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH });
   assert.equal(result.applied, true);
   assert.equal(dualControl.list()[0].status, "EXECUTED");
   assert.equal(rotateCalls, 1);
   assert.equal(reconcileCalls, 1);
+  assert.equal(runtime.attestations.signerSetId, "new");
 });
 
 test("admin dashboard API requires authentication and rejects cross-origin writes", async () => {

@@ -20,6 +20,14 @@ export class AttestationService {
     this.clock = clock;
   }
 
+  activateSignerSet(nextSignerSetId, expectedCurrentSignerSetId) {
+    if (typeof nextSignerSetId !== "string" || !nextSignerSetId || typeof expectedCurrentSignerSetId !== "string" || !expectedCurrentSignerSetId) throw new Error("SIGNER_SET_ACTIVATION_INVALID");
+    if (this.signerSetId !== expectedCurrentSignerSetId) throw new Error("SIGNER_ROTATION_SOURCE_NOT_ACTIVE");
+    if (nextSignerSetId === expectedCurrentSignerSetId) throw new Error("SIGNER_SET_ACTIVATION_INVALID");
+    this.signerSetId = nextSignerSetId;
+    return Object.freeze({ signerSetId: nextSignerSetId });
+  }
+
   issue({ subject, factType, factValue, sourceAuthority, sourceRecordHash, validForSeconds, nonce, revocationRef = null }) {
     this.signerPolicy?.assertActive();
     const requiredSubject = ["assetId", "chainId", "contract", "tokenId", "purpose"];

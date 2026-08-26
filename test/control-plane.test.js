@@ -52,6 +52,14 @@ test("failed asset verification leaves no partial in-memory records", () => {
   assert.equal(runtime.recordStore.getWarehouse("asset-bad"), null);
 });
 
+test("asset verification requires certificate and warehouse evidence for the same asset", () => {
+  const { control, runtime } = controlFixture();
+  assert.throws(() => control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-cross-asset", asset: { assetId: "asset-a", assetFingerprintHash: HASH_A }, certificate: { assetId: "asset-b", certificateHash: HASH_B, certificateVersion: 1 }, warehouse: { assetId: "asset-c", warehouseReceiptHash: HASH_C }, evidenceVersion: 1 }), /ASSET_EVIDENCE_ID_MISMATCH/);
+  assert.equal(runtime.recordStore.getAsset("asset-a"), null);
+  assert.equal(runtime.recordStore.currentCertificate("asset-b"), null);
+  assert.equal(runtime.recordStore.getWarehouse("asset-c"), null);
+});
+
 test("attestation revocation requires independent approval", () => {
   const { control } = controlFixture();
   control.verifyAsset({
@@ -62,6 +70,7 @@ test("attestation revocation requires independent approval", () => {
     warehouse: { assetId: "asset-001", warehouseReceiptHash: HASH_C, warehouseStatus: "HELD" },
     evidenceVersion: 1,
   });
+  control.bindToken({ actorId: "oracle-a", idempotencyKey: "bind-001", binding: { assetId: "asset-001", chainId: "test-chain", contract: "contract-001", tokenId: "1" } });
   const issued = control.issueAttestation({ actorId: "oracle-a", idempotencyKey: "issue-001", request: { subject: { assetId: "asset-001", chainId: "test-chain", contract: "contract-001", tokenId: "1", purpose: "transfer-eligibility" }, factType: "TRANSFER_STATUS", factValue: "VALID", sourceAuthority: "synthetic-registry", sourceRecordHash: HASH_A, validForSeconds: 60, nonce: "attestation-nonce-001" } }).result;
   control.requestRevocation({ actorId: "oracle-a", actionId: "revoke-001", attestationId: issued.envelope.attestationId, reasonHash: HASH_C });
   assert.throws(() => control.executeRevocation({ actorId: "oracle-a", actionId: "revoke-001", attestationId: issued.envelope.attestationId, reasonHash: HASH_C }), /APPROVAL_REQUIRED/);
@@ -72,6 +81,7 @@ test("attestation revocation requires independent approval", () => {
 test("revocation validates reason, is HTTP-idempotent, and rejects conflicting re-revocation", () => {
   const { control, runtime } = controlFixture();
   control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-revoke", asset: { assetId: "asset-revoke", assetFingerprintHash: HASH_A }, certificate: { assetId: "asset-revoke", certificateHash: HASH_B, certificateVersion: 1 }, warehouse: { assetId: "asset-revoke", warehouseReceiptHash: HASH_C }, evidenceVersion: 1 });
+  control.bindToken({ actorId: "oracle-a", idempotencyKey: "bind-revoke", binding: { assetId: "asset-revoke", chainId: "test-chain", contract: "contract-001", tokenId: "1" } });
   const issued = control.issueAttestation({ actorId: "oracle-a", idempotencyKey: "issue-revoke", request: { subject: { assetId: "asset-revoke", chainId: "test-chain", contract: "contract-001", tokenId: "1", purpose: "transfer-eligibility" }, factType: "TRANSFER_STATUS", factValue: "VALID", sourceAuthority: "synthetic-registry", sourceRecordHash: HASH_A, validForSeconds: 60, nonce: "revoke-nonce" } }).result;
   assert.throws(() => control.requestRevocation({ actorId: "oracle-a", actionId: "invalid-reason", attestationId: issued.envelope.attestationId }), /REVOCATION_REASON_HASH_INVALID/);
   const request = { actorId: "oracle-a", idempotencyKey: "revoke-request-idem", actionId: "revoke-idem", attestationId: issued.envelope.attestationId, reasonHash: HASH_B };
@@ -99,9 +109,19 @@ test("token binding is one-to-one and idempotent", () => {
 test("attestation service rejects duplicate nonces", () => {
   const { control } = controlFixture();
   control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-001", asset: { assetId: "asset-001", assetFingerprintHash: HASH_A }, certificate: { assetId: "asset-001", certificateHash: HASH_B, certificateVersion: 1 }, warehouse: { assetId: "asset-001", warehouseReceiptHash: HASH_C }, evidenceVersion: 1 });
+  control.bindToken({ actorId: "oracle-a", idempotencyKey: "bind-001", binding: { assetId: "asset-001", chainId: "test-chain", contract: "contract-001", tokenId: "1" } });
   const request = { subject: { assetId: "asset-001", chainId: "test-chain", contract: "contract-001", tokenId: "1", purpose: "transfer-eligibility" }, factType: "TRANSFER_STATUS", factValue: "VALID", sourceAuthority: "synthetic-registry", sourceRecordHash: HASH_A, validForSeconds: 60, nonce: "same-nonce" };
   control.issueAttestation({ actorId: "oracle-a", idempotencyKey: "issue-001", request });
   assert.throws(() => control.issueAttestation({ actorId: "oracle-a", idempotencyKey: "issue-002", request }), /ATTESTATION_NONCE_REUSED/);
+});
+
+test("attestation issuance requires the exact registered token subject", () => {
+  const { control } = controlFixture();
+  control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-bound", asset: { assetId: "asset-bound", assetFingerprintHash: HASH_A }, certificate: { assetId: "asset-bound", certificateHash: HASH_B, certificateVersion: 1 }, warehouse: { assetId: "asset-bound", warehouseReceiptHash: HASH_C }, evidenceVersion: 1 });
+  control.bindToken({ actorId: "oracle-a", idempotencyKey: "bind-bound", binding: { assetId: "asset-bound", chainId: "test-chain", contract: "contract-bound", tokenId: "7" } });
+  const base = { subject: { assetId: "asset-bound", chainId: "test-chain", contract: "contract-bound", tokenId: "7", purpose: "transfer-eligibility" }, factType: "TRANSFER_STATUS", factValue: "VALID", sourceAuthority: "synthetic-registry", sourceRecordHash: HASH_A, validForSeconds: 60, nonce: "bound-nonce" };
+  assert.throws(() => control.issueAttestation({ actorId: "oracle-a", idempotencyKey: "issue-wrong-token", request: { ...base, subject: { ...base.subject, tokenId: "8" } } }), /ATTESTATION_TOKEN_BINDING_MISMATCH/);
+  assert.equal(control.issueAttestation({ actorId: "oracle-a", idempotencyKey: "issue-bound", request: base }).result.envelope.subject.tokenId, "7");
 });
 
 test("outbox dispatcher retries and then publishes", async () => {
@@ -122,6 +142,16 @@ test("cancelled settlements emit an explicit refund-required notification", () =
   control.cancelSettlement({ actorId: "oracle-a", idempotencyKey: "cancel-refund", request: { settlementId: "settlement-refund", reasonHash: HASH_A, evidenceVersion: 3 } });
   assert.equal(outbox.pending().filter((event) => event.eventType === "settlement.refund-required").length, 1);
   assert.equal(runtime.settlements.get("settlement-refund").failureReasonHash, HASH_A);
+});
+
+test("settlement failure paths reject invalid reasons before mutation", () => {
+  const { runtime, control } = controlFixture();
+  control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-invalid-reason", asset: { assetId: "asset-invalid-reason", assetFingerprintHash: HASH_A }, certificate: { assetId: "asset-invalid-reason", certificateHash: HASH_B, certificateVersion: 1 }, warehouse: { assetId: "asset-invalid-reason", warehouseReceiptHash: HASH_C }, evidenceVersion: 1 });
+  control.bindToken({ actorId: "oracle-a", idempotencyKey: "bind-invalid-reason", binding: { assetId: "asset-invalid-reason", chainId: "test-chain", contract: "contract-invalid", tokenId: "1" } });
+  control.beginSettlement({ actorId: "oracle-a", idempotencyKey: "begin-invalid-reason", request: { settlementId: "settlement-invalid-reason", assetId: "asset-invalid-reason", token: { chainId: "test-chain", contract: "contract-invalid", tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", externalExecutionRef: "external-invalid", oldCertificateHash: HASH_B, warehouseReceiptHash: HASH_C, evidenceVersion: 2 } });
+  assert.throws(() => control.cancelSettlement({ actorId: "oracle-a", idempotencyKey: "cancel-invalid-reason", request: { settlementId: "settlement-invalid-reason", evidenceVersion: 3 } }), /SETTLEMENT_REASON_HASH_INVALID/);
+  assert.equal(runtime.settlements.get("settlement-invalid-reason").status, "PENDING");
+  assert.equal(runtime.stateEngine.current("asset-invalid-reason"), "TRANSFER_PENDING");
 });
 
 test("disputed and timed-out settlements emit deterministic refund notifications", () => {

@@ -1,6 +1,12 @@
 import { OracleStatus } from "./oracle-status.js";
 import { evidenceHash } from "./canonical-json.js";
 
+const SHA256_HEX = /^[a-f0-9]{64}$/i;
+
+function assertFailureReason(reasonHash) {
+  if (!SHA256_HEX.test(reasonHash ?? "")) throw new Error("SETTLEMENT_REASON_HASH_INVALID");
+}
+
 export class SettlementCoordinator {
   #settlements = new Map();
   #intentHashes = new Map();
@@ -107,6 +113,7 @@ export class SettlementCoordinator {
   }
 
   cancel({ settlementId, reasonHash, actorId, evidenceVersion }) {
+    assertFailureReason(reasonHash);
     const current = this.#settlements.get(settlementId);
     if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
     const now = this.clock().toISOString();
@@ -118,6 +125,7 @@ export class SettlementCoordinator {
   }
 
   dispute({ settlementId, reasonHash, actorId, evidenceVersion }) {
+    assertFailureReason(reasonHash);
     const current = this.#settlements.get(settlementId);
     if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
     const now = this.clock().toISOString();
@@ -129,6 +137,7 @@ export class SettlementCoordinator {
   }
 
   timeout({ settlementId, reasonHash, actorId, evidenceVersion }) {
+    assertFailureReason(reasonHash);
     const current = this.#settlements.get(settlementId);
     if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
     if (this.clock() <= new Date(current.deadlineAt)) throw new Error("SETTLEMENT_DEADLINE_NOT_REACHED");

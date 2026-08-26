@@ -1,5 +1,6 @@
 import { createAuditExport } from "./audit-export.js";
 import { ExportGate } from "./export-gate.js";
+import { evidenceHash } from "../domain/canonical-json.js";
 
 export class AdminOperations {
   constructor({ runtime, sourceRegistry, authorizer, reviewQueue = null, dualControl = null, clock = () => new Date() }) {
@@ -34,10 +35,19 @@ export class AdminOperations {
     this.authorizer.require(actorId, "audit:export");
     const events = this.runtime.auditJournal.list();
     new ExportGate().authorize({ permission: "audit:export", purpose, recordCount: events.length });
-    return createAuditExport(events, {
+    const createdAt = this.clock().toISOString();
+    const exported = createAuditExport(events, {
       exportId: `audit-${this.clock().getTime()}`,
       purpose,
-      createdAt: this.clock().toISOString(),
+      createdAt,
     });
+    this.runtime.auditJournal.append({
+      type: "audit.exported",
+      subjectId: exported.manifest.exportId,
+      payloadHash: evidenceHash({ purpose, recordCount: exported.manifest.recordCount, recordsHash: exported.manifest.recordsHash }),
+      actorId,
+      occurredAt: createdAt,
+    });
+    return exported;
   }
 }
