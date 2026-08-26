@@ -55,15 +55,15 @@ export class OracleControlPlane {
     assertAssetFactsOnly({ asset, certificate, warehouse });
     if (!asset?.assetId || certificate?.assetId !== asset.assetId || warehouse?.assetId !== asset.assetId) throw new Error("ASSET_EVIDENCE_ID_MISMATCH");
     if ((asset.currentCertificateHash !== undefined && asset.currentCertificateHash !== certificate.certificateHash) || (asset.currentCertificateVersion !== undefined && asset.currentCertificateVersion !== certificate.certificateVersion) || (asset.warehouseReceiptHash !== undefined && asset.warehouseReceiptHash !== warehouse.warehouseReceiptHash) || (certificate.warehouseReceiptHash !== undefined && certificate.warehouseReceiptHash !== warehouse.warehouseReceiptHash)) throw new Error("ASSET_EVIDENCE_BUNDLE_MISMATCH");
-    const provenance = Object.freeze({
-      REGISTRY: resolveEvidenceSource(this.runtime, "REGISTRY", evidenceSources.asset),
-      CERTIFICATE_AUTHORITY: resolveEvidenceSource(this.runtime, "CERTIFICATE_AUTHORITY", evidenceSources.certificate),
-      WAREHOUSE: resolveEvidenceSource(this.runtime, "WAREHOUSE", evidenceSources.warehouse),
-    });
     this.runtime.schemaRegistry.validate("asset-record.v1", asset);
     this.runtime.schemaRegistry.validate("certificate-record.v1", certificate);
     this.runtime.schemaRegistry.validate("warehouse-record.v1", warehouse);
-    return this.commandJournal.execute(idempotencyKey, { type: "asset.verify", asset, certificate, warehouse, evidenceSources: provenance, evidenceVersion }, () => {
+    return this.commandJournal.execute(idempotencyKey, { type: "asset.verify", asset, certificate, warehouse, evidenceSources, evidenceVersion }, () => {
+      const provenance = Object.freeze({
+        REGISTRY: resolveEvidenceSource(this.runtime, "REGISTRY", evidenceSources.asset),
+        CERTIFICATE_AUTHORITY: resolveEvidenceSource(this.runtime, "CERTIFICATE_AUTHORITY", evidenceSources.certificate),
+        WAREHOUSE: resolveEvidenceSource(this.runtime, "WAREHOUSE", evidenceSources.warehouse),
+      });
       this.runtime.recordStore.assertAsset(asset);
       this.runtime.recordStore.assertCertificate(certificate);
       this.runtime.recordStore.assertWarehouse(warehouse);
@@ -123,7 +123,8 @@ export class OracleControlPlane {
 
   exportAudit({ actorId, idempotencyKey, purpose, adminOperations }) {
     if (!adminOperations) throw new Error("ADMIN_OPERATIONS_DISABLED");
-    return this.commandJournal.execute(idempotencyKey, { type: "audit.export", purpose }, () => adminOperations.exportAudit(actorId, purpose));
+    adminOperations.authorizeExport(actorId, purpose);
+    return this.commandJournal.execute(idempotencyKey, { type: "audit.export", actorId, purpose }, () => adminOperations.exportAudit(actorId, purpose));
   }
 
   requestRevocation({ actorId, actionId, attestationId, reasonHash, idempotencyKey = null }) {
@@ -288,7 +289,10 @@ export class OracleControlPlane {
   finalizeSettlement({ actorId, idempotencyKey, request }) {
     this.authorizer.require(actorId, "settlement:manage");
     return this.commandJournal.execute(idempotencyKey, { type: "settlement.finalize", request }, () => {
-      const result = this.runtime.settlements.finalize({ ...request, actorId });
+      const certificateProvenance = resolveEvidenceSource(this.runtime, "CERTIFICATE_AUTHORITY", request.certificateSourceId);
+      if (request.certificateSourceRecordHash !== evidenceHash(request.certificate)) throw new Error("SETTLEMENT_CERTIFICATE_SOURCE_RECORD_MISMATCH");
+      this.runtime.schemaRegistry.validate("certificate-record.v1", request.certificate);
+      const result = this.runtime.settlements.finalize({ ...request, certificateProvenance, actorId });
       this.outbox.enqueue({ eventType: "settlement.finalized", subjectId: result.assetId, payloadHash: request.certificate.certificateHash, createdAt: result.finalizedAt });
       return result;
     });

@@ -27,7 +27,7 @@ function evidenceBundle(assetId, assetFingerprintHash = HASH_A, certificateHash 
     },
     certificate: {
       assetId, tokenId: "1", certificateVersion: 1, certificateHash, previousCertificateHash: null,
-      wenbaoChangeRef: `initial-${assetId}`, warehouseReceiptHash, effectiveAt: NOW.toISOString(), status: "ACTIVE",
+      wenbaoChangeRef: `initial-${assetId}`, warehouseReceiptHash, effectiveAt: NOW.toISOString(), status: "CURRENT",
     },
     warehouse: {
       assetId, warehouseId: `warehouse-${assetId}`, warehouseReceiptHash, warehouseStatus: "IN_CUSTODY",
@@ -58,6 +58,27 @@ test("control plane verifies an asset idempotently and rejects unauthorized acto
   assert.equal(control.verifyAsset(command).result.status, "VALID");
   assert.equal(control.verifyAsset(command).replayed, true);
   assert.throws(() => control.verifyAsset({ ...command, actorId: "reader-c", idempotencyKey: "verify-002" }), /PERMISSION_DENIED/);
+});
+
+test("asset verification replays before mutable source-state checks", () => {
+  const { runtime, control } = controlFixture();
+  const evidence = evidenceBundle("asset-source-replay");
+  const command = { actorId: "oracle-a", idempotencyKey: "verify-source-replay", ...evidence, evidenceVersion: 1 };
+  assert.equal(control.verifyAsset(command).replayed, false);
+  runtime.sourceRegistry.setActive("synthetic-registry", false);
+  runtime.sourceRegistry.setActive("synthetic-certificates", false);
+  runtime.sourceRegistry.setActive("synthetic-warehouse", false);
+  assert.equal(control.verifyAsset(command).replayed, true);
+});
+
+test("registered evidence schemas enforce types patterns enums formats and nullable previous hash", () => {
+  const { runtime } = controlFixture();
+  const valid = evidenceBundle("asset-schema");
+  assert.equal(runtime.schemaRegistry.validate("certificate-record.v1", valid.certificate).previousCertificateHash, null);
+  assert.throws(() => runtime.schemaRegistry.validate("asset-record.v1", { ...valid.asset, currentCertificateVersion: "1" }), /PAYLOAD_FIELD_TYPE_INVALID/);
+  assert.throws(() => runtime.schemaRegistry.validate("asset-record.v1", { ...valid.asset, assetFingerprintHash: "not-a-hash" }), /PAYLOAD_FIELD_PATTERN_INVALID/);
+  assert.throws(() => runtime.schemaRegistry.validate("certificate-record.v1", { ...valid.certificate, status: "ACTIVE" }), /PAYLOAD_FIELD_ENUM_INVALID/);
+  assert.throws(() => runtime.schemaRegistry.validate("warehouse-record.v1", { ...valid.warehouse, observedAt: "not-a-date" }), /PAYLOAD_FIELD_FORMAT_INVALID/);
 });
 
 test("failed asset verification leaves no partial in-memory records", () => {

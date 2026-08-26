@@ -3,6 +3,8 @@ import { ExportGate } from "./export-gate.js";
 import { evidenceHash } from "../domain/canonical-json.js";
 
 export class AdminOperations {
+  #exportSequence = 0;
+
   constructor({ runtime, sourceRegistry, authorizer, reviewQueue = null, dualControl = null, clock = () => new Date() }) {
     if (!runtime || !sourceRegistry || !authorizer) throw new Error("ADMIN_OPERATIONS_DEPENDENCY_MISSING");
     Object.assign(this, { runtime, sourceRegistry, authorizer, reviewQueue, dualControl, clock });
@@ -32,12 +34,11 @@ export class AdminOperations {
   }
 
   async exportAudit(actorId, purpose) {
-    this.authorizer.require(actorId, "audit:export");
+    this.authorizeExport(actorId, purpose);
     const events = this.runtime.auditJournal.list();
-    new ExportGate().authorize({ permission: "audit:export", purpose, recordCount: events.length });
     const createdAt = this.clock().toISOString();
     const exported = createAuditExport(events, {
-      exportId: `audit-${this.clock().getTime()}`,
+      exportId: `audit-${this.clock().getTime()}-${++this.#exportSequence}`,
       purpose,
       createdAt,
     });
@@ -49,5 +50,11 @@ export class AdminOperations {
       occurredAt: createdAt,
     });
     return exported;
+  }
+
+  authorizeExport(actorId, purpose) {
+    this.authorizer.require(actorId, "audit:export");
+    new ExportGate().authorize({ permission: "audit:export", purpose, recordCount: this.runtime.auditJournal.list().length });
+    return true;
   }
 }

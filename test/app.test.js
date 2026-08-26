@@ -93,6 +93,7 @@ test("admin dashboard exposes authenticated operations and is protected against 
     assert.match(body, /actions\/approve/);
     assert.match(body, /受控操作状态/);
     assert.match(body, /crypto\.subtle\.digest\('SHA-256'/);
+    assert.match(body, /admin\.export\.'\+crypto\.randomUUID\(\)/);
     assert.match(body, /idempotency-key/);
   const renderedScript = body.match(/<script nonce="[^"]+">([\s\S]*?)<\/script>/)?.[1];
   assert.ok(renderedScript);
@@ -135,7 +136,7 @@ test("explicit synthetic test gate enables authenticated idempotent admin comman
       headers: { "content-type": "application/json", "idempotency-key": "verify-http-001", "x-requested-with": "GiraffeOracleAdmin" },
       body: JSON.stringify({
         asset: { assetId: "asset-http", assetFingerprintHash: "a".repeat(64), wenbaoRegistryRef: "registry-asset-http", transferEligibility: "VALID", warehouseId: "warehouse-asset-http", warehouseReceiptHash: "c".repeat(64), currentCertificateHash: "b".repeat(64), currentCertificateVersion: 1, currentOwnerCommitment: "d".repeat(64), encumbranceStatus: "CLEAR", oracleStatus: "VALID", updatedAt: "2026-08-27T00:00:00.000Z" },
-        certificate: { assetId: "asset-http", tokenId: "1", certificateHash: "b".repeat(64), certificateVersion: 1, previousCertificateHash: null, wenbaoChangeRef: "initial-asset-http", warehouseReceiptHash: "c".repeat(64), effectiveAt: "2026-08-27T00:00:00.000Z", status: "ACTIVE" },
+        certificate: { assetId: "asset-http", tokenId: "1", certificateHash: "b".repeat(64), certificateVersion: 1, previousCertificateHash: null, wenbaoChangeRef: "initial-asset-http", warehouseReceiptHash: "c".repeat(64), effectiveAt: "2026-08-27T00:00:00.000Z", status: "CURRENT" },
         warehouse: { assetId: "asset-http", warehouseId: "warehouse-asset-http", warehouseReceiptHash: "c".repeat(64), warehouseStatus: "IN_CUSTODY", encumbranceStatus: "CLEAR", observedAt: "2026-08-27T00:00:00.000Z" },
         evidenceVersion: 1,
       }),

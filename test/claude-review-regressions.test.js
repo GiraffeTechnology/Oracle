@@ -60,6 +60,7 @@ test("settlement certificate must belong to the settlement asset", () => {
   assert.throws(() => runtime.settlements.finalize({
     settlementId: "settlement-1",
     certificate: { assetId: "asset-2", tokenId: "1", certificateHash: A, previousCertificateHash: B, certificateVersion: 2, wenbaoChangeRef: "change-1", warehouseReceiptHash: C },
+    certificateProvenance: { sourceId: "synthetic-certificates", schemaVersion: "certificate-record.v1" },
     registryChangeRef: "change-1",
     snapshotHash: runtime.settlements.get("settlement-1").snapshotHash,
     warehouseConfirmed: true,
@@ -79,6 +80,7 @@ test("failed finalization cannot append a certificate before state validation", 
   assert.throws(() => runtime.settlements.finalize({
     settlementId: "settlement-1",
     certificate: { assetId: "asset-1", tokenId: "1", certificateHash: A, previousCertificateHash: B, certificateVersion: 2, wenbaoChangeRef: "change-1", warehouseReceiptHash: C },
+    certificateProvenance: { sourceId: "synthetic-certificates", schemaVersion: "certificate-record.v1" },
     registryChangeRef: "change-1",
     snapshotHash: runtime.settlements.get("settlement-1").snapshotHash,
     warehouseConfirmed: true,
@@ -88,6 +90,24 @@ test("failed finalization cannot append a certificate before state validation", 
     evidenceVersion: 2,
   }), /EVIDENCE_VERSION_NOT_INCREASING/);
   assert.deepEqual(runtime.recordStore.certificateHistory("asset-1"), before);
+  assert.equal(runtime.settlements.get("settlement-1").status, "PENDING");
+});
+
+test("replacement certificate requires newly authenticated authority provenance", () => {
+  const runtime = preparedRuntime();
+  begin(runtime);
+  assert.throws(() => runtime.settlements.finalize({
+    settlementId: "settlement-1",
+    certificate: { assetId: "asset-1", tokenId: "1", certificateHash: A, previousCertificateHash: B, certificateVersion: 2, wenbaoChangeRef: "change-1", warehouseReceiptHash: C },
+    registryChangeRef: "change-1",
+    snapshotHash: runtime.settlements.get("settlement-1").snapshotHash,
+    warehouseConfirmed: true,
+    ownerBindingConfirmed: true,
+    newOwnerCommitment: A,
+    actorId: "registry",
+    evidenceVersion: 3,
+  }), /SETTLEMENT_CERTIFICATE_PROVENANCE_REQUIRED/);
+  assert.equal(runtime.recordStore.certificateHistory("asset-1").length, 1);
   assert.equal(runtime.settlements.get("settlement-1").status, "PENDING");
 });
 

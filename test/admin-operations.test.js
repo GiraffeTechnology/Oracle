@@ -24,6 +24,7 @@ function fixture() {
   const runtime = createSyntheticRuntime({ clock: () => new Date("2026-08-27T00:00:00.000Z") });
   const authorizer = new Authorizer();
   authorizer.registerActor("auditor", ["AUDITOR"]);
+  authorizer.registerActor("reader", ["READER"]);
   authorizer.registerActor("security-a", ["SECURITY_OFFICER"]);
   authorizer.registerActor("approver-b", ["APPROVER"]);
   const dualControl = new DualControlQueue();
@@ -49,6 +50,19 @@ test("authenticated admin snapshot exposes operational facts without private mat
   assert.equal(runtime.auditJournal.list().at(-1).type, "audit.exported");
   assert.equal(exported.records.some((event) => event.type === "audit.exported"), false);
   await assert.rejects(() => adminOperations.exportAudit("auditor", "financial-analysis"), /EXPORT_PURPOSE_INVALID/);
+});
+
+test("audit export authorization precedes actor-scoped idempotent replay", async () => {
+  const { runtime, controlPlane, adminOperations } = fixture();
+  runtime.auditJournal.append({ type: "test.audit", subjectId: "asset-export", payloadHash: HASH, actorId: "auditor", occurredAt: "2026-08-27T00:00:00.000Z" });
+  const first = await controlPlane.exportAudit({ actorId: "auditor", idempotencyKey: "audit-shared-key", purpose: "regulatory-audit", adminOperations });
+  assert.equal(first.replayed, false);
+  assert.throws(() => controlPlane.exportAudit({ actorId: "reader", idempotencyKey: "audit-shared-key", purpose: "regulatory-audit", adminOperations }), /PERMISSION_DENIED/);
+  const replay = await controlPlane.exportAudit({ actorId: "auditor", idempotencyKey: "audit-shared-key", purpose: "regulatory-audit", adminOperations });
+  assert.equal(replay.replayed, true);
+  const second = await controlPlane.exportAudit({ actorId: "auditor", idempotencyKey: "audit-fresh-key", purpose: "regulatory-audit", adminOperations });
+  assert.equal(second.replayed, false);
+  assert.notEqual(second.result.manifest.exportId, first.result.manifest.exportId);
 });
 
 test("source disable requires an independent approval", () => {
