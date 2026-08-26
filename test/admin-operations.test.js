@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { generateKeyPairSync, sign, verify } from "node:crypto";
 import { createApp } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
 import { createSyntheticRuntime } from "../src/oracle-runtime.js";
@@ -12,6 +13,11 @@ import { OracleControlPlane } from "../src/services/oracle-control-plane.js";
 const HASH = "a".repeat(64);
 const ACTIVE_SIGNER_SET = "synthetic-oracle-signers";
 
+function activateSyntheticRuntime({ fromSignerSetId, toSignerSetId, attestationService }) {
+  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+  return attestationService.activateSignerBackend({ signerSetId: toSignerSetId, signBytes: (bytes) => sign(null, bytes, privateKey), verifyBytes: (bytes, signature) => verify(null, bytes, publicKey, signature) }, fromSignerSetId);
+}
+
 function fixture() {
   const runtime = createSyntheticRuntime({ clock: () => new Date("2026-08-27T00:00:00.000Z") });
   const authorizer = new Authorizer();
@@ -19,7 +25,7 @@ function fixture() {
   authorizer.registerActor("security-a", ["SECURITY_OFFICER"]);
   authorizer.registerActor("approver-b", ["APPROVER"]);
   const dualControl = new DualControlQueue();
-  const signerRotationBroker = { async rotate() { return { oldSignerRejected: true, newSignerAccepted: true, rotationAudited: true, auditChainVerified: true, dualApprovalVerified: true, timelockSeconds: 300, rollbackWindowSeconds: 3600, rollbackVerified: true, privateMaterialObserved: false, networkUsed: false, transactionSigned: false, evidenceSha256: HASH, rawSignature: "must-not-escape" }; } };
+  const signerRotationBroker = { async rotate() { return { oldSignerRejected: true, newSignerAccepted: true, rotationAudited: true, auditChainVerified: true, dualApprovalVerified: true, timelockSeconds: 300, rollbackWindowSeconds: 3600, rollbackVerified: true, privateMaterialObserved: false, networkUsed: false, transactionSigned: false, evidenceSha256: HASH, rawSignature: "must-not-escape" }; }, async activateRuntime(scope) { return activateSyntheticRuntime(scope); } };
   const controlPlane = new OracleControlPlane({ runtime, authorizer, dualControl, commandJournal: new CommandJournal(), outbox: runtime.outbox, signerRotationBroker, clock: () => new Date("2026-08-27T00:00:00.000Z") });
   const adminOperations = new AdminOperations({ runtime, sourceRegistry: runtime.sourceRegistry, authorizer, reviewQueue: runtime.reviewQueue, dualControl, clock: () => new Date("2026-08-27T00:00:00.000Z") });
   return { runtime, authorizer, dualControl, controlPlane, adminOperations };
@@ -55,6 +61,7 @@ test("source disable requires an independent approval", () => {
 
 test("signer rotation delegates only after independent approval and validates broker result", async () => {
   const { runtime, controlPlane } = fixture();
+  const oldAttestation = runtime.attestations.issue({ subject: { assetId: "asset-signer", chainId: "hoodi", contract: "contract-signer", tokenId: "1", purpose: "provenance" }, factType: "SOURCE_STATUS", factValue: "VALID", sourceAuthority: "synthetic-registry", sourceRecordHash: HASH, validForSeconds: 60, nonce: "before-rotation" });
   controlPlane.requestSignerRotation({ actorId: "security-a", actionId: "rotate-001", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH });
   await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-001", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH }), /DUAL_CONTROL_APPROVAL_REQUIRED/);
   controlPlane.approveAction({ actorId: "approver-b", actionId: "rotate-001" });
@@ -63,6 +70,10 @@ test("signer rotation delegates only after independent approval and validates br
   assert.equal("rawSignature" in result, false);
   assert.equal(result.evidenceSha256, HASH);
   assert.equal(runtime.attestations.signerSetId, "new");
+  assert.equal(runtime.attestations.verify(oldAttestation).errorCode, "SIGNATURE_INVALID");
+  const newAttestation = runtime.attestations.issue({ subject: { assetId: "asset-signer", chainId: "hoodi", contract: "contract-signer", tokenId: "1", purpose: "provenance" }, factType: "SOURCE_STATUS", factValue: "VALID", sourceAuthority: "synthetic-registry", sourceRecordHash: HASH, validForSeconds: 60, nonce: "after-rotation" });
+  assert.equal(newAttestation.envelope.signerSetId, "new");
+  assert.equal(runtime.attestations.verify(newAttestation).valid, true);
   await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-001", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH }), /SIGNER_ROTATION_SOURCE_NOT_ACTIVE/);
   assert.equal(runtime.auditJournal.list().at(-1).type, "signer.rotated");
 });
@@ -105,6 +116,7 @@ test("ambiguous signer rotation is reconciled without replaying rotation", async
   const controlPlane = new OracleControlPlane({ runtime, authorizer, dualControl, commandJournal: new CommandJournal(), outbox: runtime.outbox, signerRotationBroker: {
     async rotate() { rotateCalls += 1; throw new Error("response lost after apply"); },
     async reconcile() { reconcileCalls += 1; return { applied: true, ...evidence }; },
+    async activateRuntime(scope) { return activateSyntheticRuntime(scope); },
   } });
   controlPlane.requestSignerRotation({ actorId: "security-a", actionId: "rotate-recovery", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH });
   controlPlane.approveAction({ actorId: "approver-b", actionId: "rotate-recovery" });

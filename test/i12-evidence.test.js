@@ -40,3 +40,10 @@ test("I12 evidence validator rejects omitted and non-finite capacity or recovery
   assert.throws(() => validateI12Evidence("restore-drill", { ...evidence, type: "restore-drill", databaseIntegrityVerified: true, auditHeadVerified: true }), /I12_RESTORE_DRILL_INSUFFICIENT/);
   assert.equal(validateI12Evidence("restore-drill", { ...evidence, type: "restore-drill", databaseIntegrityVerified: true, auditHeadVerified: true, rpoSecondsTarget: 300, rpoSecondsActual: 120, rtoSecondsTarget: 900, rtoSecondsActual: 600 }), true);
 });
+
+test("I12 signer rotation evidence requires finite timing controls", () => {
+  const base = { schemaVersion: 1, type: "signer-rotation", status: "PASS", artifactSha256: HASH, candidateCommit: COMMIT, newSignerAccepted: true, oldSignerRejected: true, rotationAudited: true, auditChainVerified: true, dualApprovalVerified: true, timelockSeconds: 300, rollbackWindowSeconds: 3600, rollbackVerified: true, privateMaterialObserved: false, networkUsed: false, transactionSigned: false };
+  assert.equal(validateI12Evidence("signer-rotation", base), true);
+  assert.throws(() => validateI12Evidence("signer-rotation", { ...base, timelockSeconds: Number.NaN }), /I12_SIGNER_ROTATION_INSUFFICIENT/);
+  assert.throws(() => validateI12Evidence("signer-rotation", { ...base, rollbackWindowSeconds: undefined }), /I12_SIGNER_ROTATION_INSUFFICIENT/);
+});

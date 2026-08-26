@@ -15,6 +15,15 @@ accept caller-selected network endpoints or credentials.
 - Production private keys remain in an HSM or equivalently protected signing service.
 - The application submits only the canonical envelope hash and receives a signature plus public signer-set ID.
 - Signer policy independently checks environment, schema, purpose, subject and maximum TTL.
+- A rotation is not complete when only the public signer-set identifier changes. The protected rotation
+  adapter must atomically replace the runtime signing backend, verification backend and signer policy, then
+  return only the activated public signer-set identifier and `privateMaterialIncluded=false`.
+- The control plane never accepts a private key, mnemonic, key path or raw key reference. Runtime activation
+  is performed through the deployment-owned `activateRuntime` broker operation and is fail-closed if the
+  active runtime signer set does not exactly match the approved destination set.
+- After activation, an attestation produced by the old backend must fail local verification and a newly
+  issued attestation must advertise and verify under the new signer set. Ambiguous activation remains in
+  `RECOVERY_REQUIRED` until the broker affirmatively reconciles `applied=true`.
 
 ## Sources
 

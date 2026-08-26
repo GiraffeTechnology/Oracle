@@ -8,24 +8,31 @@ function signingBytes(envelope) {
 export class AttestationService {
   #issuedNonces = new Set();
   #attestations = new Map();
+  #signBytes;
+  #verifyBytes;
 
   constructor({ signerSetId, privateKey, publicKey, revocations, signerPolicy = null, clock = () => new Date() }) {
     if (!signerSetId || !privateKey || !publicKey || !revocations) throw new Error("ATTESTATION_DEPENDENCY_MISSING");
     this.signerSetId = signerSetId;
-    this.privateKey = privateKey;
-    this.publicKey = publicKey;
+    this.#signBytes = (bytes) => sign(null, bytes, privateKey);
+    this.#verifyBytes = (bytes, signature) => verify(null, bytes, publicKey, signature);
     this.revocations = revocations;
     if (signerPolicy && signerPolicy.record.signerSetId !== signerSetId) throw new Error("SIGNER_POLICY_SET_MISMATCH");
     this.signerPolicy = signerPolicy;
     this.clock = clock;
   }
 
-  activateSignerSet(nextSignerSetId, expectedCurrentSignerSetId) {
-    if (typeof nextSignerSetId !== "string" || !nextSignerSetId || typeof expectedCurrentSignerSetId !== "string" || !expectedCurrentSignerSetId) throw new Error("SIGNER_SET_ACTIVATION_INVALID");
+  activateSignerBackend({ signerSetId: nextSignerSetId, signBytes, verifyBytes, signerPolicy = null }, expectedCurrentSignerSetId) {
+    if (typeof nextSignerSetId !== "string" || !nextSignerSetId || typeof expectedCurrentSignerSetId !== "string" || !expectedCurrentSignerSetId || typeof signBytes !== "function" || typeof verifyBytes !== "function") throw new Error("SIGNER_SET_ACTIVATION_INVALID");
     if (this.signerSetId !== expectedCurrentSignerSetId) throw new Error("SIGNER_ROTATION_SOURCE_NOT_ACTIVE");
     if (nextSignerSetId === expectedCurrentSignerSetId) throw new Error("SIGNER_SET_ACTIVATION_INVALID");
+    if (signerPolicy && signerPolicy.record?.signerSetId !== nextSignerSetId) throw new Error("SIGNER_POLICY_SET_MISMATCH");
+    if (this.signerPolicy && !signerPolicy) throw new Error("SIGNER_POLICY_REPLACEMENT_REQUIRED");
+    this.#signBytes = signBytes;
+    this.#verifyBytes = verifyBytes;
+    this.signerPolicy = signerPolicy;
     this.signerSetId = nextSignerSetId;
-    return Object.freeze({ signerSetId: nextSignerSetId });
+    return Object.freeze({ signerSetId: nextSignerSetId, privateMaterialIncluded: false });
   }
 
   issue({ subject, factType, factValue, sourceAuthority, sourceRecordHash, validForSeconds, nonce, revocationRef = null }) {
@@ -58,7 +65,7 @@ export class AttestationService {
     const attestation = Object.freeze({
       envelope,
       envelopeHash: evidenceHash(envelope),
-      signature: sign(null, signingBytes(envelope), this.privateKey).toString("base64url"),
+      signature: this.#signBytes(signingBytes(envelope)).toString("base64url"),
     });
     this.#issuedNonces.add(nonce);
     this.#attestations.set(envelope.attestationId, attestation);
@@ -85,7 +92,7 @@ export class AttestationService {
     try { this.signerPolicy?.assertActive(); } catch { return { valid: false, errorCode: "SIGNER_SET_NOT_ACTIVE" }; }
     const { envelope, envelopeHash, signature } = attestation ?? {};
     if (!envelope || !signature || evidenceHash(envelope) !== envelopeHash) return { valid: false, errorCode: "HASH_INVALID" };
-    if (!verify(null, signingBytes(envelope), this.publicKey, Buffer.from(signature, "base64url"))) {
+    if (!this.#verifyBytes(signingBytes(envelope), Buffer.from(signature, "base64url"))) {
       return { valid: false, errorCode: "SIGNATURE_INVALID" };
     }
     if (envelope.schemaVersion !== "giraffe-attestation.v1") return { valid: false, errorCode: "SCHEMA_VERSION_UNSUPPORTED" };

@@ -15,6 +15,13 @@ function assertRotationEvidence(result) {
   return result;
 }
 
+async function activateRuntimeSigner(signerRotationBroker, attestationService, scope) {
+  if (typeof signerRotationBroker?.activateRuntime !== "function") throw new Error("SIGNER_RUNTIME_ACTIVATOR_UNAVAILABLE");
+  const result = await signerRotationBroker.activateRuntime({ ...scope, attestationService });
+  if (result?.signerSetId !== scope.toSignerSetId || result?.privateMaterialIncluded !== false || attestationService.signerSetId !== scope.toSignerSetId) throw new Error("SIGNER_RUNTIME_ACTIVATION_INVALID");
+  return result;
+}
+
 export class OracleControlPlane {
   constructor({ runtime, authorizer, dualControl, commandJournal, outbox, signerRotationBroker = null, clock = () => new Date() }) {
     Object.assign(this, { runtime, authorizer, dualControl, commandJournal, outbox, signerRotationBroker, clock });
@@ -123,7 +130,7 @@ export class OracleControlPlane {
     this.dualControl.beginExecution(actionId, { actionType: "SIGNER_ROTATE", subjectId, payloadHash: rotationDigest, executedBy: actorId, executionStartedAt: occurredAt });
     try {
       const result = assertRotationEvidence(await this.signerRotationBroker.rotate({ actionId, fromSignerSetId, toSignerSetId, rotationDigest }));
-      this.runtime.attestations.activateSignerSet(toSignerSetId, fromSignerSetId);
+      await activateRuntimeSigner(this.signerRotationBroker, this.runtime.attestations, { actionId, fromSignerSetId, toSignerSetId, rotationDigest });
       this.runtime.auditJournal.append({ type: "signer.rotated", subjectId, payloadHash: rotationDigest, actorId, occurredAt });
       this.outbox.enqueue({ eventType: "signer.rotated", subjectId, payloadHash: rotationDigest, createdAt: occurredAt });
       this.dualControl.completeExecution(actionId, occurredAt);
@@ -164,7 +171,7 @@ export class OracleControlPlane {
       }
       if (reconciliation?.applied !== true) throw new Error("SIGNER_ROTATION_RECONCILIATION_UNRESOLVED");
       const result = assertRotationEvidence(reconciliation);
-      this.runtime.attestations.activateSignerSet(toSignerSetId, fromSignerSetId);
+      await activateRuntimeSigner(this.signerRotationBroker, this.runtime.attestations, { actionId, fromSignerSetId, toSignerSetId, rotationDigest });
       this.runtime.auditJournal.append({ type: "signer.rotated", subjectId, payloadHash: rotationDigest, actorId, occurredAt });
       this.outbox.enqueue({ eventType: "signer.rotated", subjectId, payloadHash: rotationDigest, createdAt: occurredAt });
       this.dualControl.completeExecution(actionId, occurredAt);
