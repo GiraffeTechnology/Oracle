@@ -1,4 +1,5 @@
 import { createAuditExport } from "./audit-export.js";
+import { ExportGate } from "./export-gate.js";
 
 export class AdminOperations {
   constructor({ runtime, sourceRegistry, authorizer, reviewQueue = null, clock = () => new Date() }) {
@@ -31,6 +32,7 @@ export class AdminOperations {
   async exportAudit(actorId, purpose) {
     this.authorizer.require(actorId, "audit:export");
     const events = this.runtime.auditJournal.list();
+    new ExportGate().authorize({ permission: "audit:export", purpose, recordCount: events.length });
     return createAuditExport(events, {
       exportId: `audit-${this.clock().getTime()}`,
       purpose,

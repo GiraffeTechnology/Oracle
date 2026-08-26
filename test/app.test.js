@@ -79,7 +79,12 @@ test("admin dashboard exposes authenticated operations and is protected against 
     const response = await fetch(`${baseUrl}/admin`);
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("x-frame-options"), "DENY");
+    const csp = response.headers.get("content-security-policy");
+    assert.doesNotMatch(csp, /script-src 'unsafe-inline'/);
+    const nonce = csp.match(/script-src 'nonce-([^']+)'/)?.[1];
+    assert.ok(nonce);
     const body = await response.text();
+    assert.match(body, new RegExp(`<script nonce="${nonce}">`));
     assert.match(body, /Authenticated Admin & Audit dashboard/);
     assert.match(body, /sources\/disable/);
     assert.match(body, /signers\/rotate/);
@@ -200,6 +205,22 @@ test("synthetic runtime exposes minimally disclosed asset facts", async () => {
     const body = await response.json();
     assert.equal(body.asset.assetId, "asset-001");
     assert.equal(body.status, "NOT_VERIFIED");
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("asset detail local-time script is authorized by a per-response CSP nonce", async () => {
+  const runtime = createSyntheticRuntime();
+  runtime.recordStore.putAsset({ assetId: "asset-csp", assetFingerprintHash: "a".repeat(64), updatedAt: "2026-08-27T00:00:00.000Z" });
+  const server = createApp({ config: loadConfig({}), sourceRegistry: runtime.sourceRegistry, runtime });
+  await new Promise((resolve) => server.listen(0, "localhost", resolve));
+  try {
+    const response = await fetch(`http://localhost:${server.address().port}/assets/asset-csp`);
+    const csp = response.headers.get("content-security-policy");
+    const nonce = csp.match(/script-src 'nonce-([^']+)'/)?.[1];
+    assert.ok(nonce);
+    assert.match(await response.text(), new RegExp(`<script nonce="${nonce}">`));
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

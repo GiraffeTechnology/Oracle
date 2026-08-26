@@ -170,3 +170,55 @@ paths:
       responses:
         '200': { description: Dual-control revocation request or execution accepted }
         '503': { description: External writes disabled }
+  /v1/rwa/admin/dashboard:
+    get:
+      operationId: getAdminOperationalSnapshot
+      security: [{ mutualTLS: [], signedRequest: [] }]
+      responses:
+        '200': { description: Sources, review queue, public signer-set state, audit integrity and outbox backlog }
+        '401': { description: Admin authentication required }
+        '503': { description: Admin operations not configured }
+  /v1/rwa/admin/audit-export:
+    get:
+      operationId: exportRedactedAudit
+      security: [{ mutualTLS: [], signedRequest: [] }]
+      parameters:
+        - { name: purpose, in: query, required: true, schema: { type: string, enum: [regulatory-audit, legal-disclosure, internal-reconciliation] } }
+      responses:
+        '200': { description: Purpose-bound redacted audit records and integrity manifest }
+        '403': { description: Audit export permission denied }
+  /v1/rwa/admin/actions/approve:
+    post:
+      operationId: approveHighRiskAdminAction
+      security: [{ mutualTLS: [], signedRequest: [] }]
+      responses:
+        '200': { description: Independent approver accepted the exact pending action scope }
+        '503': { description: External writes disabled }
+  /v1/rwa/admin/sources/disable/request:
+    post:
+      operationId: requestSourceDisable
+      security: [{ mutualTLS: [], signedRequest: [] }]
+      responses:
+        '200': { description: Source-disable action is pending independent approval }
+        '503': { description: External writes disabled }
+  /v1/rwa/admin/sources/disable/execute:
+    post:
+      operationId: executeSourceDisable
+      security: [{ mutualTLS: [], signedRequest: [] }]
+      responses:
+        '200': { description: Approved source was disabled and appended to audit/outbox }
+        '503': { description: External writes disabled }
+  /v1/rwa/admin/signers/rotate/request:
+    post:
+      operationId: requestSignerRotation
+      security: [{ mutualTLS: [], signedRequest: [] }]
+      responses:
+        '200': { description: Signer rotation is pending independent approval }
+        '503': { description: External writes disabled }
+  /v1/rwa/admin/signers/rotate/execute:
+    post:
+      operationId: executeSignerRotation
+      security: [{ mutualTLS: [], signedRequest: [] }]
+      responses:
+        '200': { description: Protected broker proved old rejection, new acceptance, timelock and rollback }
+        '503': { description: External writes disabled or protected broker unavailable }

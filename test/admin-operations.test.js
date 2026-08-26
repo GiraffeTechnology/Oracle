@@ -33,8 +33,10 @@ test("authenticated admin snapshot exposes operational facts without private mat
   assert.equal(snapshot.signerSet.privateMaterialIncluded, false);
   assert.equal(snapshot.audit.chainVerified, true);
   assert.equal(JSON.stringify(snapshot).includes("privateKey"), false);
+  runtime.auditJournal.append({ type: "test.audit", subjectId: "asset-001", payloadHash: HASH, actorId: "auditor", occurredAt: "2026-08-27T00:00:00.000Z" });
   const exported = await adminOperations.exportAudit("auditor", "regulatory-audit");
-  assert.equal(exported.manifest.recordCount, 0);
+  assert.equal(exported.manifest.recordCount, 1);
+  await assert.rejects(() => adminOperations.exportAudit("auditor", "financial-analysis"), /EXPORT_PURPOSE_INVALID/);
 });
 
 test("source disable requires an independent approval", () => {

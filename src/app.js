@@ -1,5 +1,5 @@
 import http from "node:http";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { ORACLE_STATUSES } from "./domain/oracle-status.js";
 import { ADMIN_HTML, renderAssetDetailHtml } from "./admin-ui.js";
 import { publicL2Profile } from "./config/deployment-profile.js";
@@ -193,15 +193,16 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
     }
 
     if (requestUrl.pathname === "/admin") {
+      const scriptNonce = randomBytes(18).toString("base64url");
       response.writeHead(200, {
         "content-type": "text/html; charset=utf-8",
         "cache-control": "no-store",
-        "content-security-policy": "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'",
+        "content-security-policy": `default-src 'self'; style-src 'unsafe-inline'; script-src 'nonce-${scriptNonce}'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'`,
         "x-content-type-options": "nosniff",
         "x-frame-options": "DENY",
         "referrer-policy": "no-referrer",
       });
-      response.end(ADMIN_HTML);
+      response.end(ADMIN_HTML.replace("<script>", `<script nonce="${scriptNonce}">`));
       return;
     }
     const assetPageMatch = requestUrl.pathname.match(/^\/assets\/([a-zA-Z0-9_-]{3,128})$/);
@@ -212,8 +213,9 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
         return;
       }
       const settlement = runtime.settlements.byAsset?.(assetPageMatch[1]) ?? null;
-      response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'", "x-content-type-options": "nosniff", "x-frame-options": "DENY", "referrer-policy": "no-referrer" });
-      response.end(renderAssetDetailHtml({ asset: publicAsset(asset), certificate: runtime.recordStore.currentCertificate(asset.assetId), warehouse: publicWarehouse(runtime.recordStore.getWarehouse(asset.assetId)), status: runtime.stateEngine.current(asset.assetId), settlement }));
+      const scriptNonce = randomBytes(18).toString("base64url");
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${scriptNonce}'; frame-ancestors 'none'; base-uri 'none'`, "x-content-type-options": "nosniff", "x-frame-options": "DENY", "referrer-policy": "no-referrer" });
+      response.end(renderAssetDetailHtml({ asset: publicAsset(asset), certificate: runtime.recordStore.currentCertificate(asset.assetId), warehouse: publicWarehouse(runtime.recordStore.getWarehouse(asset.assetId)), status: runtime.stateEngine.current(asset.assetId), settlement, scriptNonce }));
       return;
     }
     if (requestUrl.pathname === "/healthz") {
