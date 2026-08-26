@@ -147,7 +147,7 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
           sendJson(response, 404, { ok: false, errorCode: "ADMIN_ROUTE_NOT_FOUND" });
           return;
         }
-        sendJson(response, 200, { ok: true, result: operation() });
+        sendJson(response, 200, { ok: true, result: await operation() });
       } catch (error) {
         sendJson(response, adminErrorStatus(error.message), { ok: false, errorCode: error.message });
       }

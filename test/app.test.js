@@ -124,6 +124,48 @@ test("explicit synthetic test gate enables authenticated idempotent admin comman
   }
 });
 
+test("admin HTTP route awaits an asynchronous control-plane result", async () => {
+  const config = loadConfig({ GIRAFFE_ORACLE_ENV: "test", GIRAFFE_ORACLE_EXTERNAL_WRITES: "true", GIRAFFE_ORACLE_TEST_WRITE_ACK: "synthetic-only" });
+  const controlPlane = { async verifyAsset() { await Promise.resolve(); return { persisted: true }; } };
+  const server = createApp({ config, sourceRegistry: new SourceRegistry(), controlPlane, authenticateAdmin: async () => "oracle-test" });
+  await new Promise((resolve) => server.listen(0, "localhost", resolve));
+  try {
+    const response = await fetch(`http://localhost:${server.address().port}/v1/rwa/admin/assets/verify`, {
+      method: "POST", headers: { "content-type": "application/json", "idempotency-key": "async-ok" }, body: "{}",
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { ok: true, result: { persisted: true } });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("admin HTTP route maps an asynchronous control-plane rejection", async () => {
+  const config = loadConfig({ GIRAFFE_ORACLE_ENV: "test", GIRAFFE_ORACLE_EXTERNAL_WRITES: "true", GIRAFFE_ORACLE_TEST_WRITE_ACK: "synthetic-only" });
+  const controlPlane = { async verifyAsset() { await Promise.resolve(); throw new Error("PERMISSION_DENIED:asset:verify"); } };
+  const server = createApp({ config, sourceRegistry: new SourceRegistry(), controlPlane, authenticateAdmin: async () => "oracle-test" });
+  await new Promise((resolve) => server.listen(0, "localhost", resolve));
+  try {
+    const response = await fetch(`http://localhost:${server.address().port}/v1/rwa/admin/assets/verify`, {
+      method: "POST", headers: { "content-type": "application/json", "idempotency-key": "async-fail" }, body: "{}",
+    });
+    assert.equal(response.status, 403);
+    assert.deepEqual(await response.json(), { ok: false, errorCode: "PERMISSION_DENIED:asset:verify" });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("generic and market price query fields are rejected", async () => {
+  await withServer(async (baseUrl) => {
+    for (const field of ["price", "marketPrice"]) {
+      const response = await fetch(`${baseUrl}/healthz?${field}=1`);
+      assert.equal(response.status, 400);
+      assert.equal((await response.json()).errorCode, "FINANCIAL_OUTPUT_PROHIBITED");
+    }
+  });
+});
+
 test("public verifier ignores caller-supplied time overrides", async () => {
   const issuedAt = new Date("2020-01-01T00:00:00.000Z");
   let serverNow = issuedAt;

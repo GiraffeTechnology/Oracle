@@ -18,6 +18,8 @@ test("OpenAPI declares no caller-selectable server endpoint", async () => {
 
 test("SBOM confirms no third-party runtime components", async () => {
   const sbom = JSON.parse(await readFile(new URL("../sbom.cdx.json", import.meta.url), "utf8"));
+  const packageManifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
   assert.equal(sbom.bomFormat, "CycloneDX");
+  assert.equal(sbom.metadata.component.version, packageManifest.version);
   assert.deepEqual(sbom.components, []);
 });

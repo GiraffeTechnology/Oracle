@@ -1,5 +1,5 @@
 const SUBJECT_COMPLIANCE_KEYS = /^(kyc|aml|sanction|suitability|accredit|jurisdictionEligibility|licenseEligibility)$/i;
-const FINANCIAL_OUTPUT_KEYS = /^(valuation|marketPrice|pricePrediction|collateralRatio|liquidationPrice|creditScore|interestRate|yieldRate|liquidityCurve|investmentAdvice)$/i;
+const FINANCIAL_OUTPUT_KEYS = /^(valuation|price|marketPrice|pricePrediction|collateralRatio|liquidationPrice|creditScore|interestRate|yieldRate|liquidityCurve|investmentAdvice)$/i;
 
 function walk(value, visit) {
   if (!value || typeof value !== "object") return;
