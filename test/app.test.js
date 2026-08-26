@@ -173,11 +173,24 @@ test("HTTP boundaries never return arbitrary dependency messages", async () => {
   const server = createApp({ config, sourceRegistry: new SourceRegistry(), controlPlane, authenticateAdmin: async () => "oracle-test" });
   await new Promise((resolve) => server.listen(0, "localhost", resolve));
   try {
-    const response = await fetch(`http://localhost:${server.address().port}/v1/rwa/admin/signers/rotate/execute`, { method: "POST", headers: { "content-type": "application/json", "x-requested-with": "GiraffeOracleAdmin" }, body: "{}" });
+    const response = await fetch(`http://localhost:${server.address().port}/v1/rwa/admin/signers/rotate/execute`, { method: "POST", headers: { "content-type": "application/json", "x-requested-with": "GiraffeOracleAdmin", "idempotency-key": "sanitize-error-001" }, body: "{}" });
     const payload = await response.json();
     assert.equal(response.status, 500);
     assert.equal(payload.errorCode, "ADMIN_OPERATION_FAILED");
     assert.equal(JSON.stringify(payload).includes("private"), false);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("admin HTTP writes reject a missing idempotency key", async () => {
+  const config = loadConfig({ GIRAFFE_ORACLE_ENV: "test", GIRAFFE_ORACLE_EXTERNAL_WRITES: "true", GIRAFFE_ORACLE_TEST_WRITE_ACK: "synthetic-only" });
+  const server = createApp({ config, sourceRegistry: new SourceRegistry(), controlPlane: { verifyAsset() { return {}; } }, authenticateAdmin: async () => "oracle-test" });
+  await new Promise((resolve) => server.listen(0, "localhost", resolve));
+  try {
+    const response = await fetch(`http://localhost:${server.address().port}/v1/rwa/admin/assets/verify`, { method: "POST", headers: { "content-type": "application/json", "x-requested-with": "GiraffeOracleAdmin" }, body: "{}" });
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).errorCode, "IDEMPOTENCY_KEY_REQUIRED");
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

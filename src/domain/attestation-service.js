@@ -26,8 +26,8 @@ export class AttestationService {
     if (typeof nextSignerSetId !== "string" || !nextSignerSetId || typeof expectedCurrentSignerSetId !== "string" || !expectedCurrentSignerSetId || typeof signBytes !== "function" || typeof verifyBytes !== "function") throw new Error("SIGNER_SET_ACTIVATION_INVALID");
     if (this.signerSetId !== expectedCurrentSignerSetId) throw new Error("SIGNER_ROTATION_SOURCE_NOT_ACTIVE");
     if (nextSignerSetId === expectedCurrentSignerSetId) throw new Error("SIGNER_SET_ACTIVATION_INVALID");
-    if (signerPolicy && signerPolicy.record?.signerSetId !== nextSignerSetId) throw new Error("SIGNER_POLICY_SET_MISMATCH");
-    if (this.signerPolicy && !signerPolicy) throw new Error("SIGNER_POLICY_REPLACEMENT_REQUIRED");
+    if (!signerPolicy || signerPolicy.record?.signerSetId !== nextSignerSetId) throw new Error("SIGNER_POLICY_REPLACEMENT_REQUIRED");
+    signerPolicy.assertActive();
     this.#signBytes = signBytes;
     this.#verifyBytes = verifyBytes;
     this.signerPolicy = signerPolicy;
@@ -62,10 +62,13 @@ export class AttestationService {
       revocationRef,
       signerSetId: this.signerSetId,
     });
+    const signatureBytes = this.#signBytes(signingBytes(envelope));
+    if (signatureBytes && typeof signatureBytes.then === "function") throw new Error("SIGNER_BACKEND_ASYNC_UNSUPPORTED");
+    if (!Buffer.isBuffer(signatureBytes) && !(signatureBytes instanceof Uint8Array)) throw new Error("SIGNER_BACKEND_RESULT_INVALID");
     const attestation = Object.freeze({
       envelope,
       envelopeHash: evidenceHash(envelope),
-      signature: this.#signBytes(signingBytes(envelope)).toString("base64url"),
+      signature: Buffer.from(signatureBytes).toString("base64url"),
     });
     this.#issuedNonces.add(nonce);
     this.#attestations.set(envelope.attestationId, attestation);
@@ -92,7 +95,9 @@ export class AttestationService {
     try { this.signerPolicy?.assertActive(); } catch { return { valid: false, errorCode: "SIGNER_SET_NOT_ACTIVE" }; }
     const { envelope, envelopeHash, signature } = attestation ?? {};
     if (!envelope || !signature || evidenceHash(envelope) !== envelopeHash) return { valid: false, errorCode: "HASH_INVALID" };
-    if (!this.#verifyBytes(signingBytes(envelope), Buffer.from(signature, "base64url"))) {
+    const signatureValid = this.#verifyBytes(signingBytes(envelope), Buffer.from(signature, "base64url"));
+    if (signatureValid && typeof signatureValid.then === "function") return { valid: false, errorCode: "SIGNER_BACKEND_ASYNC_UNSUPPORTED" };
+    if (signatureValid !== true) {
       return { valid: false, errorCode: "SIGNATURE_INVALID" };
     }
     if (envelope.schemaVersion !== "giraffe-attestation.v1") return { valid: false, errorCode: "SCHEMA_VERSION_UNSUPPORTED" };

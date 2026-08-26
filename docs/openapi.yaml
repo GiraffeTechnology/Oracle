@@ -5,6 +5,12 @@ info:
   description: Asset-fact and offline-verification API. External writes remain disabled until the authenticated control-plane gate is explicitly enabled for synthetic testing.
 servers: []
 components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 128, pattern: '^[a-zA-Z0-9._:-]+$' }
   securitySchemes:
     mutualTLS:
       type: mutualTLS
@@ -191,6 +197,7 @@ paths:
     post:
       operationId: approveHighRiskAdminAction
       security: [{ mutualTLS: [], signedRequest: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       responses:
         '200': { description: Independent approver accepted the exact pending action scope }
         '503': { description: External writes disabled }
@@ -198,6 +205,7 @@ paths:
     post:
       operationId: requestSourceDisable
       security: [{ mutualTLS: [], signedRequest: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       responses:
         '200': { description: Source-disable action is pending independent approval }
         '503': { description: External writes disabled }
@@ -205,6 +213,7 @@ paths:
     post:
       operationId: executeSourceDisable
       security: [{ mutualTLS: [], signedRequest: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       responses:
         '200': { description: Approved source was disabled and appended to audit/outbox }
         '503': { description: External writes disabled }
@@ -212,6 +221,7 @@ paths:
     post:
       operationId: requestSignerRotation
       security: [{ mutualTLS: [], signedRequest: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       responses:
         '200': { description: Signer rotation is pending independent approval }
         '503': { description: External writes disabled }
@@ -219,6 +229,7 @@ paths:
     post:
       operationId: executeSignerRotation
       security: [{ mutualTLS: [], signedRequest: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       responses:
         '200': { description: Protected broker proved old rejection, new acceptance, timelock and rollback }
         '503': { description: External writes disabled or protected broker unavailable }
@@ -226,6 +237,7 @@ paths:
     post:
       operationId: reconcileAmbiguousSignerRotation
       security: [{ mutualTLS: [], signedRequest: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
       responses:
         '200': { description: Protected broker reconciled the exact recovery-required action without replaying rotation }
         '400': { description: Recovery not required, scope mismatch, or reconciliation evidence insufficient }

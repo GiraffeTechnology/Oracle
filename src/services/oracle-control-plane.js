@@ -4,6 +4,14 @@ import { assertAssetFactsOnly } from "./product-boundary.js";
 
 const SHA256_HEX = /^[a-f0-9]{64}$/i;
 const SAFE_ERROR_CODE = /^[A-Z][A-Z0-9_]{0,63}$/;
+const FACT_BINDINGS = Object.freeze({
+  TRANSFER_STATUS: Object.freeze({ sourceKind: "REGISTRY", field: "transferEligibility" }),
+  ORACLE_STATUS: Object.freeze({ sourceKind: "REGISTRY", field: "oracleStatus" }),
+  CERTIFICATE_STATUS: Object.freeze({ sourceKind: "CERTIFICATE_AUTHORITY", field: "status" }),
+  CERTIFICATE_VERSION: Object.freeze({ sourceKind: "CERTIFICATE_AUTHORITY", field: "certificateVersion" }),
+  WAREHOUSE_STATUS: Object.freeze({ sourceKind: "WAREHOUSE", field: "warehouseStatus" }),
+  WAREHOUSE_ENCUMBRANCE_STATUS: Object.freeze({ sourceKind: "WAREHOUSE", field: "encumbranceStatus" }),
+});
 
 function controlledFailureCode(error, fallback) {
   const candidate = typeof error?.code === "string" ? error.code : error?.message;
@@ -57,12 +65,15 @@ export class OracleControlPlane {
     const source = this.runtime.sourceRegistry.listPublic().find(({ id }) => id === request.sourceAuthority);
     if (!source) throw new Error("SOURCE_NOT_REGISTERED");
     this.runtime.sourceRegistry.requireActive(source.id, source.schemaVersions[0]);
-    const expectedSourceHash = source.kind === "REGISTRY"
-      ? this.runtime.recordStore.getAsset(request.subject.assetId)?.assetFingerprintHash
+    const sourceRecord = source.kind === "REGISTRY"
+      ? this.runtime.recordStore.getAsset(request.subject.assetId)
       : source.kind === "CERTIFICATE_AUTHORITY"
-        ? this.runtime.recordStore.currentCertificate(request.subject.assetId)?.certificateHash
-        : this.runtime.recordStore.getWarehouse(request.subject.assetId)?.warehouseReceiptHash;
+        ? this.runtime.recordStore.currentCertificate(request.subject.assetId)
+        : this.runtime.recordStore.getWarehouse(request.subject.assetId);
+    const expectedSourceHash = sourceRecord ? evidenceHash(sourceRecord) : null;
     if (request.sourceRecordHash !== expectedSourceHash) throw new Error("ATTESTATION_SOURCE_RECORD_MISMATCH");
+    const factBinding = FACT_BINDINGS[request.factType];
+    if (!factBinding || factBinding.sourceKind !== source.kind || !Object.hasOwn(sourceRecord, factBinding.field) || !Object.is(request.factValue, sourceRecord[factBinding.field])) throw new Error("ATTESTATION_FACT_SOURCE_MISMATCH");
     return this.commandJournal.execute(idempotencyKey, { type: "attestation.issue", request }, () => {
       const attestation = this.runtime.attestations.issue(request);
       const now = this.clock().toISOString();
@@ -145,7 +156,8 @@ export class OracleControlPlane {
     if (![actionId, fromSignerSetId, toSignerSetId].every((value) => typeof value === "string" && value) || fromSignerSetId === toSignerSetId || !SHA256_HEX.test(rotationDigest ?? "")) throw new Error("SIGNER_ROTATION_REQUEST_INVALID");
     if (!this.signerRotationBroker?.rotate) throw new Error("SIGNER_ROTATION_BROKER_UNAVAILABLE");
     const operation = async () => {
-      if (this.runtime.attestations.signerSetId !== fromSignerSetId) throw new Error("SIGNER_ROTATION_SOURCE_NOT_ACTIVE");
+      const runtimeSignerSetId = this.runtime.attestations.signerSetId;
+      if (runtimeSignerSetId !== fromSignerSetId && runtimeSignerSetId !== toSignerSetId) throw new Error("SIGNER_ROTATION_RUNTIME_STATE_CONFLICT");
       const subjectId = `${fromSignerSetId}->${toSignerSetId}`;
       const occurredAt = this.clock().toISOString();
       this.dualControl.beginExecution(actionId, { actionType: "SIGNER_ROTATE", subjectId, payloadHash: rotationDigest, executedBy: actorId, executionStartedAt: occurredAt });
@@ -183,19 +195,21 @@ export class OracleControlPlane {
     if (![actionId, fromSignerSetId, toSignerSetId].every((value) => typeof value === "string" && value) || fromSignerSetId === toSignerSetId || !SHA256_HEX.test(rotationDigest ?? "")) throw new Error("SIGNER_ROTATION_REQUEST_INVALID");
     if (!this.signerRotationBroker?.reconcile) throw new Error("SIGNER_ROTATION_RECONCILER_UNAVAILABLE");
     const operation = async () => {
-      if (this.runtime.attestations.signerSetId !== fromSignerSetId) throw new Error("SIGNER_ROTATION_SOURCE_NOT_ACTIVE");
+      const runtimeSignerSetId = this.runtime.attestations.signerSetId;
+      if (runtimeSignerSetId !== fromSignerSetId && runtimeSignerSetId !== toSignerSetId) throw new Error("SIGNER_ROTATION_RUNTIME_STATE_CONFLICT");
       const subjectId = `${fromSignerSetId}->${toSignerSetId}`;
       const occurredAt = this.clock().toISOString();
       this.dualControl.beginRecovery(actionId, { actionType: "SIGNER_ROTATE", subjectId, payloadHash: rotationDigest, executedBy: actorId, recoveryStartedAt: occurredAt });
       try {
       const reconciliation = await this.signerRotationBroker.reconcile({ actionId, fromSignerSetId, toSignerSetId, rotationDigest });
       if (reconciliation?.applied === false && reconciliation?.safelyNotApplied === true) {
+        if (runtimeSignerSetId !== fromSignerSetId) throw new Error("SIGNER_ROTATION_RECONCILIATION_UNRESOLVED");
         this.dualControl.failExecution(actionId, { failedAt: this.clock().toISOString(), errorCode: "SIGNER_ROTATION_NOT_APPLIED" });
         return Object.freeze({ applied: false, safelyNotApplied: true, privateMaterialIncluded: false });
       }
       if (reconciliation?.applied !== true) throw new Error("SIGNER_ROTATION_RECONCILIATION_UNRESOLVED");
       const result = assertRotationEvidence(reconciliation);
-      await activateRuntimeSigner(this.signerRotationBroker, this.runtime.attestations, { actionId, fromSignerSetId, toSignerSetId, rotationDigest });
+      if (runtimeSignerSetId === fromSignerSetId) await activateRuntimeSigner(this.signerRotationBroker, this.runtime.attestations, { actionId, fromSignerSetId, toSignerSetId, rotationDigest });
       this.runtime.auditJournal.append({ type: "signer.rotated", subjectId, payloadHash: rotationDigest, actorId, occurredAt });
       this.outbox.enqueue({ eventType: "signer.rotated", subjectId, payloadHash: rotationDigest, createdAt: occurredAt });
       this.dualControl.completeExecution(actionId, occurredAt);
