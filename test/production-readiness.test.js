@@ -90,6 +90,17 @@ test("dual control rejects self approval and scope changes", () => {
   queue.approve("action-001", { approvedBy: "operator-b", approvedAt: NOW.toISOString() });
   assert.throws(() => queue.requireApproved("action-001", "ATTESTATION_REVOKE", "asset-001", HASH_B), /SCOPE_MISMATCH/);
   assert.equal(queue.requireApproved("action-001", "ATTESTATION_REVOKE", "asset-001", HASH_A).status, "APPROVED");
+  assert.equal(queue.beginExecution("action-001", { actionType: "ATTESTATION_REVOKE", subjectId: "asset-001", payloadHash: HASH_A, executedBy: "operator-a", executionStartedAt: NOW.toISOString() }).status, "EXECUTING");
+  assert.throws(() => queue.beginExecution("action-001", { actionType: "ATTESTATION_REVOKE", subjectId: "asset-001", payloadHash: HASH_A, executedBy: "operator-a", executionStartedAt: NOW.toISOString() }), /DUAL_CONTROL_APPROVAL_REQUIRED/);
+  assert.equal(queue.completeExecution("action-001", NOW.toISOString()).status, "EXECUTED");
+  assert.throws(() => queue.completeExecution("action-001", NOW.toISOString()), /ACTION_NOT_EXECUTING/);
+
+  queue.request({ actionId: "action-002", actionType: "SOURCE_DISABLE", subjectId: "source-1", payloadHash: HASH_A, requestedBy: "operator-a", requestedAt: NOW.toISOString() });
+  queue.approve("action-002", { approvedBy: "operator-b", approvedAt: NOW.toISOString() });
+  queue.beginExecution("action-002", { actionType: "SOURCE_DISABLE", subjectId: "source-1", payloadHash: HASH_A, executedBy: "operator-a", executionStartedAt: NOW.toISOString() });
+  assert.equal(queue.failExecution("action-002", { failedAt: NOW.toISOString(), errorCode: "DEPENDENCY_FAILED" }).status, "FAILED");
+  assert.throws(() => queue.beginExecution("action-002", { actionType: "SOURCE_DISABLE", subjectId: "source-1", payloadHash: HASH_A, executedBy: "operator-a", executionStartedAt: NOW.toISOString() }), /DUAL_CONTROL_APPROVAL_REQUIRED/);
+  assert.equal(queue.list().length, 2);
 });
 
 test("outbox delivery is ordered, retryable and idempotently acknowledged", () => {

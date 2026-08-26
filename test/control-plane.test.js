@@ -136,6 +136,27 @@ test("MySQL adapter commits success and rolls back failure", async () => {
   assert.deepEqual(events, ["begin", "rollback", "release"]);
 });
 
+test("command journal deduplicates concurrent async operations and clears failed pending records", async () => {
+  const journal = new CommandJournal();
+  let calls = 0;
+  let resolveOperation;
+  const operation = () => {
+    calls += 1;
+    return new Promise((resolve) => { resolveOperation = resolve; });
+  };
+  const first = journal.execute("async-001", { type: "async" }, operation);
+  const replay = journal.execute("async-001", { type: "async" }, operation);
+  assert.equal(calls, 1);
+  resolveOperation("stored");
+  assert.deepEqual(await first, { commandHash: (await first).commandHash, result: "stored", replayed: false });
+  assert.equal((await replay).replayed, true);
+
+  let failedCalls = 0;
+  await assert.rejects(() => journal.execute("async-fail", { type: "failure" }, async () => { failedCalls += 1; throw new Error("temporary"); }), /temporary/);
+  assert.equal((await journal.execute("async-fail", { type: "failure" }, async () => { failedCalls += 1; return "recovered"; })).result, "recovered");
+  assert.equal(failedCalls, 2);
+});
+
 test("protected signer enforces local policy before client call", async () => {
   let calls = 0;
   const signer = new ProtectedSignerAdapter({ client: { async signDigest() { calls += 1; return { signature: "synthetic", signerSetId: "set-001" }; }, async getPublicSignerSet() { return { signerSetId: "set-001", publicKeys: ["synthetic"] }; } }, policy: { policyId: "oracle-v1", schemaVersions: ["giraffe-attestation.v1"], purposes: ["transfer-eligibility"], maxTtlSeconds: 300 } });

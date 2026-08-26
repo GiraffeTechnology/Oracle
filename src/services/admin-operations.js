@@ -2,9 +2,9 @@ import { createAuditExport } from "./audit-export.js";
 import { ExportGate } from "./export-gate.js";
 
 export class AdminOperations {
-  constructor({ runtime, sourceRegistry, authorizer, reviewQueue = null, clock = () => new Date() }) {
+  constructor({ runtime, sourceRegistry, authorizer, reviewQueue = null, dualControl = null, clock = () => new Date() }) {
     if (!runtime || !sourceRegistry || !authorizer) throw new Error("ADMIN_OPERATIONS_DEPENDENCY_MISSING");
-    Object.assign(this, { runtime, sourceRegistry, authorizer, reviewQueue, clock });
+    Object.assign(this, { runtime, sourceRegistry, authorizer, reviewQueue, dualControl, clock });
   }
 
   async snapshot(actorId) {
@@ -15,6 +15,7 @@ export class AdminOperations {
       generatedAt: this.clock().toISOString(),
       sources: this.sourceRegistry.listPublic(),
       reviewQueue: this.reviewQueue?.list?.() ?? [],
+      controlledActions: this.dualControl?.list?.() ?? [],
       signerSet: Object.freeze({
         signerSetId: this.runtime.attestations?.signerSetId ?? null,
         status: this.runtime.attestations?.signerPolicy?.record?.status ?? "SYNTHETIC_OR_EXTERNAL",

@@ -17,16 +17,17 @@ export function assembleIsolatedTestApplication({ config, env = process.env, sig
   const runtime = createSyntheticRuntime({ clock });
   const authorizer = new Authorizer();
   for (const [actorId, roles] of Object.entries(TEST_ACTORS)) authorizer.registerActor(actorId, roles);
+  const dualControl = new DualControlQueue();
   const controlPlane = new OracleControlPlane({
     runtime,
     authorizer,
-    dualControl: new DualControlQueue(),
+    dualControl,
     commandJournal: new CommandJournal(),
     outbox: runtime.outbox,
     signerRotationBroker,
     clock,
   });
-  const adminOperations = new AdminOperations({ runtime, sourceRegistry: runtime.sourceRegistry, authorizer, reviewQueue: runtime.reviewQueue, clock });
+  const adminOperations = new AdminOperations({ runtime, sourceRegistry: runtime.sourceRegistry, authorizer, reviewQueue: runtime.reviewQueue, dualControl, clock });
   const adminEnabled = env.GIRAFFE_ORACLE_TEST_ADMIN_ACK === "isolated-test-only";
   const authenticateAdmin = async (request) => {
     if (!adminEnabled) return null;

@@ -20,7 +20,7 @@ function fixture() {
   const dualControl = new DualControlQueue();
   const signerRotationBroker = { async rotate() { return { oldSignerRejected: true, newSignerAccepted: true, rotationAudited: true, auditChainVerified: true, dualApprovalVerified: true, timelockSeconds: 300, rollbackWindowSeconds: 3600, rollbackVerified: true, privateMaterialObserved: false, networkUsed: false, transactionSigned: false, evidenceSha256: HASH, rawSignature: "must-not-escape" }; } };
   const controlPlane = new OracleControlPlane({ runtime, authorizer, dualControl, commandJournal: new CommandJournal(), outbox: runtime.outbox, signerRotationBroker, clock: () => new Date("2026-08-27T00:00:00.000Z") });
-  const adminOperations = new AdminOperations({ runtime, sourceRegistry: runtime.sourceRegistry, authorizer, reviewQueue: runtime.reviewQueue, clock: () => new Date("2026-08-27T00:00:00.000Z") });
+  const adminOperations = new AdminOperations({ runtime, sourceRegistry: runtime.sourceRegistry, authorizer, reviewQueue: runtime.reviewQueue, dualControl, clock: () => new Date("2026-08-27T00:00:00.000Z") });
   return { runtime, authorizer, controlPlane, adminOperations };
 }
 
@@ -31,6 +31,7 @@ test("authenticated admin snapshot exposes operational facts without private mat
   assert.equal(snapshot.sources.length, 3);
   assert.equal(snapshot.reviewQueue.length, 1);
   assert.equal(snapshot.signerSet.privateMaterialIncluded, false);
+  assert.equal(snapshot.controlledActions.length, 0);
   assert.equal(snapshot.audit.chainVerified, true);
   assert.equal(JSON.stringify(snapshot).includes("privateKey"), false);
   runtime.auditJournal.append({ type: "test.audit", subjectId: "asset-001", payloadHash: HASH, actorId: "auditor", occurredAt: "2026-08-27T00:00:00.000Z" });
@@ -45,6 +46,7 @@ test("source disable requires an independent approval", () => {
   assert.throws(() => controlPlane.executeSourceDisable({ actorId: "security-a", actionId: "disable-001", sourceId: "synthetic-registry", reasonHash: HASH }), /DUAL_CONTROL_APPROVAL_REQUIRED/);
   controlPlane.approveAction({ actorId: "approver-b", actionId: "disable-001" });
   assert.equal(controlPlane.executeSourceDisable({ actorId: "security-a", actionId: "disable-001", sourceId: "synthetic-registry", reasonHash: HASH }).active, false);
+  assert.throws(() => controlPlane.executeSourceDisable({ actorId: "security-a", actionId: "disable-001", sourceId: "synthetic-registry", reasonHash: HASH }), /DUAL_CONTROL_APPROVAL_REQUIRED/);
   assert.equal(runtime.auditJournal.list().at(-1).type, "source.disabled");
 });
 
@@ -57,6 +59,7 @@ test("signer rotation delegates only after independent approval and validates br
   assert.equal(result.privateMaterialIncluded, false);
   assert.equal("rawSignature" in result, false);
   assert.equal(result.evidenceSha256, HASH);
+  await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-001", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH }), /DUAL_CONTROL_APPROVAL_REQUIRED/);
   assert.equal(runtime.auditJournal.list().at(-1).type, "signer.rotated");
 });
 
