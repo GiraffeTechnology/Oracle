@@ -10,7 +10,7 @@ export const ADMIN_HTML = `<!doctype html>
     header,section{background:#fff;border:1px solid #d8ddd7;border-radius:.9rem;padding:1rem;margin-bottom:1rem}.ok{color:#16803a}.warn{color:#9a5200}.muted{color:#66706a}
     code{overflow-wrap:anywhere}button{padding:.55rem .9rem;border:1px solid #87938b;border-radius:.45rem;background:#f8faf8;cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}
     dl{display:grid;grid-template-columns:12rem 1fr;gap:.5rem}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:.55rem;border-bottom:1px solid #e7ebe7;vertical-align:top}
-    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}label{display:grid;gap:.25rem;margin:.5rem 0}input,select{padding:.55rem;border:1px solid #aeb7b0;border-radius:.4rem}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f5f3;padding:.75rem;border-radius:.5rem}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.grid>*,.controls>*{min-width:0}label{display:grid;gap:.25rem;margin:.5rem 0}input,select{box-sizing:border-box;max-width:100%;padding:.55rem;border:1px solid #aeb7b0;border-radius:.4rem}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f5f3;padding:.75rem;border-radius:.5rem}
     @media(max-width:760px){.grid,.controls{grid-template-columns:1fr}dl{grid-template-columns:1fr}body{margin:1rem auto}table{display:block;overflow-x:auto}}
   </style>
 </head>
