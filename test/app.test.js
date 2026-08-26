@@ -93,6 +93,9 @@ test("admin dashboard exposes authenticated operations and is protected against 
     assert.match(body, /受控操作状态/);
     assert.match(body, /crypto\.subtle\.digest\('SHA-256'/);
     assert.match(body, /idempotency-key/);
+    const renderedScript = body.match(/<script nonce="[^"]+">([\s\S]*?)<\/script>/)?.[1];
+    assert.ok(renderedScript);
+    assert.doesNotThrow(() => new Function(renderedScript));
   });
 });
 
