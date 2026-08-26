@@ -2,6 +2,8 @@ import { evidenceHash } from "../domain/canonical-json.js";
 import { OracleStatus } from "../domain/oracle-status.js";
 import { assertAssetFactsOnly } from "./product-boundary.js";
 
+const SHA256_HEX = /^[a-f0-9]{64}$/i;
+
 export class OracleControlPlane {
   constructor({ runtime, authorizer, dualControl, commandJournal, outbox, signerRotationBroker = null, clock = () => new Date() }) {
     Object.assign(this, { runtime, authorizer, dualControl, commandJournal, outbox, signerRotationBroker, clock });
@@ -63,12 +65,14 @@ export class OracleControlPlane {
 
   requestSourceDisable({ actorId, actionId, sourceId, reasonHash }) {
     this.authorizer.require(actorId, "source:disable");
+    if (!SHA256_HEX.test(reasonHash ?? "")) throw new Error("SOURCE_DISABLE_REASON_HASH_INVALID");
     this.runtime.sourceRegistry.requireActive(sourceId, this.runtime.sourceRegistry.listPublic().find(({ id }) => id === sourceId)?.schemaVersions?.[0]);
     return this.dualControl.request({ actionId, actionType: "SOURCE_DISABLE", subjectId: sourceId, payloadHash: reasonHash, requestedBy: actorId, requestedAt: this.clock().toISOString() });
   }
 
   executeSourceDisable({ actorId, actionId, sourceId, reasonHash }) {
     this.authorizer.require(actorId, "source:disable");
+    if (!SHA256_HEX.test(reasonHash ?? "")) throw new Error("SOURCE_DISABLE_REASON_HASH_INVALID");
     this.dualControl.requireApproved(actionId, "SOURCE_DISABLE", sourceId, reasonHash);
     const source = this.runtime.sourceRegistry.setActive(sourceId, false);
     const occurredAt = this.clock().toISOString();
@@ -79,21 +83,36 @@ export class OracleControlPlane {
 
   requestSignerRotation({ actorId, actionId, fromSignerSetId, toSignerSetId, rotationDigest }) {
     this.authorizer.require(actorId, "signer:rotate");
-    if (![actionId, fromSignerSetId, toSignerSetId, rotationDigest].every((value) => typeof value === "string" && value)) throw new Error("SIGNER_ROTATION_REQUEST_INVALID");
+    if (![actionId, fromSignerSetId, toSignerSetId].every((value) => typeof value === "string" && value) || fromSignerSetId === toSignerSetId || !SHA256_HEX.test(rotationDigest ?? "")) throw new Error("SIGNER_ROTATION_REQUEST_INVALID");
     return this.dualControl.request({ actionId, actionType: "SIGNER_ROTATE", subjectId: `${fromSignerSetId}->${toSignerSetId}`, payloadHash: rotationDigest, requestedBy: actorId, requestedAt: this.clock().toISOString() });
   }
 
   async executeSignerRotation({ actorId, actionId, fromSignerSetId, toSignerSetId, rotationDigest }) {
     this.authorizer.require(actorId, "signer:rotate");
+    if (![actionId, fromSignerSetId, toSignerSetId].every((value) => typeof value === "string" && value) || fromSignerSetId === toSignerSetId || !SHA256_HEX.test(rotationDigest ?? "")) throw new Error("SIGNER_ROTATION_REQUEST_INVALID");
     if (!this.signerRotationBroker?.rotate) throw new Error("SIGNER_ROTATION_BROKER_UNAVAILABLE");
     const subjectId = `${fromSignerSetId}->${toSignerSetId}`;
     this.dualControl.requireApproved(actionId, "SIGNER_ROTATE", subjectId, rotationDigest);
     const result = await this.signerRotationBroker.rotate({ actionId, fromSignerSetId, toSignerSetId, rotationDigest });
-    if (result?.oldSignerRejected !== true || result?.newSignerAccepted !== true || result?.rollbackWindowSeconds < 3600 || result?.timelockSeconds < 300) throw new Error("SIGNER_ROTATION_BROKER_RESULT_INVALID");
+    if (result?.oldSignerRejected !== true || result?.newSignerAccepted !== true || result?.rotationAudited !== true || result?.auditChainVerified !== true || result?.dualApprovalVerified !== true || result?.rollbackVerified !== true || result?.rollbackWindowSeconds < 3600 || result?.timelockSeconds < 300 || result?.privateMaterialObserved !== false || result?.networkUsed !== false || result?.transactionSigned !== false) throw new Error("SIGNER_ROTATION_BROKER_RESULT_INVALID");
     const occurredAt = this.clock().toISOString();
     this.runtime.auditJournal.append({ type: "signer.rotated", subjectId, payloadHash: rotationDigest, actorId, occurredAt });
     this.outbox.enqueue({ eventType: "signer.rotated", subjectId, payloadHash: rotationDigest, createdAt: occurredAt });
-    return Object.freeze({ ...result, privateMaterialIncluded: false });
+    return Object.freeze({
+      oldSignerRejected: true,
+      newSignerAccepted: true,
+      rotationAudited: true,
+      auditChainVerified: true,
+      dualApprovalVerified: true,
+      timelockSeconds: result.timelockSeconds,
+      rollbackWindowSeconds: result.rollbackWindowSeconds,
+      rollbackVerified: true,
+      privateMaterialObserved: false,
+      networkUsed: false,
+      transactionSigned: false,
+      evidenceSha256: SHA256_HEX.test(result.evidenceSha256 ?? "") ? result.evidenceSha256.toLowerCase() : null,
+      privateMaterialIncluded: false,
+    });
   }
 
   executeRevocation({ actorId, actionId, attestationId, reasonHash }) {

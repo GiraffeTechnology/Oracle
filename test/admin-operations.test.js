@@ -18,7 +18,7 @@ function fixture() {
   authorizer.registerActor("security-a", ["SECURITY_OFFICER"]);
   authorizer.registerActor("approver-b", ["APPROVER"]);
   const dualControl = new DualControlQueue();
-  const signerRotationBroker = { async rotate() { return { oldSignerRejected: true, newSignerAccepted: true, timelockSeconds: 300, rollbackWindowSeconds: 3600, rollbackVerified: true }; } };
+  const signerRotationBroker = { async rotate() { return { oldSignerRejected: true, newSignerAccepted: true, rotationAudited: true, auditChainVerified: true, dualApprovalVerified: true, timelockSeconds: 300, rollbackWindowSeconds: 3600, rollbackVerified: true, privateMaterialObserved: false, networkUsed: false, transactionSigned: false, evidenceSha256: HASH, rawSignature: "must-not-escape" }; } };
   const controlPlane = new OracleControlPlane({ runtime, authorizer, dualControl, commandJournal: new CommandJournal(), outbox: runtime.outbox, signerRotationBroker, clock: () => new Date("2026-08-27T00:00:00.000Z") });
   const adminOperations = new AdminOperations({ runtime, sourceRegistry: runtime.sourceRegistry, authorizer, reviewQueue: runtime.reviewQueue, clock: () => new Date("2026-08-27T00:00:00.000Z") });
   return { runtime, authorizer, controlPlane, adminOperations };
@@ -55,7 +55,22 @@ test("signer rotation delegates only after independent approval and validates br
   controlPlane.approveAction({ actorId: "approver-b", actionId: "rotate-001" });
   const result = await controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-001", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH });
   assert.equal(result.privateMaterialIncluded, false);
+  assert.equal("rawSignature" in result, false);
+  assert.equal(result.evidenceSha256, HASH);
   assert.equal(runtime.auditJournal.list().at(-1).type, "signer.rotated");
+});
+
+test("signer rotation rejects malformed scope and incomplete broker evidence", async () => {
+  const { authorizer, runtime } = fixture();
+  const dualControl = new DualControlQueue();
+  const controlPlane = new OracleControlPlane({
+    runtime, authorizer, dualControl, commandJournal: new CommandJournal(), outbox: runtime.outbox,
+    signerRotationBroker: { async rotate() { return { oldSignerRejected: true, newSignerAccepted: true }; } },
+  });
+  assert.throws(() => controlPlane.requestSignerRotation({ actorId: "security-a", actionId: "bad", fromSignerSetId: "same", toSignerSetId: "same", rotationDigest: HASH }), /SIGNER_ROTATION_REQUEST_INVALID/);
+  controlPlane.requestSignerRotation({ actorId: "security-a", actionId: "rotate-incomplete", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH });
+  controlPlane.approveAction({ actorId: "approver-b", actionId: "rotate-incomplete" });
+  await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-incomplete", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH }), /SIGNER_ROTATION_BROKER_RESULT_INVALID/);
 });
 
 test("admin dashboard API requires authentication and rejects cross-origin writes", async () => {
