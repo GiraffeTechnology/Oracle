@@ -3,6 +3,12 @@ import { OracleStatus } from "../domain/oracle-status.js";
 import { assertAssetFactsOnly } from "./product-boundary.js";
 
 const SHA256_HEX = /^[a-f0-9]{64}$/i;
+const SAFE_ERROR_CODE = /^[A-Z][A-Z0-9_]{0,63}$/;
+
+function controlledFailureCode(error, fallback) {
+  const candidate = typeof error?.code === "string" ? error.code : error?.message;
+  return SAFE_ERROR_CODE.test(candidate ?? "") ? candidate : fallback;
+}
 
 export class OracleControlPlane {
   constructor({ runtime, authorizer, dualControl, commandJournal, outbox, signerRotationBroker = null, clock = () => new Date() }) {
@@ -82,7 +88,7 @@ export class OracleControlPlane {
       this.dualControl.completeExecution(actionId, occurredAt);
       return source;
     } catch (error) {
-      this.dualControl.failExecution(actionId, { failedAt: this.clock().toISOString(), errorCode: error?.message || "SOURCE_DISABLE_FAILED" });
+      this.dualControl.failExecution(actionId, { failedAt: this.clock().toISOString(), errorCode: controlledFailureCode(error, "SOURCE_DISABLE_FAILED") });
       throw error;
     }
   }
@@ -122,7 +128,7 @@ export class OracleControlPlane {
       privateMaterialIncluded: false,
       });
     } catch (error) {
-      this.dualControl.failExecution(actionId, { failedAt: this.clock().toISOString(), errorCode: error?.message || "SIGNER_ROTATION_FAILED" });
+      this.dualControl.failExecution(actionId, { failedAt: this.clock().toISOString(), errorCode: controlledFailureCode(error, "SIGNER_ROTATION_FAILED") });
       throw error;
     }
   }
@@ -140,7 +146,7 @@ export class OracleControlPlane {
       this.dualControl.completeExecution(actionId, now);
       return revocation;
     } catch (error) {
-      this.dualControl.failExecution(actionId, { failedAt: this.clock().toISOString(), errorCode: error?.message || "ATTESTATION_REVOCATION_FAILED" });
+      this.dualControl.failExecution(actionId, { failedAt: this.clock().toISOString(), errorCode: controlledFailureCode(error, "ATTESTATION_REVOCATION_FAILED") });
       throw error;
     }
   }
