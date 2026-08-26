@@ -2,8 +2,8 @@ const ROLE_PERMISSIONS = Object.freeze({
   SOURCE_OPERATOR: new Set(["evidence:ingest"]),
   ORACLE_OPERATOR: new Set(["asset:verify", "token:bind", "attestation:issue", "settlement:manage"]),
   APPROVER: new Set(["action:approve"]),
-  SECURITY_OFFICER: new Set(["source:disable", "attestation:revoke", "asset:freeze"]),
-  AUDITOR: new Set(["audit:read"]),
+  SECURITY_OFFICER: new Set(["source:disable", "attestation:revoke", "asset:freeze", "signer:rotate"]),
+  AUDITOR: new Set(["audit:read", "audit:export"]),
   READER: new Set(["asset:read", "attestation:verify"]),
 });
 

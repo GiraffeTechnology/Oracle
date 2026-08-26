@@ -74,12 +74,15 @@ test("all write methods are rejected", async () => {
   });
 });
 
-test("admin dashboard is read-only and protected against framing", async () => {
+test("admin dashboard exposes authenticated operations and is protected against framing", async () => {
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/admin`);
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("x-frame-options"), "DENY");
-    assert.match(await response.text(), /Read-only operational dashboard/);
+    const body = await response.text();
+    assert.match(body, /Authenticated Admin & Audit dashboard/);
+    assert.match(body, /sources\/disable/);
+    assert.match(body, /signers\/rotate/);
   });
 });
 

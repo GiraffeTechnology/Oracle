@@ -72,7 +72,17 @@ async function readJson(request, limit = 65536) {
   }
 }
 
-export function createApp({ config, sourceRegistry, runtime = null, controlPlane = null, authenticateAdmin = null, l2Profile = null, protocolProfile = null }) {
+function assertSameOriginAdminWrite(request) {
+  const origin = request.headers.origin;
+  if (!origin) return true;
+  let originHost;
+  try { originHost = new URL(origin).host; } catch { throw new Error("CSRF_ORIGIN_REJECTED"); }
+  if (!request.headers.host || originHost !== request.headers.host) throw new Error("CSRF_ORIGIN_REJECTED");
+  if (request.headers["x-requested-with"] !== "GiraffeOracleAdmin") throw new Error("CSRF_REQUEST_HEADER_REQUIRED");
+  return true;
+}
+
+export function createApp({ config, sourceRegistry, runtime = null, controlPlane = null, adminOperations = null, authenticateAdmin = null, l2Profile = null, protocolProfile = null }) {
   if (!config || !sourceRegistry) throw new Error("APP_DEPENDENCY_MISSING");
 
   return http.createServer(async (request, response) => {
@@ -112,6 +122,7 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
         return;
       }
       try {
+        assertSameOriginAdminWrite(request);
         const actorId = await authenticateAdmin(request);
         if (!actorId) throw new Error("ADMIN_AUTHENTICATION_REQUIRED");
         const body = await readJson(request);
@@ -123,6 +134,10 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
           "/v1/rwa/admin/attestations/issue": () => controlPlane.issueAttestation({ actorId, idempotencyKey, request: body }),
           "/v1/rwa/admin/revocations/request": () => controlPlane.requestRevocation({ actorId, ...body }),
           "/v1/rwa/admin/actions/approve": () => controlPlane.approveAction({ actorId, ...body }),
+          "/v1/rwa/admin/sources/disable/request": () => controlPlane.requestSourceDisable({ actorId, ...body }),
+          "/v1/rwa/admin/sources/disable/execute": () => controlPlane.executeSourceDisable({ actorId, ...body }),
+          "/v1/rwa/admin/signers/rotate/request": () => controlPlane.requestSignerRotation({ actorId, ...body }),
+          "/v1/rwa/admin/signers/rotate/execute": () => controlPlane.executeSignerRotation({ actorId, ...body }),
           "/v1/rwa/admin/revocations/execute": () => controlPlane.executeRevocation({ actorId, ...body }),
           "/v1/rwa/admin/settlements/begin": () => controlPlane.beginSettlement({ actorId, idempotencyKey, request: body }),
           "/v1/rwa/admin/settlements/finalize": () => controlPlane.finalizeSettlement({ actorId, idempotencyKey, request: body }),
@@ -156,6 +171,24 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
 
     if (request.method !== "GET") {
       sendJson(response, 405, { ok: false, errorCode: "METHOD_NOT_ALLOWED" });
+      return;
+    }
+
+    if (requestUrl.pathname === "/v1/rwa/admin/dashboard" || requestUrl.pathname === "/v1/rwa/admin/audit-export") {
+      if (!adminOperations || !authenticateAdmin) {
+        sendJson(response, 503, { ok: false, errorCode: "ADMIN_OPERATIONS_DISABLED" });
+        return;
+      }
+      try {
+        const actorId = await authenticateAdmin(request);
+        if (!actorId) throw new Error("ADMIN_AUTHENTICATION_REQUIRED");
+        const result = requestUrl.pathname.endsWith("audit-export")
+          ? await adminOperations.exportAudit(actorId, requestUrl.searchParams.get("purpose"))
+          : await adminOperations.snapshot(actorId);
+        sendJson(response, 200, { ok: true, result });
+      } catch (error) {
+        sendJson(response, adminErrorStatus(error.message), { ok: false, errorCode: error.message });
+      }
       return;
     }
 

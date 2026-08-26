@@ -3,8 +3,8 @@ import { OracleStatus } from "../domain/oracle-status.js";
 import { assertAssetFactsOnly } from "./product-boundary.js";
 
 export class OracleControlPlane {
-  constructor({ runtime, authorizer, dualControl, commandJournal, outbox, clock = () => new Date() }) {
-    Object.assign(this, { runtime, authorizer, dualControl, commandJournal, outbox, clock });
+  constructor({ runtime, authorizer, dualControl, commandJournal, outbox, signerRotationBroker = null, clock = () => new Date() }) {
+    Object.assign(this, { runtime, authorizer, dualControl, commandJournal, outbox, signerRotationBroker, clock });
   }
 
   verifyAsset({ actorId, idempotencyKey, asset, certificate, warehouse, evidenceVersion }) {
@@ -59,6 +59,41 @@ export class OracleControlPlane {
   approveAction({ actorId, actionId }) {
     this.authorizer.require(actorId, "action:approve");
     return this.dualControl.approve(actionId, { approvedBy: actorId, approvedAt: this.clock().toISOString() });
+  }
+
+  requestSourceDisable({ actorId, actionId, sourceId, reasonHash }) {
+    this.authorizer.require(actorId, "source:disable");
+    this.runtime.sourceRegistry.requireActive(sourceId, this.runtime.sourceRegistry.listPublic().find(({ id }) => id === sourceId)?.schemaVersions?.[0]);
+    return this.dualControl.request({ actionId, actionType: "SOURCE_DISABLE", subjectId: sourceId, payloadHash: reasonHash, requestedBy: actorId, requestedAt: this.clock().toISOString() });
+  }
+
+  executeSourceDisable({ actorId, actionId, sourceId, reasonHash }) {
+    this.authorizer.require(actorId, "source:disable");
+    this.dualControl.requireApproved(actionId, "SOURCE_DISABLE", sourceId, reasonHash);
+    const source = this.runtime.sourceRegistry.setActive(sourceId, false);
+    const occurredAt = this.clock().toISOString();
+    this.runtime.auditJournal.append({ type: "source.disabled", subjectId: sourceId, payloadHash: reasonHash, actorId, occurredAt });
+    this.outbox.enqueue({ eventType: "source.disabled", subjectId: sourceId, payloadHash: reasonHash, createdAt: occurredAt });
+    return source;
+  }
+
+  requestSignerRotation({ actorId, actionId, fromSignerSetId, toSignerSetId, rotationDigest }) {
+    this.authorizer.require(actorId, "signer:rotate");
+    if (![actionId, fromSignerSetId, toSignerSetId, rotationDigest].every((value) => typeof value === "string" && value)) throw new Error("SIGNER_ROTATION_REQUEST_INVALID");
+    return this.dualControl.request({ actionId, actionType: "SIGNER_ROTATE", subjectId: `${fromSignerSetId}->${toSignerSetId}`, payloadHash: rotationDigest, requestedBy: actorId, requestedAt: this.clock().toISOString() });
+  }
+
+  async executeSignerRotation({ actorId, actionId, fromSignerSetId, toSignerSetId, rotationDigest }) {
+    this.authorizer.require(actorId, "signer:rotate");
+    if (!this.signerRotationBroker?.rotate) throw new Error("SIGNER_ROTATION_BROKER_UNAVAILABLE");
+    const subjectId = `${fromSignerSetId}->${toSignerSetId}`;
+    this.dualControl.requireApproved(actionId, "SIGNER_ROTATE", subjectId, rotationDigest);
+    const result = await this.signerRotationBroker.rotate({ actionId, fromSignerSetId, toSignerSetId, rotationDigest });
+    if (result?.oldSignerRejected !== true || result?.newSignerAccepted !== true || result?.rollbackWindowSeconds < 3600 || result?.timelockSeconds < 300) throw new Error("SIGNER_ROTATION_BROKER_RESULT_INVALID");
+    const occurredAt = this.clock().toISOString();
+    this.runtime.auditJournal.append({ type: "signer.rotated", subjectId, payloadHash: rotationDigest, actorId, occurredAt });
+    this.outbox.enqueue({ eventType: "signer.rotated", subjectId, payloadHash: rotationDigest, createdAt: occurredAt });
+    return Object.freeze({ ...result, privateMaterialIncluded: false });
   }
 
   executeRevocation({ actorId, actionId, attestationId, reasonHash }) {
