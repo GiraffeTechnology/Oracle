@@ -59,6 +59,19 @@ test("source disable requires an independent approval", () => {
   assert.equal(runtime.auditJournal.list().at(-1).type, "source.disabled");
 });
 
+test("source disable phases replay exact idempotency results", () => {
+  const { controlPlane } = fixture();
+  const request = { actorId: "security-a", idempotencyKey: "disable-request-idem", actionId: "disable-idem", sourceId: "synthetic-registry", reasonHash: HASH };
+  assert.equal(controlPlane.requestSourceDisable(request).replayed, false);
+  assert.equal(controlPlane.requestSourceDisable(request).replayed, true);
+  const approval = { actorId: "approver-b", idempotencyKey: "disable-approve-idem", actionId: "disable-idem" };
+  assert.equal(controlPlane.approveAction(approval).replayed, false);
+  assert.equal(controlPlane.approveAction(approval).replayed, true);
+  const execute = { actorId: "security-a", idempotencyKey: "disable-execute-idem", actionId: "disable-idem", sourceId: "synthetic-registry", reasonHash: HASH };
+  assert.equal(controlPlane.executeSourceDisable(execute).replayed, false);
+  assert.equal(controlPlane.executeSourceDisable(execute).replayed, true);
+});
+
 test("signer rotation delegates only after independent approval and validates broker result", async () => {
   const { runtime, controlPlane } = fixture();
   const oldAttestation = runtime.attestations.issue({ subject: { assetId: "asset-signer", chainId: "hoodi", contract: "contract-signer", tokenId: "1", purpose: "provenance" }, factType: "SOURCE_STATUS", factValue: "VALID", sourceAuthority: "synthetic-registry", sourceRecordHash: HASH, validForSeconds: 60, nonce: "before-rotation" });
@@ -76,6 +89,19 @@ test("signer rotation delegates only after independent approval and validates br
   assert.equal(runtime.attestations.verify(newAttestation).valid, true);
   await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-001", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH }), /SIGNER_ROTATION_SOURCE_NOT_ACTIVE/);
   assert.equal(runtime.auditJournal.list().at(-1).type, "signer.rotated");
+});
+
+test("signer rotation phases replay exact idempotency results after activation", async () => {
+  const { controlPlane } = fixture();
+  const request = { actorId: "security-a", idempotencyKey: "rotate-request-idem", actionId: "rotate-idem", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH };
+  assert.equal(controlPlane.requestSignerRotation(request).replayed, false);
+  assert.equal(controlPlane.requestSignerRotation(request).replayed, true);
+  const approval = { actorId: "approver-b", idempotencyKey: "rotate-approve-idem", actionId: "rotate-idem" };
+  controlPlane.approveAction(approval);
+  assert.equal(controlPlane.approveAction(approval).replayed, true);
+  const execute = { actorId: "security-a", idempotencyKey: "rotate-execute-idem", actionId: "rotate-idem", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH };
+  assert.equal((await controlPlane.executeSignerRotation(execute)).replayed, false);
+  assert.equal((await controlPlane.executeSignerRotation(execute)).replayed, true);
 });
 
 test("signer rotation rejects malformed scope and incomplete broker evidence", async () => {

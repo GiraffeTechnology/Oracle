@@ -31,6 +31,7 @@ export class OracleControlPlane {
     this.authorizer.require(actorId, "asset:verify");
     assertAssetFactsOnly({ asset, certificate, warehouse });
     if (!asset?.assetId || certificate?.assetId !== asset.assetId || warehouse?.assetId !== asset.assetId) throw new Error("ASSET_EVIDENCE_ID_MISMATCH");
+    if ((asset.currentCertificateHash !== undefined && asset.currentCertificateHash !== certificate.certificateHash) || (asset.currentCertificateVersion !== undefined && asset.currentCertificateVersion !== certificate.certificateVersion) || (asset.warehouseReceiptHash !== undefined && asset.warehouseReceiptHash !== warehouse.warehouseReceiptHash) || (certificate.warehouseReceiptHash !== undefined && certificate.warehouseReceiptHash !== warehouse.warehouseReceiptHash)) throw new Error("ASSET_EVIDENCE_BUNDLE_MISMATCH");
     return this.commandJournal.execute(idempotencyKey, { type: "asset.verify", asset, certificate, warehouse, evidenceVersion }, () => {
       this.runtime.recordStore.assertAsset(asset);
       this.runtime.recordStore.assertCertificate(certificate);
@@ -53,6 +54,15 @@ export class OracleControlPlane {
     if (this.runtime.stateEngine.current(request.subject.assetId) !== OracleStatus.VALID) throw new Error("ASSET_NOT_VALID_FOR_ATTESTATION");
     const binding = this.runtime.tokenIndex.byAsset(request.subject.assetId);
     if (!binding || binding.chainId !== request.subject.chainId || binding.contract !== request.subject.contract || binding.tokenId !== request.subject.tokenId) throw new Error("ATTESTATION_TOKEN_BINDING_MISMATCH");
+    const source = this.runtime.sourceRegistry.listPublic().find(({ id }) => id === request.sourceAuthority);
+    if (!source) throw new Error("SOURCE_NOT_REGISTERED");
+    this.runtime.sourceRegistry.requireActive(source.id, source.schemaVersions[0]);
+    const expectedSourceHash = source.kind === "REGISTRY"
+      ? this.runtime.recordStore.getAsset(request.subject.assetId)?.assetFingerprintHash
+      : source.kind === "CERTIFICATE_AUTHORITY"
+        ? this.runtime.recordStore.currentCertificate(request.subject.assetId)?.certificateHash
+        : this.runtime.recordStore.getWarehouse(request.subject.assetId)?.warehouseReceiptHash;
+    if (request.sourceRecordHash !== expectedSourceHash) throw new Error("ATTESTATION_SOURCE_RECORD_MISMATCH");
     return this.commandJournal.execute(idempotencyKey, { type: "attestation.issue", request }, () => {
       const attestation = this.runtime.attestations.issue(request);
       const now = this.clock().toISOString();
@@ -84,51 +94,62 @@ export class OracleControlPlane {
     return idempotencyKey ? this.commandJournal.execute(idempotencyKey, { type: "attestation.revocation.request", actionId, attestationId, reasonHash }, operation) : operation();
   }
 
-  approveAction({ actorId, actionId }) {
+  approveAction({ actorId, actionId, idempotencyKey = null }) {
     this.authorizer.require(actorId, "action:approve");
-    return this.dualControl.approve(actionId, { approvedBy: actorId, approvedAt: this.clock().toISOString() });
+    const operation = () => this.dualControl.approve(actionId, { approvedBy: actorId, approvedAt: this.clock().toISOString() });
+    return idempotencyKey ? this.commandJournal.execute(idempotencyKey, { type: "controlled-action.approve", actionId }, operation) : operation();
   }
 
-  requestSourceDisable({ actorId, actionId, sourceId, reasonHash }) {
+  requestSourceDisable({ actorId, actionId, sourceId, reasonHash, idempotencyKey = null }) {
     this.authorizer.require(actorId, "source:disable");
     if (!SHA256_HEX.test(reasonHash ?? "")) throw new Error("SOURCE_DISABLE_REASON_HASH_INVALID");
-    this.runtime.sourceRegistry.requireActive(sourceId, this.runtime.sourceRegistry.listPublic().find(({ id }) => id === sourceId)?.schemaVersions?.[0]);
-    return this.dualControl.request({ actionId, actionType: "SOURCE_DISABLE", subjectId: sourceId, payloadHash: reasonHash, requestedBy: actorId, requestedAt: this.clock().toISOString() });
+    const operation = () => {
+      this.runtime.sourceRegistry.requireActive(sourceId, this.runtime.sourceRegistry.listPublic().find(({ id }) => id === sourceId)?.schemaVersions?.[0]);
+      return this.dualControl.request({ actionId, actionType: "SOURCE_DISABLE", subjectId: sourceId, payloadHash: reasonHash, requestedBy: actorId, requestedAt: this.clock().toISOString() });
+    };
+    return idempotencyKey ? this.commandJournal.execute(idempotencyKey, { type: "source-disable.request", actionId, sourceId, reasonHash }, operation) : operation();
   }
 
-  executeSourceDisable({ actorId, actionId, sourceId, reasonHash }) {
+  executeSourceDisable({ actorId, actionId, sourceId, reasonHash, idempotencyKey = null }) {
     this.authorizer.require(actorId, "source:disable");
     if (!SHA256_HEX.test(reasonHash ?? "")) throw new Error("SOURCE_DISABLE_REASON_HASH_INVALID");
-    const occurredAt = this.clock().toISOString();
-    this.dualControl.beginExecution(actionId, { actionType: "SOURCE_DISABLE", subjectId: sourceId, payloadHash: reasonHash, executedBy: actorId, executionStartedAt: occurredAt });
-    try {
-      const source = this.runtime.sourceRegistry.setActive(sourceId, false);
-      this.runtime.auditJournal.append({ type: "source.disabled", subjectId: sourceId, payloadHash: reasonHash, actorId, occurredAt });
-      this.outbox.enqueue({ eventType: "source.disabled", subjectId: sourceId, payloadHash: reasonHash, createdAt: occurredAt });
-      this.dualControl.completeExecution(actionId, occurredAt);
-      return source;
-    } catch (error) {
-      this.dualControl.failExecution(actionId, { failedAt: this.clock().toISOString(), errorCode: controlledFailureCode(error, "SOURCE_DISABLE_FAILED") });
-      throw error;
-    }
+    const operation = () => {
+      const occurredAt = this.clock().toISOString();
+      this.dualControl.beginExecution(actionId, { actionType: "SOURCE_DISABLE", subjectId: sourceId, payloadHash: reasonHash, executedBy: actorId, executionStartedAt: occurredAt });
+      try {
+        const source = this.runtime.sourceRegistry.setActive(sourceId, false);
+        this.runtime.auditJournal.append({ type: "source.disabled", subjectId: sourceId, payloadHash: reasonHash, actorId, occurredAt });
+        this.outbox.enqueue({ eventType: "source.disabled", subjectId: sourceId, payloadHash: reasonHash, createdAt: occurredAt });
+        this.dualControl.completeExecution(actionId, occurredAt);
+        return source;
+      } catch (error) {
+        this.dualControl.failExecution(actionId, { failedAt: this.clock().toISOString(), errorCode: controlledFailureCode(error, "SOURCE_DISABLE_FAILED") });
+        throw error;
+      }
+    };
+    return idempotencyKey ? this.commandJournal.execute(idempotencyKey, { type: "source-disable.execute", actionId, sourceId, reasonHash }, operation) : operation();
   }
 
-  requestSignerRotation({ actorId, actionId, fromSignerSetId, toSignerSetId, rotationDigest }) {
+  requestSignerRotation({ actorId, actionId, fromSignerSetId, toSignerSetId, rotationDigest, idempotencyKey = null }) {
     this.authorizer.require(actorId, "signer:rotate");
     if (![actionId, fromSignerSetId, toSignerSetId].every((value) => typeof value === "string" && value) || fromSignerSetId === toSignerSetId || !SHA256_HEX.test(rotationDigest ?? "")) throw new Error("SIGNER_ROTATION_REQUEST_INVALID");
-    if (this.runtime.attestations.signerSetId !== fromSignerSetId) throw new Error("SIGNER_ROTATION_SOURCE_NOT_ACTIVE");
-    return this.dualControl.request({ actionId, actionType: "SIGNER_ROTATE", subjectId: `${fromSignerSetId}->${toSignerSetId}`, payloadHash: rotationDigest, requestedBy: actorId, requestedAt: this.clock().toISOString() });
+    const operation = () => {
+      if (this.runtime.attestations.signerSetId !== fromSignerSetId) throw new Error("SIGNER_ROTATION_SOURCE_NOT_ACTIVE");
+      return this.dualControl.request({ actionId, actionType: "SIGNER_ROTATE", subjectId: `${fromSignerSetId}->${toSignerSetId}`, payloadHash: rotationDigest, requestedBy: actorId, requestedAt: this.clock().toISOString() });
+    };
+    return idempotencyKey ? this.commandJournal.execute(idempotencyKey, { type: "signer-rotation.request", actionId, fromSignerSetId, toSignerSetId, rotationDigest }, operation) : operation();
   }
 
-  async executeSignerRotation({ actorId, actionId, fromSignerSetId, toSignerSetId, rotationDigest }) {
+  async executeSignerRotation({ actorId, actionId, fromSignerSetId, toSignerSetId, rotationDigest, idempotencyKey = null }) {
     this.authorizer.require(actorId, "signer:rotate");
     if (![actionId, fromSignerSetId, toSignerSetId].every((value) => typeof value === "string" && value) || fromSignerSetId === toSignerSetId || !SHA256_HEX.test(rotationDigest ?? "")) throw new Error("SIGNER_ROTATION_REQUEST_INVALID");
-    if (this.runtime.attestations.signerSetId !== fromSignerSetId) throw new Error("SIGNER_ROTATION_SOURCE_NOT_ACTIVE");
     if (!this.signerRotationBroker?.rotate) throw new Error("SIGNER_ROTATION_BROKER_UNAVAILABLE");
-    const subjectId = `${fromSignerSetId}->${toSignerSetId}`;
-    const occurredAt = this.clock().toISOString();
-    this.dualControl.beginExecution(actionId, { actionType: "SIGNER_ROTATE", subjectId, payloadHash: rotationDigest, executedBy: actorId, executionStartedAt: occurredAt });
-    try {
+    const operation = async () => {
+      if (this.runtime.attestations.signerSetId !== fromSignerSetId) throw new Error("SIGNER_ROTATION_SOURCE_NOT_ACTIVE");
+      const subjectId = `${fromSignerSetId}->${toSignerSetId}`;
+      const occurredAt = this.clock().toISOString();
+      this.dualControl.beginExecution(actionId, { actionType: "SIGNER_ROTATE", subjectId, payloadHash: rotationDigest, executedBy: actorId, executionStartedAt: occurredAt });
+      try {
       const result = assertRotationEvidence(await this.signerRotationBroker.rotate({ actionId, fromSignerSetId, toSignerSetId, rotationDigest }));
       await activateRuntimeSigner(this.signerRotationBroker, this.runtime.attestations, { actionId, fromSignerSetId, toSignerSetId, rotationDigest });
       this.runtime.auditJournal.append({ type: "signer.rotated", subjectId, payloadHash: rotationDigest, actorId, occurredAt });
@@ -149,21 +170,24 @@ export class OracleControlPlane {
       evidenceSha256: SHA256_HEX.test(result.evidenceSha256 ?? "") ? result.evidenceSha256.toLowerCase() : null,
       privateMaterialIncluded: false,
       });
-    } catch (error) {
-      this.dualControl.markRecoveryRequired(actionId, { failedAt: this.clock().toISOString(), errorCode: controlledFailureCode(error, "SIGNER_ROTATION_RECOVERY_REQUIRED") });
-      throw error;
-    }
+      } catch (error) {
+        this.dualControl.markRecoveryRequired(actionId, { failedAt: this.clock().toISOString(), errorCode: controlledFailureCode(error, "SIGNER_ROTATION_RECOVERY_REQUIRED") });
+        throw error;
+      }
+    };
+    return idempotencyKey ? this.commandJournal.execute(idempotencyKey, { type: "signer-rotation.execute", actionId, fromSignerSetId, toSignerSetId, rotationDigest }, operation) : operation();
   }
 
-  async reconcileSignerRotation({ actorId, actionId, fromSignerSetId, toSignerSetId, rotationDigest }) {
+  async reconcileSignerRotation({ actorId, actionId, fromSignerSetId, toSignerSetId, rotationDigest, idempotencyKey = null }) {
     this.authorizer.require(actorId, "signer:rotate");
     if (![actionId, fromSignerSetId, toSignerSetId].every((value) => typeof value === "string" && value) || fromSignerSetId === toSignerSetId || !SHA256_HEX.test(rotationDigest ?? "")) throw new Error("SIGNER_ROTATION_REQUEST_INVALID");
-    if (this.runtime.attestations.signerSetId !== fromSignerSetId) throw new Error("SIGNER_ROTATION_SOURCE_NOT_ACTIVE");
     if (!this.signerRotationBroker?.reconcile) throw new Error("SIGNER_ROTATION_RECONCILER_UNAVAILABLE");
-    const subjectId = `${fromSignerSetId}->${toSignerSetId}`;
-    const occurredAt = this.clock().toISOString();
-    this.dualControl.beginRecovery(actionId, { actionType: "SIGNER_ROTATE", subjectId, payloadHash: rotationDigest, executedBy: actorId, recoveryStartedAt: occurredAt });
-    try {
+    const operation = async () => {
+      if (this.runtime.attestations.signerSetId !== fromSignerSetId) throw new Error("SIGNER_ROTATION_SOURCE_NOT_ACTIVE");
+      const subjectId = `${fromSignerSetId}->${toSignerSetId}`;
+      const occurredAt = this.clock().toISOString();
+      this.dualControl.beginRecovery(actionId, { actionType: "SIGNER_ROTATE", subjectId, payloadHash: rotationDigest, executedBy: actorId, recoveryStartedAt: occurredAt });
+      try {
       const reconciliation = await this.signerRotationBroker.reconcile({ actionId, fromSignerSetId, toSignerSetId, rotationDigest });
       if (reconciliation?.applied === false && reconciliation?.safelyNotApplied === true) {
         this.dualControl.failExecution(actionId, { failedAt: this.clock().toISOString(), errorCode: "SIGNER_ROTATION_NOT_APPLIED" });
@@ -176,10 +200,12 @@ export class OracleControlPlane {
       this.outbox.enqueue({ eventType: "signer.rotated", subjectId, payloadHash: rotationDigest, createdAt: occurredAt });
       this.dualControl.completeExecution(actionId, occurredAt);
       return Object.freeze({ applied: true, oldSignerRejected: true, newSignerAccepted: true, rotationAudited: true, auditChainVerified: true, privateMaterialIncluded: false, evidenceSha256: SHA256_HEX.test(result.evidenceSha256 ?? "") ? result.evidenceSha256.toLowerCase() : null });
-    } catch (error) {
-      this.dualControl.markRecoveryRequired(actionId, { failedAt: this.clock().toISOString(), errorCode: controlledFailureCode(error, "SIGNER_ROTATION_RECOVERY_REQUIRED") });
-      throw error;
-    }
+      } catch (error) {
+        this.dualControl.markRecoveryRequired(actionId, { failedAt: this.clock().toISOString(), errorCode: controlledFailureCode(error, "SIGNER_ROTATION_RECOVERY_REQUIRED") });
+        throw error;
+      }
+    };
+    return idempotencyKey ? this.commandJournal.execute(idempotencyKey, { type: "signer-rotation.reconcile", actionId, fromSignerSetId, toSignerSetId, rotationDigest }, operation) : operation();
   }
 
   executeRevocation({ actorId, actionId, attestationId, reasonHash, idempotencyKey = null }) {

@@ -60,6 +60,13 @@ test("asset verification requires certificate and warehouse evidence for the sam
   assert.equal(runtime.recordStore.getWarehouse("asset-c"), null);
 });
 
+test("asset verification rejects contradictory certificate and warehouse summary fields", () => {
+  const { control, runtime } = controlFixture();
+  const base = { actorId: "oracle-a", idempotencyKey: "verify-bundle-mismatch", asset: { assetId: "asset-bundle", assetFingerprintHash: HASH_A, currentCertificateHash: HASH_A, currentCertificateVersion: 2, warehouseReceiptHash: HASH_B }, certificate: { assetId: "asset-bundle", certificateHash: HASH_B, certificateVersion: 1, warehouseReceiptHash: HASH_C }, warehouse: { assetId: "asset-bundle", warehouseReceiptHash: HASH_C }, evidenceVersion: 1 };
+  assert.throws(() => control.verifyAsset(base), /ASSET_EVIDENCE_BUNDLE_MISMATCH/);
+  assert.equal(runtime.recordStore.getAsset("asset-bundle"), null);
+});
+
 test("attestation revocation requires independent approval", () => {
   const { control } = controlFixture();
   control.verifyAsset({
@@ -122,6 +129,17 @@ test("attestation issuance requires the exact registered token subject", () => {
   const base = { subject: { assetId: "asset-bound", chainId: "test-chain", contract: "contract-bound", tokenId: "7", purpose: "transfer-eligibility" }, factType: "TRANSFER_STATUS", factValue: "VALID", sourceAuthority: "synthetic-registry", sourceRecordHash: HASH_A, validForSeconds: 60, nonce: "bound-nonce" };
   assert.throws(() => control.issueAttestation({ actorId: "oracle-a", idempotencyKey: "issue-wrong-token", request: { ...base, subject: { ...base.subject, tokenId: "8" } } }), /ATTESTATION_TOKEN_BINDING_MISMATCH/);
   assert.equal(control.issueAttestation({ actorId: "oracle-a", idempotencyKey: "issue-bound", request: base }).result.envelope.subject.tokenId, "7");
+});
+
+test("attestation issuance requires an active registered source and its verified record hash", () => {
+  const { control, runtime } = controlFixture();
+  control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-source", asset: { assetId: "asset-source", assetFingerprintHash: HASH_A }, certificate: { assetId: "asset-source", certificateHash: HASH_B, certificateVersion: 1 }, warehouse: { assetId: "asset-source", warehouseReceiptHash: HASH_C }, evidenceVersion: 1 });
+  control.bindToken({ actorId: "oracle-a", idempotencyKey: "bind-source", binding: { assetId: "asset-source", chainId: "test-chain", contract: "contract-source", tokenId: "1" } });
+  const base = { subject: { assetId: "asset-source", chainId: "test-chain", contract: "contract-source", tokenId: "1", purpose: "provenance" }, factType: "SOURCE_STATUS", factValue: "VALID", sourceAuthority: "synthetic-registry", sourceRecordHash: HASH_A, validForSeconds: 60, nonce: "source-valid" };
+  assert.throws(() => control.issueAttestation({ actorId: "oracle-a", idempotencyKey: "issue-unknown-source", request: { ...base, sourceAuthority: "unknown-source", nonce: "source-unknown" } }), /SOURCE_NOT_REGISTERED/);
+  assert.throws(() => control.issueAttestation({ actorId: "oracle-a", idempotencyKey: "issue-wrong-source-hash", request: { ...base, sourceRecordHash: HASH_B, nonce: "source-wrong" } }), /ATTESTATION_SOURCE_RECORD_MISMATCH/);
+  runtime.sourceRegistry.setActive("synthetic-registry", false);
+  assert.throws(() => control.issueAttestation({ actorId: "oracle-a", idempotencyKey: "issue-inactive-source", request: { ...base, nonce: "source-inactive" } }), /SOURCE_INACTIVE/);
 });
 
 test("outbox dispatcher retries and then publishes", async () => {
