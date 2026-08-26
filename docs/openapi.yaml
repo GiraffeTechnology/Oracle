@@ -185,11 +185,21 @@ paths:
         '401': { description: Admin authentication required }
         '503': { description: Admin operations not configured }
   /v1/rwa/admin/audit-export:
-    get:
+    post:
       operationId: exportRedactedAudit
       security: [{ mutualTLS: [], signedRequest: [] }]
       parameters:
-        - { name: purpose, in: query, required: true, schema: { type: string, enum: [regulatory-audit, legal-disclosure, internal-reconciliation] } }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [purpose]
+              properties:
+                purpose: { type: string, enum: [regulatory-audit, legal-disclosure, internal-reconciliation] }
       responses:
         '200': { description: Purpose-bound redacted audit records and integrity manifest }
         '403': { description: Audit export permission denied }

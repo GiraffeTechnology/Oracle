@@ -28,6 +28,23 @@ export class AttestationService {
     if (nextSignerSetId === expectedCurrentSignerSetId) throw new Error("SIGNER_SET_ACTIVATION_INVALID");
     if (!signerPolicy || signerPolicy.record?.signerSetId !== nextSignerSetId) throw new Error("SIGNER_POLICY_REPLACEMENT_REQUIRED");
     signerPolicy.assertActive();
+    const challenge = Buffer.from("giraffe-oracle-signer-backend-self-test-v1", "utf8");
+    const tamperedChallenge = Buffer.from("giraffe-oracle-signer-backend-self-test-v1-tampered", "utf8");
+    let testSignature;
+    let valid;
+    let tamperedValid;
+    try {
+      testSignature = signBytes(challenge);
+      if (testSignature && typeof testSignature.then === "function") throw new Error("SIGNER_BACKEND_ASYNC_UNSUPPORTED");
+      if (!Buffer.isBuffer(testSignature) && !(testSignature instanceof Uint8Array)) throw new Error("SIGNER_BACKEND_RESULT_INVALID");
+      valid = verifyBytes(challenge, testSignature);
+      tamperedValid = verifyBytes(tamperedChallenge, testSignature);
+      if ((valid && typeof valid.then === "function") || (tamperedValid && typeof tamperedValid.then === "function")) throw new Error("SIGNER_BACKEND_ASYNC_UNSUPPORTED");
+    } catch (error) {
+      if (error?.message === "SIGNER_BACKEND_ASYNC_UNSUPPORTED" || error?.message === "SIGNER_BACKEND_RESULT_INVALID") throw error;
+      throw new Error("SIGNER_BACKEND_SELF_TEST_FAILED");
+    }
+    if (valid !== true || tamperedValid !== false) throw new Error("SIGNER_BACKEND_SELF_TEST_FAILED");
     this.#signBytes = signBytes;
     this.#verifyBytes = verifyBytes;
     this.signerPolicy = signerPolicy;

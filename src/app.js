@@ -6,6 +6,7 @@ import { publicL2Profile } from "./config/deployment-profile.js";
 import { publicProtocolProfile } from "./protocol/protocol-profile.js";
 import { assertAssetFactsOnly } from "./services/product-boundary.js";
 import { verifyOracleAttestation } from "./sdk/verifier.js";
+import { FixedWindowRateLimiter } from "./services/rate-limiter.js";
 
 const JSON_HEADERS = Object.freeze({
   "content-type": "application/json; charset=utf-8",
@@ -69,6 +70,7 @@ function adminErrorStatus(errorCode) {
   if (errorCode.startsWith("PERMISSION_DENIED") || errorCode === "ACTOR_NOT_REGISTERED") return 403;
   if (errorCode.includes("IDEMPOTENCY_CONFLICT") || errorCode.includes("ALREADY_EXISTS")) return 409;
   if (errorCode === "PAYLOAD_TOO_LARGE") return 413;
+  if (errorCode === "RATE_LIMIT_EXCEEDED") return 429;
   return 400;
 }
 
@@ -98,7 +100,7 @@ function assertSameOriginAdminWrite(request) {
   return true;
 }
 
-export function createApp({ config, sourceRegistry, runtime = null, controlPlane = null, adminOperations = null, authenticateAdmin = null, l2Profile = null, protocolProfile = null }) {
+export function createApp({ config, sourceRegistry, runtime = null, controlPlane = null, adminOperations = null, authenticateAdmin = null, l2Profile = null, protocolProfile = null, verificationRateLimiter = new FixedWindowRateLimiter({ limit: 60, windowMs: 60000 }) }) {
   if (!config || !sourceRegistry) throw new Error("APP_DEPENDENCY_MISSING");
 
   return http.createServer(async (request, response) => {
@@ -115,12 +117,13 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
         return;
       }
       try {
+        verificationRateLimiter.consume(request.socket.remoteAddress ?? "unknown-verifier");
         const body = await readJson(request);
         const result = verifyOracleAttestation(runtime.attestations, body.attestation, body.expectedSubject);
         sendJson(response, 200, result);
       } catch (error) {
         const errorCode = publicErrorCode(error, "ATTESTATION_VERIFICATION_FAILED");
-        sendJson(response, errorCode === "PAYLOAD_TOO_LARGE" ? 413 : errorCode === "ATTESTATION_VERIFICATION_FAILED" ? 500 : 400, {
+        sendJson(response, errorCode === "RATE_LIMIT_EXCEEDED" ? 429 : errorCode === "PAYLOAD_TOO_LARGE" ? 413 : errorCode === "ATTESTATION_VERIFICATION_FAILED" ? 500 : 400, {
           valid: false,
           errorCode,
         });
@@ -157,6 +160,10 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
           "/v1/rwa/admin/signers/rotate/request": () => controlPlane.requestSignerRotation({ actorId, idempotencyKey, ...body }),
           "/v1/rwa/admin/signers/rotate/execute": () => controlPlane.executeSignerRotation({ actorId, idempotencyKey, ...body }),
           "/v1/rwa/admin/signers/rotate/reconcile": () => controlPlane.reconcileSignerRotation({ actorId, idempotencyKey, ...body }),
+          "/v1/rwa/admin/audit-export": () => {
+            if (!adminOperations) throw new Error("ADMIN_OPERATIONS_DISABLED");
+            return controlPlane.exportAudit({ actorId, idempotencyKey, purpose: body.purpose, adminOperations });
+          },
           "/v1/rwa/admin/revocations/execute": () => controlPlane.executeRevocation({ actorId, idempotencyKey, ...body }),
           "/v1/rwa/admin/settlements/begin": () => controlPlane.beginSettlement({ actorId, idempotencyKey, request: body }),
           "/v1/rwa/admin/settlements/finalize": () => controlPlane.finalizeSettlement({ actorId, idempotencyKey, request: body }),
@@ -194,7 +201,7 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
       return;
     }
 
-    if (requestUrl.pathname === "/v1/rwa/admin/dashboard" || requestUrl.pathname === "/v1/rwa/admin/audit-export") {
+    if (requestUrl.pathname === "/v1/rwa/admin/dashboard") {
       if (!adminOperations || !authenticateAdmin) {
         sendJson(response, 503, { ok: false, errorCode: "ADMIN_OPERATIONS_DISABLED" });
         return;
@@ -202,9 +209,7 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
       try {
         const actorId = await authenticateAdmin(request);
         if (!actorId) throw new Error("ADMIN_AUTHENTICATION_REQUIRED");
-        const result = requestUrl.pathname.endsWith("audit-export")
-          ? await adminOperations.exportAudit(actorId, requestUrl.searchParams.get("purpose"))
-          : await adminOperations.snapshot(actorId);
+        const result = await adminOperations.snapshot(actorId);
         sendJson(response, 200, { ok: true, result });
       } catch (error) {
         const errorCode = publicErrorCode(error, "ADMIN_OPERATION_FAILED");

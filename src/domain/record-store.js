@@ -5,6 +5,17 @@ export class RecordStore {
   #assetByFingerprint = new Map();
   #assetByCertificateHash = new Map();
   #assetByWarehouseReceiptHash = new Map();
+  #provenance = new Map();
+
+  #provenanceKey(kind, assetId) {
+    return `${kind}:${assetId}`;
+  }
+
+  #storeProvenance(kind, assetId, provenance) {
+    if (provenance === null) return;
+    if (!provenance?.sourceId || !provenance?.schemaVersion) throw new Error("RECORD_PROVENANCE_INVALID");
+    this.#provenance.set(this.#provenanceKey(kind, assetId), Object.freeze({ ...provenance }));
+  }
 
   assertAsset(record) {
     if (!record?.assetId || !record.assetFingerprintHash) throw new Error("ASSET_RECORD_INCOMPLETE");
@@ -17,11 +28,12 @@ export class RecordStore {
     return true;
   }
 
-  putAsset(record) {
+  putAsset(record, provenance = null) {
     this.assertAsset(record);
     const stored = Object.freeze({ ...record });
     this.#assets.set(record.assetId, stored);
     this.#assetByFingerprint.set(record.assetFingerprintHash, record.assetId);
+    this.#storeProvenance("REGISTRY", record.assetId, provenance);
     return stored;
   }
 
@@ -45,12 +57,13 @@ export class RecordStore {
     return true;
   }
 
-  appendCertificate(record) {
+  appendCertificate(record, provenance = null) {
     this.assertCertificate(record);
     const history = this.#certificates.get(record.assetId) ?? [];
     const stored = Object.freeze({ ...record });
     this.#certificates.set(record.assetId, Object.freeze([...history, stored]));
     this.#assetByCertificateHash.set(record.certificateHash, record.assetId);
+    this.#storeProvenance("CERTIFICATE_AUTHORITY", record.assetId, provenance);
     return stored;
   }
 
@@ -65,11 +78,12 @@ export class RecordStore {
     return true;
   }
 
-  putWarehouse(record) {
+  putWarehouse(record, provenance = null) {
     this.assertWarehouse(record);
     const stored = Object.freeze({ ...record });
     this.#warehouse.set(record.assetId, stored);
     this.#assetByWarehouseReceiptHash.set(record.warehouseReceiptHash, record.assetId);
+    this.#storeProvenance("WAREHOUSE", record.assetId, provenance);
     return stored;
   }
 
@@ -87,5 +101,9 @@ export class RecordStore {
 
   getWarehouse(assetId) {
     return this.#warehouse.get(assetId) ?? null;
+  }
+
+  provenance(kind, assetId) {
+    return this.#provenance.get(this.#provenanceKey(kind, assetId)) ?? null;
   }
 }

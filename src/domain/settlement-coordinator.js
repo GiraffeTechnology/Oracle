@@ -90,7 +90,7 @@ export class SettlementCoordinator {
     return record;
   }
 
-  finalize({ settlementId, certificate, registryChangeRef, snapshotHash, warehouseConfirmed, ownerBindingConfirmed, actorId, evidenceVersion }) {
+  finalize({ settlementId, certificate, registryChangeRef, snapshotHash, warehouseConfirmed, ownerBindingConfirmed, newOwnerCommitment, actorId, evidenceVersion }) {
     const current = this.#settlements.get(settlementId);
     if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
     if (!registryChangeRef || warehouseConfirmed !== true || ownerBindingConfirmed !== true) throw new Error("SETTLEMENT_CONFIRMATION_INCOMPLETE");
@@ -100,11 +100,18 @@ export class SettlementCoordinator {
     if (certificate?.assetId !== current.assetId) throw new Error("SETTLEMENT_CERTIFICATE_ASSET_MISMATCH");
     if (certificate?.tokenId !== current.token.tokenId) throw new Error("SETTLEMENT_CERTIFICATE_TOKEN_MISMATCH");
     if (snapshotHash !== current.snapshotHash) throw new Error("SETTLEMENT_SNAPSHOT_EVIDENCE_MISMATCH");
+    if (!SHA256_HEX.test(newOwnerCommitment ?? "")) throw new Error("SETTLEMENT_OWNER_COMMITMENT_INVALID");
     if (this.clock() > new Date(current.deadlineAt)) throw new Error("SETTLEMENT_DEADLINE_EXCEEDED");
     this.stateEngine.assertTransition({ subjectId: current.assetId, to: OracleStatus.VALID, evidenceVersion });
     this.recordStore.assertCertificate(certificate);
-    this.recordStore.appendCertificate(certificate);
     const now = this.clock().toISOString();
+    const currentAsset = this.recordStore.getAsset(current.assetId);
+    const updatedAsset = Object.freeze({ ...currentAsset, currentCertificateHash: certificate.certificateHash, currentCertificateVersion: certificate.certificateVersion, currentOwnerCommitment: newOwnerCommitment, oracleStatus: OracleStatus.VALID, evidenceVersion, updatedAt: now });
+    this.recordStore.assertAsset(updatedAsset);
+    const certificateProvenance = this.recordStore.provenance("CERTIFICATE_AUTHORITY", current.assetId);
+    const assetProvenance = this.recordStore.provenance("REGISTRY", current.assetId);
+    this.recordStore.appendCertificate(certificate, certificateProvenance);
+    this.recordStore.putAsset(updatedAsset, assetProvenance);
     this.stateEngine.transition({ subjectId: current.assetId, to: OracleStatus.VALID, reasonHash: certificate.certificateHash, evidenceVersion, occurredAt: now });
     const finalized = Object.freeze({ ...current, status: "FINALIZED", registryChangeRef, newCertificateHash: certificate.certificateHash, finalizedAt: now });
     this.#settlements.set(settlementId, finalized);

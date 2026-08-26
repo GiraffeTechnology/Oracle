@@ -139,7 +139,10 @@ test("settlement requires complete evidence and upgrades the certificate", () =>
     () => runtime.settlements.finalize({ settlementId: "settlement-001", certificate: {}, registryChangeRef: null, warehouseConfirmed: false, actorId: "synthetic-registry", evidenceVersion: 3 }),
     /SETTLEMENT_CONFIRMATION_INCOMPLETE/,
   );
-  runtime.settlements.finalize({ settlementId: "settlement-001", certificate: { assetId: "asset-001", tokenId: "1", certificateHash: HASH_C, previousCertificateHash: HASH_B, certificateVersion: 2, wenbaoChangeRef: "change-001", warehouseReceiptHash: HASH_A }, registryChangeRef: "change-001", snapshotHash: pending.snapshotHash, warehouseConfirmed: true, ownerBindingConfirmed: true, actorId: "synthetic-registry", evidenceVersion: 3 });
+  runtime.settlements.finalize({ settlementId: "settlement-001", certificate: { assetId: "asset-001", tokenId: "1", certificateHash: HASH_C, previousCertificateHash: HASH_B, certificateVersion: 2, wenbaoChangeRef: "change-001", warehouseReceiptHash: HASH_A }, registryChangeRef: "change-001", snapshotHash: pending.snapshotHash, warehouseConfirmed: true, ownerBindingConfirmed: true, newOwnerCommitment: HASH_B, actorId: "synthetic-registry", evidenceVersion: 3 });
+  assert.equal(runtime.recordStore.getAsset("asset-001").currentCertificateHash, HASH_C);
+  assert.equal(runtime.recordStore.getAsset("asset-001").currentCertificateVersion, 2);
+  assert.equal(runtime.recordStore.getAsset("asset-001").currentOwnerCommitment, HASH_B);
   assert.equal(runtime.stateEngine.current("asset-001"), OracleStatus.VALID);
   assert.equal(runtime.recordStore.currentCertificate("asset-001").certificateVersion, 2);
   assert.equal(runtime.auditJournal.verify(), true);

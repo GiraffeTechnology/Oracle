@@ -64,6 +64,7 @@ test("settlement certificate must belong to the settlement asset", () => {
     snapshotHash: runtime.settlements.get("settlement-1").snapshotHash,
     warehouseConfirmed: true,
     ownerBindingConfirmed: true,
+    newOwnerCommitment: A,
     actorId: "registry",
     evidenceVersion: 3,
   }), /SETTLEMENT_CERTIFICATE_ASSET_MISMATCH/);
@@ -82,6 +83,7 @@ test("failed finalization cannot append a certificate before state validation", 
     snapshotHash: runtime.settlements.get("settlement-1").snapshotHash,
     warehouseConfirmed: true,
     ownerBindingConfirmed: true,
+    newOwnerCommitment: A,
     actorId: "registry",
     evidenceVersion: 2,
   }), /EVIDENCE_VERSION_NOT_INCREASING/);

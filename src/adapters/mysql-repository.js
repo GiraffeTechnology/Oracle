@@ -28,6 +28,13 @@ export class MySqlOracleRepository {
   }
 
   async upsertAsset(connection, record) {
+    const [conflicts] = await connection.execute(
+      `SELECT asset_id FROM assets
+       WHERE asset_id = ? OR asset_fingerprint_hash = ? OR warehouse_receipt_hash = ? OR current_certificate_hash = ?
+       FOR UPDATE`,
+      [record.assetId, record.assetFingerprintHash, record.warehouseReceiptHash, record.currentCertificateHash],
+    );
+    if (conflicts.some(({ asset_id: assetId }) => assetId !== record.assetId)) throw new Error("ASSET_UNIQUE_IDENTITY_CONFLICT");
     await connection.execute(
       `INSERT INTO assets
        (asset_id, asset_fingerprint_hash, wenbao_registry_ref, classification_code, transfer_eligibility, warehouse_id, warehouse_receipt_hash, current_certificate_hash, current_certificate_version, current_owner_commitment, encumbrance_status, oracle_status, evidence_version, created_at, updated_at)

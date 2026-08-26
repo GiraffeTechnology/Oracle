@@ -12,6 +12,21 @@ const FACT_BINDINGS = Object.freeze({
   WAREHOUSE_STATUS: Object.freeze({ sourceKind: "WAREHOUSE", field: "warehouseStatus" }),
   WAREHOUSE_ENCUMBRANCE_STATUS: Object.freeze({ sourceKind: "WAREHOUSE", field: "encumbranceStatus" }),
 });
+const SOURCE_SCHEMAS = Object.freeze({
+  REGISTRY: "asset-record.v1",
+  CERTIFICATE_AUTHORITY: "certificate-record.v1",
+  WAREHOUSE: "warehouse-record.v1",
+});
+
+function resolveEvidenceSource(runtime, kind, explicitSourceId) {
+  const candidates = runtime.sourceRegistry.listPublic().filter((source) => source.kind === kind);
+  const source = explicitSourceId
+    ? candidates.find(({ id }) => id === explicitSourceId)
+    : candidates.length === 1 ? candidates[0] : null;
+  if (!source) throw new Error(explicitSourceId ? "EVIDENCE_SOURCE_AUTHORITY_INVALID" : "EVIDENCE_SOURCE_AUTHORITY_REQUIRED");
+  runtime.sourceRegistry.requireActive(source.id, SOURCE_SCHEMAS[kind]);
+  return Object.freeze({ sourceId: source.id, schemaVersion: SOURCE_SCHEMAS[kind] });
+}
 
 function controlledFailureCode(error, fallback) {
   const candidate = typeof error?.code === "string" ? error.code : error?.message;
@@ -35,19 +50,27 @@ export class OracleControlPlane {
     Object.assign(this, { runtime, authorizer, dualControl, commandJournal, outbox, signerRotationBroker, clock });
   }
 
-  verifyAsset({ actorId, idempotencyKey, asset, certificate, warehouse, evidenceVersion }) {
+  verifyAsset({ actorId, idempotencyKey, asset, certificate, warehouse, evidenceSources = {}, evidenceVersion }) {
     this.authorizer.require(actorId, "asset:verify");
     assertAssetFactsOnly({ asset, certificate, warehouse });
     if (!asset?.assetId || certificate?.assetId !== asset.assetId || warehouse?.assetId !== asset.assetId) throw new Error("ASSET_EVIDENCE_ID_MISMATCH");
     if ((asset.currentCertificateHash !== undefined && asset.currentCertificateHash !== certificate.certificateHash) || (asset.currentCertificateVersion !== undefined && asset.currentCertificateVersion !== certificate.certificateVersion) || (asset.warehouseReceiptHash !== undefined && asset.warehouseReceiptHash !== warehouse.warehouseReceiptHash) || (certificate.warehouseReceiptHash !== undefined && certificate.warehouseReceiptHash !== warehouse.warehouseReceiptHash)) throw new Error("ASSET_EVIDENCE_BUNDLE_MISMATCH");
-    return this.commandJournal.execute(idempotencyKey, { type: "asset.verify", asset, certificate, warehouse, evidenceVersion }, () => {
+    const provenance = Object.freeze({
+      REGISTRY: resolveEvidenceSource(this.runtime, "REGISTRY", evidenceSources.asset),
+      CERTIFICATE_AUTHORITY: resolveEvidenceSource(this.runtime, "CERTIFICATE_AUTHORITY", evidenceSources.certificate),
+      WAREHOUSE: resolveEvidenceSource(this.runtime, "WAREHOUSE", evidenceSources.warehouse),
+    });
+    this.runtime.schemaRegistry.validate("asset-record.v1", asset);
+    this.runtime.schemaRegistry.validate("certificate-record.v1", certificate);
+    this.runtime.schemaRegistry.validate("warehouse-record.v1", warehouse);
+    return this.commandJournal.execute(idempotencyKey, { type: "asset.verify", asset, certificate, warehouse, evidenceSources: provenance, evidenceVersion }, () => {
       this.runtime.recordStore.assertAsset(asset);
       this.runtime.recordStore.assertCertificate(certificate);
       this.runtime.recordStore.assertWarehouse(warehouse);
       this.runtime.stateEngine.assertTransition({ subjectId: asset.assetId, to: OracleStatus.VALID, evidenceVersion });
-      this.runtime.recordStore.putAsset(asset);
-      this.runtime.recordStore.appendCertificate(certificate);
-      this.runtime.recordStore.putWarehouse(warehouse);
+      this.runtime.recordStore.putAsset(asset, provenance.REGISTRY);
+      this.runtime.recordStore.appendCertificate(certificate, provenance.CERTIFICATE_AUTHORITY);
+      this.runtime.recordStore.putWarehouse(warehouse, provenance.WAREHOUSE);
       const now = this.clock().toISOString();
       this.runtime.stateEngine.transition({ subjectId: asset.assetId, to: OracleStatus.VALID, reasonHash: evidenceHash({ asset, certificate, warehouse }), evidenceVersion, occurredAt: now });
       const event = this.runtime.auditJournal.append({ type: "asset.verified", subjectId: asset.assetId, payloadHash: evidenceHash({ asset, certificate, warehouse }), actorId, occurredAt: now });
@@ -59,23 +82,25 @@ export class OracleControlPlane {
   issueAttestation({ actorId, idempotencyKey, request }) {
     this.authorizer.require(actorId, "attestation:issue");
     assertAssetFactsOnly(request);
-    if (this.runtime.stateEngine.current(request.subject.assetId) !== OracleStatus.VALID) throw new Error("ASSET_NOT_VALID_FOR_ATTESTATION");
-    const binding = this.runtime.tokenIndex.byAsset(request.subject.assetId);
-    if (!binding || binding.chainId !== request.subject.chainId || binding.contract !== request.subject.contract || binding.tokenId !== request.subject.tokenId) throw new Error("ATTESTATION_TOKEN_BINDING_MISMATCH");
-    const source = this.runtime.sourceRegistry.listPublic().find(({ id }) => id === request.sourceAuthority);
-    if (!source) throw new Error("SOURCE_NOT_REGISTERED");
-    this.runtime.sourceRegistry.requireActive(source.id, source.schemaVersions[0]);
-    const sourceRecord = source.kind === "REGISTRY"
-      ? this.runtime.recordStore.getAsset(request.subject.assetId)
-      : source.kind === "CERTIFICATE_AUTHORITY"
-        ? this.runtime.recordStore.currentCertificate(request.subject.assetId)
-        : this.runtime.recordStore.getWarehouse(request.subject.assetId);
-    if (!sourceRecord) throw new Error("ATTESTATION_SOURCE_RECORD_NOT_FOUND");
-    const expectedSourceHash = evidenceHash(sourceRecord);
-    if (request.sourceRecordHash !== expectedSourceHash) throw new Error("ATTESTATION_SOURCE_RECORD_MISMATCH");
-    const factBinding = FACT_BINDINGS[request.factType];
-    if (!factBinding || factBinding.sourceKind !== source.kind || !Object.hasOwn(sourceRecord, factBinding.field) || !Object.is(request.factValue, sourceRecord[factBinding.field])) throw new Error("ATTESTATION_FACT_SOURCE_MISMATCH");
     return this.commandJournal.execute(idempotencyKey, { type: "attestation.issue", request }, () => {
+      if (this.runtime.stateEngine.current(request.subject.assetId) !== OracleStatus.VALID) throw new Error("ASSET_NOT_VALID_FOR_ATTESTATION");
+      const binding = this.runtime.tokenIndex.byAsset(request.subject.assetId);
+      if (!binding || binding.chainId !== request.subject.chainId || binding.contract !== request.subject.contract || binding.tokenId !== request.subject.tokenId) throw new Error("ATTESTATION_TOKEN_BINDING_MISMATCH");
+      const source = this.runtime.sourceRegistry.listPublic().find(({ id }) => id === request.sourceAuthority);
+      if (!source) throw new Error("SOURCE_NOT_REGISTERED");
+      this.runtime.sourceRegistry.requireActive(source.id, source.schemaVersions[0]);
+      const sourceRecord = source.kind === "REGISTRY"
+        ? this.runtime.recordStore.getAsset(request.subject.assetId)
+        : source.kind === "CERTIFICATE_AUTHORITY"
+          ? this.runtime.recordStore.currentCertificate(request.subject.assetId)
+          : this.runtime.recordStore.getWarehouse(request.subject.assetId);
+      if (!sourceRecord) throw new Error("ATTESTATION_SOURCE_RECORD_NOT_FOUND");
+      const provenance = this.runtime.recordStore.provenance(source.kind, request.subject.assetId);
+      if (!provenance || provenance.sourceId !== source.id) throw new Error("ATTESTATION_SOURCE_AUTHORITY_MISMATCH");
+      const expectedSourceHash = evidenceHash(sourceRecord);
+      if (request.sourceRecordHash !== expectedSourceHash) throw new Error("ATTESTATION_SOURCE_RECORD_MISMATCH");
+      const factBinding = FACT_BINDINGS[request.factType];
+      if (!factBinding || factBinding.sourceKind !== source.kind || !Object.hasOwn(sourceRecord, factBinding.field) || !Object.is(request.factValue, sourceRecord[factBinding.field])) throw new Error("ATTESTATION_FACT_SOURCE_MISMATCH");
       const attestation = this.runtime.attestations.issue(request);
       const now = this.clock().toISOString();
       this.runtime.auditJournal.append({ type: "attestation.issued", subjectId: request.subject.assetId, payloadHash: attestation.envelopeHash, actorId, occurredAt: now });
@@ -94,6 +119,11 @@ export class OracleControlPlane {
       this.outbox.enqueue({ eventType: "token.bound", subjectId: binding.assetId, payloadHash, createdAt: now });
       return result;
     });
+  }
+
+  exportAudit({ actorId, idempotencyKey, purpose, adminOperations }) {
+    if (!adminOperations) throw new Error("ADMIN_OPERATIONS_DISABLED");
+    return this.commandJournal.execute(idempotencyKey, { type: "audit.export", purpose }, () => adminOperations.exportAudit(actorId, purpose));
   }
 
   requestRevocation({ actorId, actionId, attestationId, reasonHash, idempotencyKey = null }) {

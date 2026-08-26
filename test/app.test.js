@@ -11,6 +11,7 @@ import { OracleControlPlane } from "../src/services/oracle-control-plane.js";
 import { Outbox } from "../src/services/outbox.js";
 import { loadL2DeploymentProfile } from "../src/config/deployment-profile.js";
 import { loadProtocolProfile } from "../src/protocol/protocol-profile.js";
+import { FixedWindowRateLimiter } from "../src/services/rate-limiter.js";
 
 async function withServer(run) {
   const server = createApp({ config: loadConfig({}), sourceRegistry: new SourceRegistry() });
@@ -131,7 +132,12 @@ test("explicit synthetic test gate enables authenticated idempotent admin comman
     const response = await fetch(`http://localhost:${server.address().port}/v1/rwa/admin/assets/verify`, {
       method: "POST",
       headers: { "content-type": "application/json", "idempotency-key": "verify-http-001", "x-requested-with": "GiraffeOracleAdmin" },
-      body: JSON.stringify({ asset: { assetId: "asset-http", assetFingerprintHash: "a".repeat(64) }, certificate: { assetId: "asset-http", certificateHash: "b".repeat(64), certificateVersion: 1 }, warehouse: { assetId: "asset-http", warehouseReceiptHash: "c".repeat(64) }, evidenceVersion: 1 }),
+      body: JSON.stringify({
+        asset: { assetId: "asset-http", assetFingerprintHash: "a".repeat(64), wenbaoRegistryRef: "registry-asset-http", transferEligibility: "VALID", warehouseId: "warehouse-asset-http", warehouseReceiptHash: "c".repeat(64), currentCertificateHash: "b".repeat(64), currentCertificateVersion: 1, currentOwnerCommitment: "d".repeat(64), encumbranceStatus: "CLEAR", oracleStatus: "VALID", updatedAt: "2026-08-27T00:00:00.000Z" },
+        certificate: { assetId: "asset-http", tokenId: "1", certificateHash: "b".repeat(64), certificateVersion: 1, previousCertificateHash: null, wenbaoChangeRef: "initial-asset-http", warehouseReceiptHash: "c".repeat(64), effectiveAt: "2026-08-27T00:00:00.000Z", status: "ACTIVE" },
+        warehouse: { assetId: "asset-http", warehouseId: "warehouse-asset-http", warehouseReceiptHash: "c".repeat(64), warehouseStatus: "IN_CUSTODY", encumbranceStatus: "CLEAR", observedAt: "2026-08-27T00:00:00.000Z" },
+        evidenceVersion: 1,
+      }),
     });
     assert.equal(response.status, 200);
     assert.equal((await response.json()).result.result.status, "VALID");
@@ -232,6 +238,21 @@ test("public verifier ignores caller-supplied time overrides", async () => {
       body: JSON.stringify({ attestation, expectedSubject: { assetId: "asset-old", chainId: "test-chain", contract: "test-contract", tokenId: "1", purpose: "test" }, now: issuedAt.toISOString() }),
     });
     assert.deepEqual(await response.json(), { valid: false, errorCode: "NOT_CURRENT" });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("public verification endpoint enforces the HTTP rate limit", async () => {
+  const runtime = createSyntheticRuntime();
+  const server = createApp({ config: loadConfig({}), sourceRegistry: runtime.sourceRegistry, runtime, verificationRateLimiter: new FixedWindowRateLimiter({ limit: 1, windowMs: 60000 }) });
+  await new Promise((resolve) => server.listen(0, "localhost", resolve));
+  try {
+    const url = `http://localhost:${server.address().port}/v1/rwa/attestations/verify`;
+    await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    const limited = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    assert.equal(limited.status, 429);
+    assert.equal((await limited.json()).errorCode, "RATE_LIMIT_EXCEEDED");
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

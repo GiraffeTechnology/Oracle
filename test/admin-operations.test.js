@@ -185,8 +185,8 @@ test("activated signer backend requires active replacement policy and synchronou
   const base = { signerSetId: "new", signBytes: (bytes) => sign(null, bytes, privateKey), verifyBytes: (bytes, signature) => verify(null, bytes, publicKey, signature) };
   assert.throws(() => runtime.attestations.activateSignerBackend(base, ACTIVE_SIGNER_SET), /SIGNER_POLICY_REPLACEMENT_REQUIRED/);
   const signerPolicy = new SignerSetPolicy({ signerSetId: "new", threshold: 1, signers: ["new-signer"] });
-  runtime.attestations.activateSignerBackend({ ...base, signerPolicy, signBytes: async (bytes) => sign(null, bytes, privateKey) }, ACTIVE_SIGNER_SET);
-  assert.throws(() => runtime.attestations.issue({ subject: { assetId: "asset-async", chainId: "hoodi", contract: "contract", tokenId: "1", purpose: "test" }, factType: "TRANSFER_STATUS", factValue: "VALID", sourceAuthority: "synthetic-registry", sourceRecordHash: HASH, validForSeconds: 60, nonce: "async-sign" }), /SIGNER_BACKEND_ASYNC_UNSUPPORTED/);
+  assert.throws(() => runtime.attestations.activateSignerBackend({ ...base, signerPolicy, signBytes: async (bytes) => sign(null, bytes, privateKey) }, ACTIVE_SIGNER_SET), /SIGNER_BACKEND_ASYNC_UNSUPPORTED/);
+  assert.equal(runtime.attestations.signerSetId, ACTIVE_SIGNER_SET);
 });
 
 test("signer reconciliation requires an affirmative applied result", async () => {
@@ -224,6 +224,18 @@ test("admin dashboard API requires authentication and rejects cross-origin write
     const missingHeader = await fetch(`${base}/v1/rwa/admin/actions/approve`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
     assert.equal(missingHeader.status, 400);
     assert.equal((await missingHeader.json()).errorCode, "CSRF_REQUEST_HEADER_REQUIRED");
+    runtime.auditJournal.append({ type: "test.audit", subjectId: "asset-admin", payloadHash: HASH, actorId: "auditor", occurredAt: "2026-08-27T00:00:00.000Z" });
+    const auditCount = runtime.auditJournal.list().length;
+    assert.equal((await fetch(`${base}/v1/rwa/admin/audit-export?purpose=regulatory-audit`)).status, 404);
+    assert.equal(runtime.auditJournal.list().length, auditCount);
+    const exported = await fetch(`${base}/v1/rwa/admin/audit-export`, { method: "POST", headers: { "content-type": "application/json", "x-requested-with": "GiraffeOracleAdmin", "idempotency-key": "audit-export-001" }, body: JSON.stringify({ purpose: "regulatory-audit" }) });
+    const exportBody = await exported.json();
+    assert.equal(exported.status, 200, JSON.stringify(exportBody));
+    assert.equal(exportBody.result.result.manifest.recordCount, auditCount);
+    assert.equal(runtime.auditJournal.list().at(-1).type, "audit.exported");
+    const replay = await fetch(`${base}/v1/rwa/admin/audit-export`, { method: "POST", headers: { "content-type": "application/json", "x-requested-with": "GiraffeOracleAdmin", "idempotency-key": "audit-export-001" }, body: JSON.stringify({ purpose: "regulatory-audit" }) });
+    assert.equal((await replay.json()).result.replayed, true);
+    assert.equal(runtime.auditJournal.list().length, auditCount + 1);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

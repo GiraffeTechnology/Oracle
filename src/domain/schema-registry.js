@@ -56,7 +56,7 @@ export function createDefaultSchemaRegistry() {
   });
   registry.register({
     id: "certificate-record.v1",
-    required: ["assetId", "tokenId", "certificateVersion", "certificateHash", "previousCertificateHash", "wenbaoChangeRef", "warehouseReceiptHash", "effectiveAt", "status"],
+    required: ["assetId", "tokenId", "certificateVersion", "certificateHash", "wenbaoChangeRef", "warehouseReceiptHash", "effectiveAt", "status"],
     allowed: ["assetId", "tokenId", "certificateVersion", "certificateHash", "previousCertificateHash", "wenbaoChangeRef", "warehouseReceiptHash", "effectiveAt", "supersededAt", "status"],
   });
   registry.register({
