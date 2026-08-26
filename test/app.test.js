@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createApp } from "../src/app.js";
+import { createApp, publicSettlement } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
 import { SourceRegistry } from "../src/domain/source-registry.js";
 import { createSyntheticRuntime } from "../src/oracle-runtime.js";
@@ -88,6 +88,7 @@ test("admin dashboard exposes authenticated operations and is protected against 
     assert.match(body, /Authenticated Admin & Audit dashboard/);
     assert.match(body, /sources\/disable/);
     assert.match(body, /signers\/rotate/);
+    assert.match(body, /value="reconcile"/);
     assert.match(body, /actions\/approve/);
     assert.match(body, /受控操作状态/);
   });
@@ -180,6 +181,12 @@ test("HTTP boundaries never return arbitrary dependency messages", async () => {
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
+});
+
+test("public settlement projection omits counterparties and execution reference", () => {
+  const projected = publicSettlement({ settlementId: "s-001", assetId: "a-001", sellerWallet: "seller-secret", buyerWallet: "buyer-secret", externalExecutionRef: "market-secret", status: "PENDING", snapshotHash: "a".repeat(64) });
+  assert.deepEqual(projected, { settlementId: "s-001", assetId: "a-001", status: "PENDING", snapshotHash: "a".repeat(64) });
+  assert.equal(JSON.stringify(projected).includes("secret"), false);
 });
 
 test("generic and market price query fields are rejected", async () => {

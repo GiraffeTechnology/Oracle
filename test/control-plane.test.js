@@ -69,6 +69,23 @@ test("attestation revocation requires independent approval", () => {
   assert.equal(control.executeRevocation({ actorId: "oracle-a", actionId: "revoke-001", attestationId: issued.envelope.attestationId, reasonHash: HASH_C }).attestationId, issued.envelope.attestationId);
 });
 
+test("revocation validates reason, is HTTP-idempotent, and rejects conflicting re-revocation", () => {
+  const { control, runtime } = controlFixture();
+  control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-revoke", asset: { assetId: "asset-revoke", assetFingerprintHash: HASH_A }, certificate: { assetId: "asset-revoke", certificateHash: HASH_B, certificateVersion: 1 }, warehouse: { assetId: "asset-revoke", warehouseReceiptHash: HASH_C }, evidenceVersion: 1 });
+  const issued = control.issueAttestation({ actorId: "oracle-a", idempotencyKey: "issue-revoke", request: { subject: { assetId: "asset-revoke", chainId: "test-chain", contract: "contract-001", tokenId: "1", purpose: "transfer-eligibility" }, factType: "TRANSFER_STATUS", factValue: "VALID", sourceAuthority: "synthetic-registry", sourceRecordHash: HASH_A, validForSeconds: 60, nonce: "revoke-nonce" } }).result;
+  assert.throws(() => control.requestRevocation({ actorId: "oracle-a", actionId: "invalid-reason", attestationId: issued.envelope.attestationId }), /REVOCATION_REASON_HASH_INVALID/);
+  const request = { actorId: "oracle-a", idempotencyKey: "revoke-request-idem", actionId: "revoke-idem", attestationId: issued.envelope.attestationId, reasonHash: HASH_B };
+  assert.equal(control.requestRevocation(request).replayed, false);
+  assert.equal(control.requestRevocation(request).replayed, true);
+  control.approveAction({ actorId: "approver-b", actionId: "revoke-idem" });
+  const execute = { actorId: "oracle-a", idempotencyKey: "revoke-execute-idem", actionId: "revoke-idem", attestationId: issued.envelope.attestationId, reasonHash: HASH_B };
+  assert.equal(control.executeRevocation(execute).replayed, false);
+  assert.equal(control.executeRevocation(execute).replayed, true);
+  const auditCount = runtime.auditJournal.list().length;
+  assert.throws(() => control.requestRevocation({ actorId: "oracle-a", actionId: "revoke-conflict", attestationId: issued.envelope.attestationId, reasonHash: HASH_C }), /ATTESTATION_ALREADY_REVOKED|ACTION/);
+  assert.equal(runtime.auditJournal.list().length, auditCount);
+});
+
 test("token binding is one-to-one and idempotent", () => {
   const { control, runtime } = controlFixture();
   control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-001", asset: { assetId: "asset-001", assetFingerprintHash: HASH_A }, certificate: { assetId: "asset-001", certificateHash: HASH_B, certificateVersion: 1 }, warehouse: { assetId: "asset-001", warehouseReceiptHash: HASH_C }, evidenceVersion: 1 });

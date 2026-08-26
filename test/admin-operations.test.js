@@ -87,9 +87,30 @@ test("controlled action failure never persists a dependency message", async () =
   controlPlane.approveAction({ actorId: "approver-b", actionId: "rotate-secret" });
   await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-secret", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH }));
   const action = dualControl.list()[0];
-  assert.equal(action.status, "FAILED");
-  assert.equal(action.errorCode, "SIGNER_ROTATION_FAILED");
+  assert.equal(action.status, "RECOVERY_REQUIRED");
+  assert.equal(action.errorCode, "SIGNER_ROTATION_RECOVERY_REQUIRED");
   assert.equal(JSON.stringify(action).includes("private"), false);
+});
+
+test("ambiguous signer rotation is reconciled without replaying rotation", async () => {
+  const { authorizer, runtime } = fixture();
+  const dualControl = new DualControlQueue();
+  let rotateCalls = 0;
+  let reconcileCalls = 0;
+  const evidence = { oldSignerRejected: true, newSignerAccepted: true, rotationAudited: true, auditChainVerified: true, dualApprovalVerified: true, timelockSeconds: 300, rollbackWindowSeconds: 3600, rollbackVerified: true, privateMaterialObserved: false, networkUsed: false, transactionSigned: false, evidenceSha256: HASH };
+  const controlPlane = new OracleControlPlane({ runtime, authorizer, dualControl, commandJournal: new CommandJournal(), outbox: runtime.outbox, signerRotationBroker: {
+    async rotate() { rotateCalls += 1; throw new Error("response lost after apply"); },
+    async reconcile() { reconcileCalls += 1; return { applied: true, ...evidence }; },
+  } });
+  controlPlane.requestSignerRotation({ actorId: "security-a", actionId: "rotate-recovery", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH });
+  controlPlane.approveAction({ actorId: "approver-b", actionId: "rotate-recovery" });
+  await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-recovery", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH }));
+  assert.equal(dualControl.list()[0].status, "RECOVERY_REQUIRED");
+  const result = await controlPlane.reconcileSignerRotation({ actorId: "security-a", actionId: "rotate-recovery", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH });
+  assert.equal(result.applied, true);
+  assert.equal(dualControl.list()[0].status, "EXECUTED");
+  assert.equal(rotateCalls, 1);
+  assert.equal(reconcileCalls, 1);
 });
 
 test("admin dashboard API requires authentication and rejects cross-origin writes", async () => {

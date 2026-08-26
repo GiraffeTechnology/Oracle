@@ -222,3 +222,11 @@ paths:
       responses:
         '200': { description: Protected broker proved old rejection, new acceptance, timelock and rollback }
         '503': { description: External writes disabled or protected broker unavailable }
+  /v1/rwa/admin/signers/rotate/reconcile:
+    post:
+      operationId: reconcileAmbiguousSignerRotation
+      security: [{ mutualTLS: [], signedRequest: [] }]
+      responses:
+        '200': { description: Protected broker reconciled the exact recovery-required action without replaying rotation }
+        '400': { description: Recovery not required, scope mismatch, or reconciliation evidence insufficient }
+        '503': { description: External writes disabled or protected reconciler unavailable }

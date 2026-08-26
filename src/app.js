@@ -55,6 +55,14 @@ function publicWarehouse(warehouse) {
   return safe;
 }
 
+export function publicSettlement(settlement) {
+  const { sellerWallet, buyerWallet, externalExecutionRef, ...safe } = settlement;
+  void sellerWallet;
+  void buyerWallet;
+  void externalExecutionRef;
+  return safe;
+}
+
 function adminErrorStatus(errorCode) {
   if (errorCode === "ADMIN_OPERATION_FAILED") return 500;
   if (errorCode === "ADMIN_AUTHENTICATION_REQUIRED") return 401;
@@ -141,13 +149,14 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
           "/v1/rwa/admin/assets/verify": () => controlPlane.verifyAsset({ actorId, idempotencyKey, ...body }),
           "/v1/rwa/admin/tokens/bind": () => controlPlane.bindToken({ actorId, idempotencyKey, binding: body }),
           "/v1/rwa/admin/attestations/issue": () => controlPlane.issueAttestation({ actorId, idempotencyKey, request: body }),
-          "/v1/rwa/admin/revocations/request": () => controlPlane.requestRevocation({ actorId, ...body }),
+          "/v1/rwa/admin/revocations/request": () => controlPlane.requestRevocation({ actorId, idempotencyKey, ...body }),
           "/v1/rwa/admin/actions/approve": () => controlPlane.approveAction({ actorId, ...body }),
           "/v1/rwa/admin/sources/disable/request": () => controlPlane.requestSourceDisable({ actorId, ...body }),
           "/v1/rwa/admin/sources/disable/execute": () => controlPlane.executeSourceDisable({ actorId, ...body }),
           "/v1/rwa/admin/signers/rotate/request": () => controlPlane.requestSignerRotation({ actorId, ...body }),
           "/v1/rwa/admin/signers/rotate/execute": () => controlPlane.executeSignerRotation({ actorId, ...body }),
-          "/v1/rwa/admin/revocations/execute": () => controlPlane.executeRevocation({ actorId, ...body }),
+          "/v1/rwa/admin/signers/rotate/reconcile": () => controlPlane.reconcileSignerRotation({ actorId, ...body }),
+          "/v1/rwa/admin/revocations/execute": () => controlPlane.executeRevocation({ actorId, idempotencyKey, ...body }),
           "/v1/rwa/admin/settlements/begin": () => controlPlane.beginSettlement({ actorId, idempotencyKey, request: body }),
           "/v1/rwa/admin/settlements/finalize": () => controlPlane.finalizeSettlement({ actorId, idempotencyKey, request: body }),
           "/v1/rwa/admin/settlements/cancel": () => controlPlane.cancelSettlement({ actorId, idempotencyKey, request: body }),
@@ -155,8 +164,8 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
           "/v1/rwa/admin/settlements/timeout": () => controlPlane.timeoutSettlement({ actorId, idempotencyKey, request: body }),
           "/v1/rwa/settlements": () => controlPlane.beginSettlement({ actorId, idempotencyKey, request: body }),
           "/v1/rwa/revocations": () => body.phase === "execute"
-            ? controlPlane.executeRevocation({ actorId, ...body })
-            : controlPlane.requestRevocation({ actorId, ...body }),
+            ? controlPlane.executeRevocation({ actorId, idempotencyKey, ...body })
+            : controlPlane.requestRevocation({ actorId, idempotencyKey, ...body }),
         };
         const settlementOperations = settlementAction ? {
           finalize: () => controlPlane.finalizeSettlement({ actorId, idempotencyKey, request: { ...body, settlementId: settlementAction[1] } }),
@@ -339,7 +348,7 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
         sendJson(response, 404, { ok: false, errorCode: "SETTLEMENT_NOT_FOUND" });
         return;
       }
-      sendJson(response, 200, { settlement });
+      sendJson(response, 200, { settlement: publicSettlement(settlement) });
       return;
     }
 

@@ -35,7 +35,7 @@ export class DualControlQueue {
 
   completeExecution(actionId, executedAt) {
     const current = this.#actions.get(actionId);
-    if (!current || current.status !== "EXECUTING") throw new Error("ACTION_NOT_EXECUTING");
+    if (!current || !["EXECUTING", "RECOVERING"].includes(current.status)) throw new Error("ACTION_NOT_EXECUTING");
     const executed = Object.freeze({ ...current, status: "EXECUTED", executedAt });
     this.#actions.set(actionId, executed);
     return executed;
@@ -43,11 +43,29 @@ export class DualControlQueue {
 
   failExecution(actionId, { failedAt, errorCode }) {
     const current = this.#actions.get(actionId);
-    if (!current || current.status !== "EXECUTING") throw new Error("ACTION_NOT_EXECUTING");
+    if (!current || !["EXECUTING", "RECOVERING"].includes(current.status)) throw new Error("ACTION_NOT_EXECUTING");
     if (!failedAt || !errorCode) throw new Error("ACTION_FAILURE_INVALID");
     const failed = Object.freeze({ ...current, status: "FAILED", failedAt, errorCode });
     this.#actions.set(actionId, failed);
     return failed;
+  }
+
+  markRecoveryRequired(actionId, { failedAt, errorCode }) {
+    const current = this.#actions.get(actionId);
+    if (!current || !["EXECUTING", "RECOVERING"].includes(current.status)) throw new Error("ACTION_NOT_EXECUTING");
+    if (!failedAt || !errorCode) throw new Error("ACTION_FAILURE_INVALID");
+    const recovery = Object.freeze({ ...current, status: "RECOVERY_REQUIRED", failedAt, errorCode });
+    this.#actions.set(actionId, recovery);
+    return recovery;
+  }
+
+  beginRecovery(actionId, { actionType, subjectId, payloadHash, executedBy, recoveryStartedAt }) {
+    const current = this.#actions.get(actionId);
+    if (!current || current.status !== "RECOVERY_REQUIRED") throw new Error("ACTION_RECOVERY_NOT_REQUIRED");
+    if (current.actionType !== actionType || current.subjectId !== subjectId || current.payloadHash !== payloadHash) throw new Error("DUAL_CONTROL_SCOPE_MISMATCH");
+    const recovering = Object.freeze({ ...current, status: "RECOVERING", recoveryExecutedBy: executedBy, recoveryStartedAt });
+    this.#actions.set(actionId, recovering);
+    return recovering;
   }
 
   list() {

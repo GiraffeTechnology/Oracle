@@ -10,6 +10,11 @@ function controlledFailureCode(error, fallback) {
   return SAFE_ERROR_CODE.test(candidate ?? "") ? candidate : fallback;
 }
 
+function assertRotationEvidence(result) {
+  if (result?.oldSignerRejected !== true || result?.newSignerAccepted !== true || result?.rotationAudited !== true || result?.auditChainVerified !== true || result?.dualApprovalVerified !== true || result?.rollbackVerified !== true || result?.rollbackWindowSeconds < 3600 || result?.timelockSeconds < 300 || result?.privateMaterialObserved !== false || result?.networkUsed !== false || result?.transactionSigned !== false) throw new Error("SIGNER_ROTATION_BROKER_RESULT_INVALID");
+  return result;
+}
+
 export class OracleControlPlane {
   constructor({ runtime, authorizer, dualControl, commandJournal, outbox, signerRotationBroker = null, clock = () => new Date() }) {
     Object.assign(this, { runtime, authorizer, dualControl, commandJournal, outbox, signerRotationBroker, clock });
@@ -59,9 +64,14 @@ export class OracleControlPlane {
     });
   }
 
-  requestRevocation({ actorId, actionId, attestationId, reasonHash }) {
+  requestRevocation({ actorId, actionId, attestationId, reasonHash, idempotencyKey = null }) {
     this.authorizer.require(actorId, "attestation:revoke");
-    return this.dualControl.request({ actionId, actionType: "ATTESTATION_REVOKE", subjectId: attestationId, payloadHash: reasonHash, requestedBy: actorId, requestedAt: this.clock().toISOString() });
+    if (!SHA256_HEX.test(reasonHash ?? "")) throw new Error("REVOCATION_REASON_HASH_INVALID");
+    const operation = () => {
+      if (this.runtime.revocations.isRevoked(attestationId)) throw new Error("ATTESTATION_ALREADY_REVOKED");
+      return this.dualControl.request({ actionId, actionType: "ATTESTATION_REVOKE", subjectId: attestationId, payloadHash: reasonHash, requestedBy: actorId, requestedAt: this.clock().toISOString() });
+    };
+    return idempotencyKey ? this.commandJournal.execute(idempotencyKey, { type: "attestation.revocation.request", actionId, attestationId, reasonHash }, operation) : operation();
   }
 
   approveAction({ actorId, actionId }) {
@@ -107,8 +117,7 @@ export class OracleControlPlane {
     const occurredAt = this.clock().toISOString();
     this.dualControl.beginExecution(actionId, { actionType: "SIGNER_ROTATE", subjectId, payloadHash: rotationDigest, executedBy: actorId, executionStartedAt: occurredAt });
     try {
-      const result = await this.signerRotationBroker.rotate({ actionId, fromSignerSetId, toSignerSetId, rotationDigest });
-      if (result?.oldSignerRejected !== true || result?.newSignerAccepted !== true || result?.rotationAudited !== true || result?.auditChainVerified !== true || result?.dualApprovalVerified !== true || result?.rollbackVerified !== true || result?.rollbackWindowSeconds < 3600 || result?.timelockSeconds < 300 || result?.privateMaterialObserved !== false || result?.networkUsed !== false || result?.transactionSigned !== false) throw new Error("SIGNER_ROTATION_BROKER_RESULT_INVALID");
+      const result = assertRotationEvidence(await this.signerRotationBroker.rotate({ actionId, fromSignerSetId, toSignerSetId, rotationDigest }));
       this.runtime.auditJournal.append({ type: "signer.rotated", subjectId, payloadHash: rotationDigest, actorId, occurredAt });
       this.outbox.enqueue({ eventType: "signer.rotated", subjectId, payloadHash: rotationDigest, createdAt: occurredAt });
       this.dualControl.completeExecution(actionId, occurredAt);
@@ -128,16 +137,43 @@ export class OracleControlPlane {
       privateMaterialIncluded: false,
       });
     } catch (error) {
-      this.dualControl.failExecution(actionId, { failedAt: this.clock().toISOString(), errorCode: controlledFailureCode(error, "SIGNER_ROTATION_FAILED") });
+      this.dualControl.markRecoveryRequired(actionId, { failedAt: this.clock().toISOString(), errorCode: controlledFailureCode(error, "SIGNER_ROTATION_RECOVERY_REQUIRED") });
       throw error;
     }
   }
 
-  executeRevocation({ actorId, actionId, attestationId, reasonHash }) {
-    this.authorizer.require(actorId, "attestation:revoke");
-    const now = this.clock().toISOString();
-    this.dualControl.beginExecution(actionId, { actionType: "ATTESTATION_REVOKE", subjectId: attestationId, payloadHash: reasonHash, executedBy: actorId, executionStartedAt: now });
+  async reconcileSignerRotation({ actorId, actionId, fromSignerSetId, toSignerSetId, rotationDigest }) {
+    this.authorizer.require(actorId, "signer:rotate");
+    if (![actionId, fromSignerSetId, toSignerSetId].every((value) => typeof value === "string" && value) || fromSignerSetId === toSignerSetId || !SHA256_HEX.test(rotationDigest ?? "")) throw new Error("SIGNER_ROTATION_REQUEST_INVALID");
+    if (!this.signerRotationBroker?.reconcile) throw new Error("SIGNER_ROTATION_RECONCILER_UNAVAILABLE");
+    const subjectId = `${fromSignerSetId}->${toSignerSetId}`;
+    const occurredAt = this.clock().toISOString();
+    this.dualControl.beginRecovery(actionId, { actionType: "SIGNER_ROTATE", subjectId, payloadHash: rotationDigest, executedBy: actorId, recoveryStartedAt: occurredAt });
     try {
+      const reconciliation = await this.signerRotationBroker.reconcile({ actionId, fromSignerSetId, toSignerSetId, rotationDigest });
+      if (reconciliation?.applied === false && reconciliation?.safelyNotApplied === true) {
+        this.dualControl.failExecution(actionId, { failedAt: this.clock().toISOString(), errorCode: "SIGNER_ROTATION_NOT_APPLIED" });
+        return Object.freeze({ applied: false, safelyNotApplied: true, privateMaterialIncluded: false });
+      }
+      const result = assertRotationEvidence(reconciliation);
+      this.runtime.auditJournal.append({ type: "signer.rotated", subjectId, payloadHash: rotationDigest, actorId, occurredAt });
+      this.outbox.enqueue({ eventType: "signer.rotated", subjectId, payloadHash: rotationDigest, createdAt: occurredAt });
+      this.dualControl.completeExecution(actionId, occurredAt);
+      return Object.freeze({ applied: true, oldSignerRejected: true, newSignerAccepted: true, rotationAudited: true, auditChainVerified: true, privateMaterialIncluded: false, evidenceSha256: SHA256_HEX.test(result.evidenceSha256 ?? "") ? result.evidenceSha256.toLowerCase() : null });
+    } catch (error) {
+      this.dualControl.markRecoveryRequired(actionId, { failedAt: this.clock().toISOString(), errorCode: controlledFailureCode(error, "SIGNER_ROTATION_RECOVERY_REQUIRED") });
+      throw error;
+    }
+  }
+
+  executeRevocation({ actorId, actionId, attestationId, reasonHash, idempotencyKey = null }) {
+    this.authorizer.require(actorId, "attestation:revoke");
+    if (!SHA256_HEX.test(reasonHash ?? "")) throw new Error("REVOCATION_REASON_HASH_INVALID");
+    const operation = () => {
+      if (this.runtime.revocations.isRevoked(attestationId)) throw new Error("ATTESTATION_ALREADY_REVOKED");
+      const now = this.clock().toISOString();
+      this.dualControl.beginExecution(actionId, { actionType: "ATTESTATION_REVOKE", subjectId: attestationId, payloadHash: reasonHash, executedBy: actorId, executionStartedAt: now });
+      try {
       const attestation = this.runtime.attestations.get(attestationId);
       if (!attestation) throw new Error("ATTESTATION_NOT_FOUND");
       const revocation = this.runtime.revocations.revoke({ attestationId, reasonHash, revokedAt: now, authorityId: actorId });
@@ -145,10 +181,12 @@ export class OracleControlPlane {
       this.outbox.enqueue({ eventType: "attestation.revoked", subjectId: attestation.envelope.subject.assetId, payloadHash: reasonHash, createdAt: now });
       this.dualControl.completeExecution(actionId, now);
       return revocation;
-    } catch (error) {
-      this.dualControl.failExecution(actionId, { failedAt: this.clock().toISOString(), errorCode: controlledFailureCode(error, "ATTESTATION_REVOCATION_FAILED") });
-      throw error;
-    }
+      } catch (error) {
+        this.dualControl.failExecution(actionId, { failedAt: this.clock().toISOString(), errorCode: controlledFailureCode(error, "ATTESTATION_REVOCATION_FAILED") });
+        throw error;
+      }
+    };
+    return idempotencyKey ? this.commandJournal.execute(idempotencyKey, { type: "attestation.revocation.execute", actionId, attestationId, reasonHash }, operation) : operation();
   }
 
   beginSettlement({ actorId, idempotencyKey, request }) {

@@ -26,7 +26,7 @@ export const ADMIN_HTML = `<!doctype html>
   </div>
   <section><h2>高风险双人复核操作</h2><p class="muted">操作分为 request → 独立 approver → execute；外部写入未获部署授权时服务端一律拒绝。</p><div class="controls">
     <form id="source-form"><h3>停用来源</h3><label>Action ID<input name="actionId" required></label><label>Source ID<input name="sourceId" required></label><label>Reason SHA-256<input name="reasonHash" pattern="[a-fA-F0-9]{64}" required></label><button name="phase" value="request">请求</button><button name="phase" value="execute">执行</button></form>
-    <form id="rotation-form"><h3>签名人轮换</h3><label>Action ID<input name="actionId" required></label><label>旧集合 ID<input name="fromSignerSetId" required></label><label>新集合 ID<input name="toSignerSetId" required></label><label>Rotation digest<input name="rotationDigest" pattern="[a-fA-F0-9]{64}" required></label><button name="phase" value="request">请求</button><button name="phase" value="execute">执行</button></form>
+    <form id="rotation-form"><h3>签名人轮换</h3><label>Action ID<input name="actionId" required></label><label>旧集合 ID<input name="fromSignerSetId" required></label><label>新集合 ID<input name="toSignerSetId" required></label><label>Rotation digest<input name="rotationDigest" pattern="[a-fA-F0-9]{64}" required></label><button name="phase" value="request">请求</button><button name="phase" value="execute">执行</button><button name="phase" value="reconcile">恢复核对</button></form>
     <form id="approval-form"><h3>独立批准</h3><label>Action ID<input name="actionId" required></label><button type="submit">批准精确 Action</button></form>
   </div><pre id="operation-result" aria-live="polite">尚未执行操作</pre></section>
   <script>
