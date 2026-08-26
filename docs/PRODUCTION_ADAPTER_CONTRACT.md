@@ -21,9 +21,16 @@ accept caller-selected network endpoints or credentials.
 - The control plane never accepts a private key, mnemonic, key path or raw key reference. Runtime activation
   is performed through the deployment-owned `activateRuntime` broker operation and is fail-closed if the
   active runtime signer set does not exactly match the approved destination set.
+- Runtime `signBytes` and `verifyBytes` callbacks are synchronous-only. The deployment adapter must expose a
+  synchronous local protected-broker boundary; Promise/thenable results are rejected fail-closed and must not
+  be coerced into signature bytes or truthy verification results.
+- Every activation must atomically install a matching `ACTIVE` destination `SignerSetPolicy`; omission,
+  mismatch, retirement or revocation fails before the active backend is changed.
 - After activation, an attestation produced by the old backend must fail local verification and a newly
   issued attestation must advertise and verify under the new signer set. Ambiguous activation remains in
-  `RECOVERY_REQUIRED` until the broker affirmatively reconciles `applied=true`.
+  `RECOVERY_REQUIRED` until the broker affirmatively reconciles `applied=true`. Reconciliation accepts only
+  the exact approved source or destination runtime set and does not replay activation when the destination
+  was already installed before an acknowledgement was lost.
 
 ## Sources
 

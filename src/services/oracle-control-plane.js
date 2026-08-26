@@ -70,7 +70,8 @@ export class OracleControlPlane {
       : source.kind === "CERTIFICATE_AUTHORITY"
         ? this.runtime.recordStore.currentCertificate(request.subject.assetId)
         : this.runtime.recordStore.getWarehouse(request.subject.assetId);
-    const expectedSourceHash = sourceRecord ? evidenceHash(sourceRecord) : null;
+    if (!sourceRecord) throw new Error("ATTESTATION_SOURCE_RECORD_NOT_FOUND");
+    const expectedSourceHash = evidenceHash(sourceRecord);
     if (request.sourceRecordHash !== expectedSourceHash) throw new Error("ATTESTATION_SOURCE_RECORD_MISMATCH");
     const factBinding = FACT_BINDINGS[request.factType];
     if (!factBinding || factBinding.sourceKind !== source.kind || !Object.hasOwn(sourceRecord, factBinding.field) || !Object.is(request.factValue, sourceRecord[factBinding.field])) throw new Error("ATTESTATION_FACT_SOURCE_MISMATCH");
