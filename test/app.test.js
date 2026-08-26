@@ -88,6 +88,8 @@ test("admin dashboard exposes authenticated operations and is protected against 
     assert.match(body, /Authenticated Admin & Audit dashboard/);
     assert.match(body, /sources\/disable/);
     assert.match(body, /signers\/rotate/);
+    assert.match(body, /actions\/approve/);
+    assert.match(body, /受控操作状态/);
   });
 });
 
