@@ -118,6 +118,22 @@ test("ambiguous signer rotation is reconciled without replaying rotation", async
   assert.equal(runtime.attestations.signerSetId, "new");
 });
 
+test("signer reconciliation requires an affirmative applied result", async () => {
+  const { authorizer, runtime } = fixture();
+  const dualControl = new DualControlQueue();
+  const evidence = { oldSignerRejected: true, newSignerAccepted: true, rotationAudited: true, auditChainVerified: true, dualApprovalVerified: true, timelockSeconds: 300, rollbackWindowSeconds: 3600, rollbackVerified: true, privateMaterialObserved: false, networkUsed: false, transactionSigned: false, evidenceSha256: HASH };
+  const controlPlane = new OracleControlPlane({ runtime, authorizer, dualControl, commandJournal: new CommandJournal(), outbox: runtime.outbox, signerRotationBroker: {
+    async rotate() { throw new Error("response lost after apply"); },
+    async reconcile() { return evidence; },
+  } });
+  controlPlane.requestSignerRotation({ actorId: "security-a", actionId: "rotate-unresolved", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH });
+  controlPlane.approveAction({ actorId: "approver-b", actionId: "rotate-unresolved" });
+  await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-unresolved", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH }));
+  await assert.rejects(() => controlPlane.reconcileSignerRotation({ actorId: "security-a", actionId: "rotate-unresolved", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH }), /SIGNER_ROTATION_RECONCILIATION_UNRESOLVED/);
+  assert.equal(dualControl.list()[0].status, "RECOVERY_REQUIRED");
+  assert.equal(runtime.attestations.signerSetId, ACTIVE_SIGNER_SET);
+});
+
 test("admin dashboard API requires authentication and rejects cross-origin writes", async () => {
   const { runtime, controlPlane, adminOperations } = fixture();
   const config = loadConfig({ GIRAFFE_ORACLE_ENV: "test", GIRAFFE_ORACLE_EXTERNAL_WRITES: "true", GIRAFFE_ORACLE_TEST_WRITE_ACK: "synthetic-only" });

@@ -162,6 +162,7 @@ export class OracleControlPlane {
         this.dualControl.failExecution(actionId, { failedAt: this.clock().toISOString(), errorCode: "SIGNER_ROTATION_NOT_APPLIED" });
         return Object.freeze({ applied: false, safelyNotApplied: true, privateMaterialIncluded: false });
       }
+      if (reconciliation?.applied !== true) throw new Error("SIGNER_ROTATION_RECONCILIATION_UNRESOLVED");
       const result = assertRotationEvidence(reconciliation);
       this.runtime.attestations.activateSignerSet(toSignerSetId, fromSignerSetId);
       this.runtime.auditJournal.append({ type: "signer.rotated", subjectId, payloadHash: rotationDigest, actorId, occurredAt });
