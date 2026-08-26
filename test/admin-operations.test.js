@@ -108,6 +108,9 @@ test("admin dashboard API requires authentication and rejects cross-origin write
     const rejected = await fetch(`${base}/v1/rwa/admin/actions/approve`, { method: "POST", headers: { "content-type": "application/json", origin: "https://attacker.invalid" }, body: "{}" });
     assert.equal(rejected.status, 400);
     assert.equal((await rejected.json()).errorCode, "CSRF_ORIGIN_REJECTED");
+    const missingHeader = await fetch(`${base}/v1/rwa/admin/actions/approve`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    assert.equal(missingHeader.status, 400);
+    assert.equal((await missingHeader.json()).errorCode, "CSRF_REQUEST_HEADER_REQUIRED");
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

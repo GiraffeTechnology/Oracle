@@ -124,7 +124,7 @@ test("explicit synthetic test gate enables authenticated idempotent admin comman
   try {
     const response = await fetch(`http://localhost:${server.address().port}/v1/rwa/admin/assets/verify`, {
       method: "POST",
-      headers: { "content-type": "application/json", "idempotency-key": "verify-http-001" },
+      headers: { "content-type": "application/json", "idempotency-key": "verify-http-001", "x-requested-with": "GiraffeOracleAdmin" },
       body: JSON.stringify({ asset: { assetId: "asset-http", assetFingerprintHash: "a".repeat(64) }, certificate: { assetId: "asset-http", certificateHash: "b".repeat(64), certificateVersion: 1 }, warehouse: { assetId: "asset-http", warehouseReceiptHash: "c".repeat(64) }, evidenceVersion: 1 }),
     });
     assert.equal(response.status, 200);
@@ -141,7 +141,7 @@ test("admin HTTP route awaits an asynchronous control-plane result", async () =>
   await new Promise((resolve) => server.listen(0, "localhost", resolve));
   try {
     const response = await fetch(`http://localhost:${server.address().port}/v1/rwa/admin/assets/verify`, {
-      method: "POST", headers: { "content-type": "application/json", "idempotency-key": "async-ok" }, body: "{}",
+      method: "POST", headers: { "content-type": "application/json", "idempotency-key": "async-ok", "x-requested-with": "GiraffeOracleAdmin" }, body: "{}",
     });
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { ok: true, result: { persisted: true } });
@@ -157,10 +157,26 @@ test("admin HTTP route maps an asynchronous control-plane rejection", async () =
   await new Promise((resolve) => server.listen(0, "localhost", resolve));
   try {
     const response = await fetch(`http://localhost:${server.address().port}/v1/rwa/admin/assets/verify`, {
-      method: "POST", headers: { "content-type": "application/json", "idempotency-key": "async-fail" }, body: "{}",
+      method: "POST", headers: { "content-type": "application/json", "idempotency-key": "async-fail", "x-requested-with": "GiraffeOracleAdmin" }, body: "{}",
     });
     assert.equal(response.status, 403);
     assert.deepEqual(await response.json(), { ok: false, errorCode: "PERMISSION_DENIED:asset:verify" });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("HTTP boundaries never return arbitrary dependency messages", async () => {
+  const config = loadConfig({ GIRAFFE_ORACLE_ENV: "test", GIRAFFE_ORACLE_EXTERNAL_WRITES: "true", GIRAFFE_ORACLE_TEST_WRITE_ACK: "synthetic-only" });
+  const controlPlane = { executeSignerRotation: async () => { throw new Error("credential at C:\\private\\key leaked"); } };
+  const server = createApp({ config, sourceRegistry: new SourceRegistry(), controlPlane, authenticateAdmin: async () => "oracle-test" });
+  await new Promise((resolve) => server.listen(0, "localhost", resolve));
+  try {
+    const response = await fetch(`http://localhost:${server.address().port}/v1/rwa/admin/signers/rotate/execute`, { method: "POST", headers: { "content-type": "application/json", "x-requested-with": "GiraffeOracleAdmin" }, body: "{}" });
+    const payload = await response.json();
+    assert.equal(response.status, 500);
+    assert.equal(payload.errorCode, "ADMIN_OPERATION_FAILED");
+    assert.equal(JSON.stringify(payload).includes("private"), false);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

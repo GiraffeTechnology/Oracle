@@ -12,6 +12,12 @@ const JSON_HEADERS = Object.freeze({
   "cache-control": "no-store",
   "x-content-type-options": "nosniff",
 });
+const SAFE_PUBLIC_ERROR_CODE = /^[A-Z][A-Z0-9_]{0,63}(?::[a-z][a-z0-9:_-]{0,63})?$/;
+
+function publicErrorCode(error, fallback) {
+  const candidate = typeof error?.code === "string" ? error.code : error?.message;
+  return SAFE_PUBLIC_ERROR_CODE.test(candidate ?? "") ? candidate : fallback;
+}
 
 function sendJson(response, statusCode, body) {
   response.writeHead(statusCode, JSON_HEADERS);
@@ -50,6 +56,7 @@ function publicWarehouse(warehouse) {
 }
 
 function adminErrorStatus(errorCode) {
+  if (errorCode === "ADMIN_OPERATION_FAILED") return 500;
   if (errorCode === "ADMIN_AUTHENTICATION_REQUIRED") return 401;
   if (errorCode.startsWith("PERMISSION_DENIED") || errorCode === "ACTOR_NOT_REGISTERED") return 403;
   if (errorCode.includes("IDEMPOTENCY_CONFLICT") || errorCode.includes("ALREADY_EXISTS")) return 409;
@@ -74,10 +81,11 @@ async function readJson(request, limit = 65536) {
 
 function assertSameOriginAdminWrite(request) {
   const origin = request.headers.origin;
-  if (!origin) return true;
-  let originHost;
-  try { originHost = new URL(origin).host; } catch { throw new Error("CSRF_ORIGIN_REJECTED"); }
-  if (!request.headers.host || originHost !== request.headers.host) throw new Error("CSRF_ORIGIN_REJECTED");
+  if (origin) {
+    let originHost;
+    try { originHost = new URL(origin).host; } catch { throw new Error("CSRF_ORIGIN_REJECTED"); }
+    if (!request.headers.host || originHost !== request.headers.host) throw new Error("CSRF_ORIGIN_REJECTED");
+  }
   if (request.headers["x-requested-with"] !== "GiraffeOracleAdmin") throw new Error("CSRF_REQUEST_HEADER_REQUIRED");
   return true;
 }
@@ -103,9 +111,10 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
         const result = verifyOracleAttestation(runtime.attestations, body.attestation, body.expectedSubject);
         sendJson(response, 200, result);
       } catch (error) {
-        sendJson(response, error.message === "PAYLOAD_TOO_LARGE" ? 413 : 400, {
+        const errorCode = publicErrorCode(error, "ATTESTATION_VERIFICATION_FAILED");
+        sendJson(response, errorCode === "PAYLOAD_TOO_LARGE" ? 413 : errorCode === "ATTESTATION_VERIFICATION_FAILED" ? 500 : 400, {
           valid: false,
-          errorCode: error.message,
+          errorCode,
         });
       }
       return;
@@ -164,7 +173,8 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
         }
         sendJson(response, 200, { ok: true, result: await operation() });
       } catch (error) {
-        sendJson(response, adminErrorStatus(error.message), { ok: false, errorCode: error.message });
+        const errorCode = publicErrorCode(error, "ADMIN_OPERATION_FAILED");
+        sendJson(response, adminErrorStatus(errorCode), { ok: false, errorCode });
       }
       return;
     }
@@ -187,7 +197,8 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
           : await adminOperations.snapshot(actorId);
         sendJson(response, 200, { ok: true, result });
       } catch (error) {
-        sendJson(response, adminErrorStatus(error.message), { ok: false, errorCode: error.message });
+        const errorCode = publicErrorCode(error, "ADMIN_OPERATION_FAILED");
+        sendJson(response, adminErrorStatus(errorCode), { ok: false, errorCode });
       }
       return;
     }
