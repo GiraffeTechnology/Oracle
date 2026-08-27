@@ -19,7 +19,8 @@ function delayedFixture() {
   let release;
   const gate = new Promise((resolve) => { release = resolve; });
   const fetched = [];
-  const sourcePorts = Object.fromEntries(Object.entries(RECORDS).map(([name, value]) => [name, {
+  const sourceRecords = structuredClone(RECORDS);
+  const sourcePorts = Object.fromEntries(Object.entries(sourceRecords).map(([name, value]) => [name, {
     async fetchByFixedReference(reference) {
       fetched.push({ name, reference });
       return { authenticated: true, sourceId: value.sourceId, schemaVersion: value.schemaVersion, record: value.record, recordHash: evidenceHash(value.record) };
@@ -32,7 +33,7 @@ function delayedFixture() {
       return resolveInput();
     },
   };
-  return { authoritative: new AuthoritativeOracleControlPlane({ controlPlane, sourcePorts, sourceDefinitions: SOURCES }), fetched, release };
+  return { authoritative: new AuthoritativeOracleControlPlane({ controlPlane, sourcePorts, sourceDefinitions: SOURCES }), fetched, release, sourceRecords };
 }
 
 test("authoritative verification snapshots fixed references before deferred resolution", async () => {
@@ -58,4 +59,13 @@ test("authoritative finalization snapshots references and rejects caller-derived
   await pending;
   assert.deepEqual(fetched.map(({ reference }) => reference).sort(), ["record:asset-original", "record:certificate-original", "record:warehouse-original"]);
   await assert.rejects(() => authoritative.finalizeSettlement({ actorId: "operator", idempotencyKey: "finalize-injected", request: { ...request, warehouseConfirmed: true } }), /AUTHORITATIVE_FINALIZATION_INPUT_INVALID/);
+});
+test("authenticated source records are detached from adapter-owned mutable objects", async () => {
+  const { authoritative, release, sourceRecords } = delayedFixture();
+  const pending = authoritative.verifyAsset({ actorId: "operator", idempotencyKey: "verify-detached", evidenceReferences: { asset: "record:asset", certificate: "record:certificate", warehouse: "record:warehouse" }, evidenceVersion: 1 });
+  release();
+  const resolved = await pending;
+  sourceRecords.registrySource.record.assetId = "asset-mutated-after-authentication";
+  assert.equal(resolved.asset.assetId, "asset-fixed");
+  assert.equal(Object.isFrozen(resolved.asset), true);
 });
