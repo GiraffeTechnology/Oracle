@@ -129,6 +129,22 @@ test("registered evidence schemas enforce types patterns enums formats and nulla
   }
 });
 
+test("asset verification requires matching warehouse identities and governed relocation", () => {
+  const { runtime, control } = controlFixture();
+  const first = evidenceBundle("asset-warehouse-identity");
+  assert.throws(() => control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "warehouse-id-mismatch", ...first, warehouse: { ...first.warehouse, warehouseId: "warehouse-other" }, evidenceVersion: 1 }), /ASSET_WAREHOUSE_ID_MISMATCH/);
+  assert.equal(runtime.recordStore.getAsset(first.asset.assetId), null);
+  control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "warehouse-id-initial", ...first, evidenceVersion: 1 });
+  runtime.stateEngine.transition({ subjectId: first.asset.assetId, to: "TRANSFER_PENDING", reasonHash: HASH_A, evidenceVersion: 2, occurredAt: NOW.toISOString() });
+  runtime.stateEngine.transition({ subjectId: first.asset.assetId, to: "REVIEW_REQUIRED", reasonHash: HASH_B, evidenceVersion: 3, occurredAt: NOW.toISOString() });
+  const replacement = evidenceBundle(first.asset.assetId);
+  replacement.asset = { ...replacement.asset, warehouseId: "warehouse-relocated", currentCertificateHash: HASH_A, currentCertificateVersion: 2 };
+  replacement.warehouse = { ...replacement.warehouse, warehouseId: "warehouse-relocated" };
+  replacement.certificate = { ...replacement.certificate, certificateHash: HASH_A, certificateVersion: 2, previousCertificateHash: HASH_B, wenbaoChangeRef: "change-warehouse-identity" };
+  assert.throws(() => control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "warehouse-id-relocation-refused", ...replacement, evidenceVersion: 4 }), /WAREHOUSE_ID_CHANGE_REQUIRES_GOVERNANCE/);
+  assert.equal(runtime.recordStore.getAsset(first.asset.assetId).warehouseId, first.asset.warehouseId);
+  assert.equal(runtime.recordStore.getWarehouse(first.asset.assetId).warehouseId, first.warehouse.warehouseId);
+});
 test("asset verification rejects authoritative records whose prerequisites are not valid", () => {
   const { control } = controlFixture();
   const valid = evidenceBundle("asset-invalid-prerequisite");
