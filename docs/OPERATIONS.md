@@ -25,6 +25,8 @@ all readiness, query and write routes then return fail-closed until a clean rest
 snapshot. Production verification accepts only fixed source record references and never caller-submitted facts.
 The production readiness route also requires an affirmative result from the deployment-owned dependency health
 boundary; a truthy adapter object alone is never considered ready.
+Production writes are serialized across runtime mutation, snapshot capture and commit. A durability failure
+poisons the runtime before the next queued write begins; queued work is rejected until a clean restart.
 
 ## Recovery objectives for production approval
 
@@ -38,3 +40,4 @@ boundary; a truthy adapter object alone is never considered ready.
 The repository is not sufficient to authorize production. Production requires accepted security, privacy
 and legal reviews; verified backups; signer ceremony; source contracts; deployment inventory; rollback;
 and written approval for each real asset class and jurisdiction.
+

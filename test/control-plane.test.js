@@ -224,6 +224,18 @@ test("outbox dispatcher retries and then publishes", async () => {
   assert.equal(outbox.pending().length, 0);
 });
 
+test("outbox forwards exhausted retries to the durable dead-letter publisher", async () => {
+  const outbox = new Outbox();
+  const event = outbox.enqueue({ eventType: "settlement.refund-required", subjectId: "asset-dead-letter", payloadHash: HASH_A, createdAt: NOW.toISOString() });
+  let deadLetters = 0;
+  const dispatcher = new OutboxDispatcher({ outbox, maxAttempts: 2, clock: () => NOW, publisher: { async publish() { throw new Error("offline"); }, async publishDeadLetter(candidate) { assert.equal(candidate.eventId, event.eventId); deadLetters += 1; } } });
+  assert.equal((await dispatcher.drain())[0].status, "RETRY");
+  assert.equal((await dispatcher.drain())[0].status, "RETRY");
+  assert.equal((await dispatcher.drain())[0].status, "DEAD_LETTERED");
+  assert.equal(deadLetters, 1);
+  assert.equal(outbox.pending().length, 0);
+});
+
 test("cancelled settlements emit an explicit refund-required notification", () => {
   const { runtime, control, outbox } = controlFixture();
   control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-refund", ...evidenceBundle("asset-refund"), evidenceVersion: 1 });
@@ -367,3 +379,4 @@ test("fixed source transport accepts references but no endpoint", async () => {
   assert.equal(calls[0].sourceRegistrationId, "registry-a");
   await assert.rejects(() => adapter.fetchByFixedReference("https://example.invalid"), /REFERENCE_INVALID/);
 });
+

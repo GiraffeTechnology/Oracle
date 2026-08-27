@@ -52,7 +52,11 @@ export class DurableOracleControlPlane {
   }
 
   #serialize(operation) {
-    const current = this.writeTail.then(operation, operation);
+    const guarded = () => {
+      if (this.runtime.operationalState.compromised) throw new Error("DURABLE_STATE_COMPROMISED");
+      return operation();
+    };
+    const current = this.writeTail.then(guarded, guarded);
     this.writeTail = current.then(() => undefined, () => undefined);
     return current;
   }
@@ -90,3 +94,4 @@ for (const method of WRITE_METHODS) {
     return this.execute(method, args);
   };
 }
+

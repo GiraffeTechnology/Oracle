@@ -54,6 +54,9 @@ accept caller-selected network endpoints or credentials.
 - Production assembly installs the resolved publisher in the outbox dispatcher, and production startup starts
   its single non-overlapping drain worker. Failed publishes remain pending for retry; the dispatcher never
   turns an unacknowledged publish into a successful delivery.
+- The publisher must also implement idempotent `publishDeadLetter(event)`. After the fixed retry limit, the
+  dispatcher forwards the complete non-sensitive event to that durable channel and emits a monitoring event;
+  a failed dead-letter publish remains pending and raises a stable monitoring failure.
 - Delivery is at-least-once; consumers must use `eventId` for idempotency.
 - Payloads contain hashes and non-sensitive status only.
 
@@ -67,3 +70,4 @@ accept caller-selected network endpoints or credentials.
 The current PR contains the production assembly, fixed-reference source gate, MySQL durability/recovery adapter
 and synthetic tests. It contains no production credentials or endpoints; deployment-owned adapter modules must
 be absolute regular files with exact SHA-256 pins and remain independently reviewable.
+

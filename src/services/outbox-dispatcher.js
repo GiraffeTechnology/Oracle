@@ -7,7 +7,14 @@ export class OutboxDispatcher {
     const results = [];
     for (const event of this.outbox.pending(limit)) {
       if (event.attempts >= this.maxAttempts) {
-        results.push({ eventId: event.eventId, status: "DEAD_LETTER" });
+        try {
+          if (typeof this.publisher.publishDeadLetter !== "function") throw new Error("DEAD_LETTER_PUBLISHER_UNAVAILABLE");
+          await this.publisher.publishDeadLetter(event);
+          this.outbox.markDeadLettered(event.eventId, this.clock().toISOString());
+          results.push({ eventId: event.eventId, status: "DEAD_LETTERED" });
+        } catch {
+          results.push({ eventId: event.eventId, status: "DEAD_LETTER_RETRY" });
+        }
         continue;
       }
       this.outbox.recordAttempt(event.eventId);
@@ -22,3 +29,4 @@ export class OutboxDispatcher {
     return results;
   }
 }
+

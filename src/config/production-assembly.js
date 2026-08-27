@@ -68,7 +68,7 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
     const result = await assembled.ports.monitoring.checkReadiness();
     return Object.freeze({ ok: result?.ok === true });
   };
-  if (typeof assembled.ports.eventPublisher.publish !== "function") throw new Error("PRODUCTION_EVENT_PUBLISHER_INVALID");
+  if (typeof assembled.ports.eventPublisher.publish !== "function" || typeof assembled.ports.eventPublisher.publishDeadLetter !== "function") throw new Error("PRODUCTION_EVENT_PUBLISHER_INVALID");
   const outboxDispatcher = new OutboxDispatcher({ outbox: runtime.outbox, publisher: assembled.ports.eventPublisher, clock });
   let backgroundWorker = null;
   const startBackgroundWorkers = ({ intervalMs = 1000 } = {}) => {
@@ -80,7 +80,11 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
       if (stopped || draining) return;
       draining = true;
       try {
-        await outboxDispatcher.drain();
+        const results = await outboxDispatcher.drain();
+        for (const result of results) {
+          if (result.status === "DEAD_LETTER_RETRY") assembled.ports.monitoring?.reportFailure?.("OUTBOX_DEAD_LETTER_FAILED");
+          if (result.status === "DEAD_LETTERED") assembled.ports.monitoring?.reportEvent?.("OUTBOX_EVENT_DEAD_LETTERED");
+        }
       } catch {
         assembled.ports.monitoring?.reportFailure?.("OUTBOX_DISPATCH_FAILED");
       } finally {
@@ -108,3 +112,4 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
   };
   return Object.freeze({ ...assembled, runtime, sourceRegistry: runtime.sourceRegistry, controlPlane, adminOperations, authenticateAdmin, readinessCheck, outboxDispatcher, startBackgroundWorkers });
 }
+

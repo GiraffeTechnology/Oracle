@@ -7,13 +7,13 @@ export class Outbox {
   }
 
   enqueue({ eventType, subjectId, payloadHash, createdAt }) {
-    const event = Object.freeze({ eventId: randomUUID(), eventType, subjectId, payloadHash, createdAt, attempts: 0, publishedAt: null, durable: !this.requireDurable });
+    const event = Object.freeze({ eventId: randomUUID(), eventType, subjectId, payloadHash, createdAt, attempts: 0, publishedAt: null, deadLetteredAt: null, durable: !this.requireDurable });
     this.#events.set(event.eventId, event);
     return event;
   }
 
   pending(limit = 100) {
-    return [...this.#events.values()].filter((event) => !event.publishedAt && (!this.requireDurable || event.durable === true)).sort((a, b) => a.createdAt.localeCompare(b.createdAt)).slice(0, limit);
+    return [...this.#events.values()].filter((event) => !event.publishedAt && !event.deadLetteredAt && (!this.requireDurable || event.durable === true)).sort((a, b) => a.createdAt.localeCompare(b.createdAt)).slice(0, limit);
   }
 
   list() {
@@ -22,7 +22,7 @@ export class Outbox {
 
   recordAttempt(eventId) {
     const current = this.#events.get(eventId);
-    if (!current || current.publishedAt || (this.requireDurable && current.durable !== true)) throw new Error("OUTBOX_EVENT_NOT_PENDING");
+    if (!current || current.publishedAt || current.deadLetteredAt || (this.requireDurable && current.durable !== true)) throw new Error("OUTBOX_EVENT_NOT_PENDING");
     const next = Object.freeze({ ...current, attempts: current.attempts + 1 });
     this.#events.set(eventId, next);
     return next;
@@ -33,6 +33,16 @@ export class Outbox {
     if (!current) throw new Error("OUTBOX_EVENT_NOT_FOUND");
     if (current.publishedAt) return current;
     const next = Object.freeze({ ...current, publishedAt });
+    this.#events.set(eventId, next);
+    return next;
+  }
+
+  markDeadLettered(eventId, deadLetteredAt) {
+    const current = this.#events.get(eventId);
+    if (!current) throw new Error("OUTBOX_EVENT_NOT_FOUND");
+    if (current.publishedAt) throw new Error("OUTBOX_EVENT_ALREADY_PUBLISHED");
+    if (current.deadLetteredAt) return current;
+    const next = Object.freeze({ ...current, deadLetteredAt });
     this.#events.set(eventId, next);
     return next;
   }
@@ -52,3 +62,4 @@ export class Outbox {
     for (const event of state.events) this.#events.set(event.eventId, Object.freeze({ ...event, durable: this.requireDurable ? true : event.durable !== false }));
   }
 }
+

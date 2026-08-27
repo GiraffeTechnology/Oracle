@@ -36,6 +36,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
   const recordBySource = { "authoritative-registry": evidence.asset, "authoritative-certificate": evidence.certificate, "authoritative-warehouse": evidence.warehouse };
   const persisted = [];
   const published = [];
+  const deadLetters = [];
   let sourceFetches = 0;
   let markPersistStarted;
   const persistStarted = new Promise((resolve) => { markPersistStarted = resolve; });
@@ -61,7 +62,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
         return { async fetchByFixedReference() { sourceFetches += 1; const record = recordBySource[source.sourceId]; return { authenticated: true, sourceId: source.sourceId, schemaVersion: source.schemaVersions[0], record, recordHash: evidenceHash(record) }; } };
       }
       if (kind === "admin-authenticator") return { async authenticate() { return { actorId: "production-operator", roles: ["ORACLE_OPERATOR"] }; } };
-      if (kind === "event-publisher") return { async publish(event) { published.push(event); } };
+      if (kind === "event-publisher") return { async publish(event) { published.push(event); }, async publishDeadLetter(event) { deadLetters.push(event); } };
       if (kind === "monitoring") return { async checkReadiness() { return { ok: true }; } };
       return { kind, sourceById };
     },
@@ -72,7 +73,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
     clock: () => NOW,
   });
   await assembly.authenticateAdmin({ headers: {} });
-  return { assembly, persisted, published, persistStarted, getSourceFetches: () => sourceFetches };
+  return { assembly, persisted, published, deadLetters, persistStarted, getSourceFetches: () => sourceFetches };
 }
 
 test("production assembly fetches three authenticated sources and persists the authoritative mutation", async () => {
@@ -173,6 +174,20 @@ test("different durable writes serialize runtime mutation with snapshot persiste
   assert.equal(assembly.runtime.tokenIndex.byAsset("asset-production").tokenId, "1");
 });
 
+test("queued writes are cancelled after the preceding durable commit fails", async () => {
+  let releasePersistence;
+  const persistenceGate = new Promise((resolve) => { releasePersistence = resolve; });
+  const { assembly, persistStarted } = await productionFixture({ persistenceGate, failPersistence: true });
+  const verification = assembly.controlPlane.verifyAsset({ actorId: "production-operator", idempotencyKey: "production-poison-verify", evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" }, evidenceVersion: 1 });
+  await persistStarted;
+  const binding = assembly.controlPlane.bindToken({ actorId: "production-operator", idempotencyKey: "production-poison-bind", binding: { assetId: "asset-production", chainId: "560048", contract: "test-only-contract", tokenId: "2" } });
+  releasePersistence();
+  const [first, second] = await Promise.allSettled([verification, binding]);
+  assert.equal(first.reason.message, "MYSQL_DURABILITY_FAILURE");
+  assert.equal(second.reason.message, "DURABLE_STATE_COMPROMISED");
+  assert.equal(assembly.runtime.tokenIndex.byAsset("asset-production"), null);
+});
+
 test("durable audit replay rechecks current export authorization", async () => {
   const command = { actorId: "former-auditor", idempotencyKey: "durable-export", purpose: "regulatory-audit", adminOperations: { authorizeExport() { throw new Error("PERMISSION_DENIED:audit:export"); } } };
   const { adminOperations: _capability, ...serializable } = command;
@@ -249,3 +264,4 @@ test("restart imports hash-protected attestations issued by a retired signer", (
   restored.importState(original.exportState());
   assert.deepEqual(restored.get(historical.envelope.attestationId), historical);
 });
+
