@@ -58,7 +58,7 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
   const signerRotationBroker = assembled.ports.signer;
   if (typeof signerRotationBroker.rotate !== "function" || typeof signerRotationBroker.reconcile !== "function" || typeof signerRotationBroker.activateRuntime !== "function") throw new Error("PRODUCTION_SIGNER_ROTATION_BROKER_INVALID");
   if (typeof assembled.ports.repository.loadStateSnapshot !== "function") throw new Error("PRODUCTION_STATE_RESTORE_UNAVAILABLE");
-  if (["recordOutboxAttempt", "recordOutboxDeliveryStateAttempt", "recordOutboxDeadLetterAttempt", "markOutboxPublished", "markOutboxDeadLettered"].some((method) => typeof assembled.ports.repository[method] !== "function")) throw new Error("PRODUCTION_OUTBOX_DELIVERY_STORE_INVALID");
+  if (["recordOutboxAttempt", "recordOutboxDeliveryStateAttempt", "recordOutboxDeadLetterAttempt", "recordOutboxDeadLetterStateAttempt", "markOutboxPublished", "markOutboxDeadLettered"].some((method) => typeof assembled.ports.repository[method] !== "function")) throw new Error("PRODUCTION_OUTBOX_DELIVERY_STORE_INVALID");
   restoreProductionState(runtime, dualControl, await assembled.ports.repository.loadStateSnapshot());
   const baseControlPlane = new OracleControlPlane({ runtime, authorizer, dualControl, commandJournal: new CommandJournal(), outbox: runtime.outbox, signerRotationBroker, clock });
   const durableControlPlane = new DurableOracleControlPlane({ controlPlane: baseControlPlane, repository: assembled.ports.repository, runtime, dualControl });
@@ -67,7 +67,7 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
   if (typeof assembled.ports.monitoring?.checkReadiness !== "function") throw new Error("PRODUCTION_READINESS_BOUNDARY_INVALID");
   if (typeof assembled.ports.alerting?.reportFailure !== "function" || typeof assembled.ports.alerting.reportEvent !== "function") throw new Error("PRODUCTION_ALERTING_BOUNDARY_INVALID");
   const readinessCheck = async () => {
-    if (runtime.operationalState.compromised || runtime.operationalState.alertingFailed) return Object.freeze({ ok: false });
+    if (runtime.operationalState.compromised || runtime.operationalState.alertingFailed || runtime.operationalState.signerRecoveryRequired) return Object.freeze({ ok: false });
     const result = await assembled.ports.monitoring.checkReadiness();
     return Object.freeze({ ok: result?.ok === true });
   };
@@ -79,13 +79,16 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
     if (backgroundWorker) return backgroundWorker;
     let stopped = false;
     let draining = false;
+    const failedAlertBoundaries = new Set();
     const reportAlert = async (method, code) => {
+      const boundary = method + ":" + code;
       try {
         await assembled.ports.alerting[method](code);
-        runtime.operationalState.alertingFailed = false;
+        failedAlertBoundaries.delete(boundary);
       } catch {
-        runtime.operationalState.alertingFailed = true;
+        failedAlertBoundaries.add(boundary);
       }
+      runtime.operationalState.alertingFailed = failedAlertBoundaries.size > 0;
     };
     const drain = async () => {
       if (stopped || draining) return;
