@@ -7,6 +7,8 @@ const RECORD_KINDS = Object.freeze({
   warehouse: Object.freeze({ schemaVersion: "warehouse-record.v1", sourceKind: "WAREHOUSE", portName: "warehouseSource" }),
 });
 
+const FINALIZATION_INPUT_FIELDS = new Set(["settlementId", "snapshotHash", "evidenceVersion", "assetReference", "certificateReference", "warehouseReference"]);
+
 function assertFixedReference(value) {
   if (typeof value !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9:._/-]{2,255}$/.test(value) || /^(?:https?|wss?):/i.test(value)) throw new Error("AUTHORITATIVE_REFERENCE_INVALID");
   return value;
@@ -45,14 +47,22 @@ export class AuthoritativeOracleControlPlane {
   }
 
   async finalizeSettlement({ actorId, idempotencyKey, request }) {
+    if (!request || Object.keys(request).some((key) => !FINALIZATION_INPUT_FIELDS.has(key))) throw new Error("AUTHORITATIVE_FINALIZATION_INPUT_INVALID");
     const commandInput = { actorId, idempotencyKey, request };
     return this.controlPlane.executeResolved("finalizeSettlement", commandInput, async () => {
-      const source = this.sourceDefinitions.find(({ kind }) => kind === "CERTIFICATE_AUTHORITY");
-      const certificate = await fetchAuthenticated(this.sourcePorts.certificateSource, request?.certificateReference, { sourceId: source?.sourceId, schemaVersion: "certificate-record.v1" });
-      const { certificateReference, ...safeRequest } = request ?? {};
+      const records = {};
+      const evidenceSources = {};
+      await Promise.all(Object.entries(RECORD_KINDS).map(async ([name, definition]) => {
+        const source = this.sourceDefinitions.find(({ kind }) => kind === definition.sourceKind);
+        if (!source) throw new Error("AUTHORITATIVE_SOURCE_DEFINITION_MISSING");
+        records[name] = await fetchAuthenticated(this.sourcePorts[definition.portName], request[`${name}Reference`], { sourceId: source.sourceId, schemaVersion: definition.schemaVersion });
+        evidenceSources[name] = source.sourceId;
+      }));
+      const { assetReference, certificateReference, warehouseReference, ...safeRequest } = request;
+      void assetReference;
       void certificateReference;
-      const evidenceSources = { certificate: source.sourceId };
-      return { actorId, idempotencyKey, request: { ...safeRequest, certificate, certificateSourceId: source.sourceId, certificateSourceRecordHash: evidenceHash(certificate), certificateAuthentication: sealAuthenticatedEvidence({ records: { certificate }, evidenceSources }) } };
+      void warehouseReference;
+      return { actorId, idempotencyKey, request: { ...safeRequest, ...records, evidenceSources, evidenceRecordHashes: Object.freeze(Object.fromEntries(Object.entries(records).map(([name, record]) => [name, evidenceHash(record)]))), evidenceAuthentication: sealAuthenticatedEvidence({ records, evidenceSources }) } };
     });
   }
 }
