@@ -246,6 +246,7 @@ export class OracleControlPlane {
       privateMaterialIncluded: false,
       });
       } catch (error) {
+        this.runtime.operationalState.signerRecoveryRequired = true;
         this.dualControl.markRecoveryRequired(actionId, { failedAt: this.clock().toISOString(), errorCode: controlledFailureCode(error, "SIGNER_ROTATION_RECOVERY_REQUIRED") });
         throw error;
       }

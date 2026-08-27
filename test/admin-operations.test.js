@@ -164,12 +164,14 @@ test("ambiguous signer rotation is reconciled without replaying rotation", async
   controlPlane.approveAction({ actorId: "approver-b", actionId: "rotate-recovery" });
   await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-recovery", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH }));
   assert.equal(dualControl.list()[0].status, "RECOVERY_REQUIRED");
+  assert.equal(runtime.operationalState.signerRecoveryRequired, true);
   const result = await controlPlane.reconcileSignerRotation({ actorId: "security-a", actionId: "rotate-recovery", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH });
   assert.equal(result.applied, true);
   assert.equal(dualControl.list()[0].status, "EXECUTED");
   assert.equal(rotateCalls, 1);
   assert.equal(reconcileCalls, 1);
   assert.equal(runtime.attestations.signerSetId, "new");
+  assert.equal(runtime.operationalState.signerRecoveryRequired, false);
 });
 
 test("reconciliation accepts a runtime already switched before activation acknowledgement", async () => {
@@ -254,3 +256,4 @@ test("admin dashboard API requires authentication and rejects cross-origin write
     await new Promise((resolve) => server.close(resolve));
   }
 });
+

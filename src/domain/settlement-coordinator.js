@@ -49,7 +49,7 @@ export class SettlementCoordinator {
     const targetBusinessDays = this.settlementProfile?.targetBusinessDays;
     if (!this.businessCalendar || !Number.isInteger(targetBusinessDays) || targetBusinessDays < 1 || !this.settlementProfile?.businessCalendarRef) throw new Error("SETTLEMENT_CALENDAR_PROFILE_REQUIRED");
     const deadline = this.businessCalendar.addBusinessDays(now, targetBusinessDays);
-    if (!validBoundedString(actorId, 128)) throw new Error("SETTLEMENT_SNAPSHOT_INCOMPLETE");
+    if (!validBoundedString(actorId, 64)) throw new Error("SETTLEMENT_SNAPSHOT_INCOMPLETE");
     const normalizedDeadlineAt = deadline.toISOString();
     const intent = Object.freeze({
       schemaVersion: "giraffe-settlement-intent.v1",
