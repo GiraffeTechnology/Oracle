@@ -17,6 +17,13 @@ export class OutboxDispatcher {
           this.outbox.recordAttempt(event.eventId);
           results.push({ eventId: event.eventId, status: "RETRY" });
         } catch {
+          const stateAttempts = (event.deliveryStateAttempts ?? 0) + 1;
+          try {
+            await this.deliveryStore?.recordOutboxDeliveryStateAttempt(event.eventId, stateAttempts);
+          } catch {
+            // In-memory rotation remains fail-safe when both durable counters are unavailable.
+          }
+          this.outbox.recordDeliveryStateAttempt(event.eventId);
           results.push({ eventId: event.eventId, status: "DELIVERY_STATE_RETRY" });
         }
         continue;
@@ -48,6 +55,13 @@ export class OutboxDispatcher {
           this.outbox.recordDeadLetterAttempt(event.eventId);
           results.push({ eventId: event.eventId, status: "DEAD_LETTER_RETRY" });
         } catch {
+          const stateAttempts = (event.deadLetterStateAttempts ?? 0) + 1;
+          try {
+            await this.deliveryStore?.recordOutboxDeadLetterStateAttempt(event.eventId, stateAttempts);
+          } catch {
+            // In-memory rotation remains fail-safe when both durable counters are unavailable.
+          }
+          this.outbox.recordDeadLetterStateAttempt(event.eventId);
           results.push({ eventId: event.eventId, status: "DEAD_LETTER_STATE_RETRY" });
         }
         continue;
@@ -58,6 +72,13 @@ export class OutboxDispatcher {
         this.outbox.markDeadLettered(event.eventId, deadLetteredAt);
         results.push({ eventId: event.eventId, status: "DEAD_LETTERED" });
       } catch {
+        const attempts = (event.deadLetterStateAttempts ?? 0) + 1;
+        try {
+          await this.deliveryStore?.recordOutboxDeadLetterStateAttempt(event.eventId, attempts);
+        } catch {
+          // In-memory rotation remains fail-safe when the durable retry counter is unavailable.
+        }
+        this.outbox.recordDeadLetterStateAttempt(event.eventId);
         results.push({ eventId: event.eventId, status: "DEAD_LETTER_STATE_RETRY" });
       }
     }
