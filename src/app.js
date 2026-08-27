@@ -153,6 +153,7 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
         const idempotencyKey = request.headers["idempotency-key"];
         if (typeof idempotencyKey !== "string" || !/^[a-zA-Z0-9._:-]{8,128}$/.test(idempotencyKey)) throw new Error("IDEMPOTENCY_KEY_REQUIRED");
         const settlementAction = requestUrl.pathname.match(/^\/v1\/rwa\/settlements\/([a-zA-Z0-9_-]{3,128})\/(finalize|cancel|dispute|timeout)$/);
+        if (settlementAction && Object.hasOwn(body, "settlementId")) throw new Error("SETTLEMENT_BODY_ID_REFUSED");
         const routes = {
           "/v1/rwa/admin/assets/verify": () => controlPlane.verifyAsset({ actorId, idempotencyKey, ...body }),
           "/v1/rwa/admin/tokens/bind": () => controlPlane.bindToken({ actorId, idempotencyKey, binding: body }),
