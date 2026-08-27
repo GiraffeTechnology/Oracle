@@ -30,6 +30,12 @@ export class SettlementCoordinator {
     this.clock = clock;
   }
 
+  #updateAssetStatus(assetId, oracleStatus, evidenceVersion, updatedAt) {
+    const current = this.recordStore.getAsset(assetId);
+    const updated = Object.freeze({ ...current, oracleStatus, evidenceVersion, updatedAt });
+    this.recordStore.putAsset(updated, this.recordStore.provenance("REGISTRY", assetId));
+  }
+
   begin(request) {
     if (Object.hasOwn(request ?? {}, "snapshotHash") || Object.hasOwn(request ?? {}, "t0SnapshotHash")) {
       throw new Error("SETTLEMENT_CALLER_SNAPSHOT_REFUSED");
@@ -84,6 +90,7 @@ export class SettlementCoordinator {
       evidenceVersion,
       occurredAt: now.toISOString(),
     });
+    this.#updateAssetStatus(assetId, OracleStatus.TRANSFER_PENDING, evidenceVersion, now.toISOString());
     this.attestations?.revokeBySubject({
       assetId,
       purpose: "transfer-eligibility",
@@ -135,6 +142,7 @@ export class SettlementCoordinator {
     if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
     const now = this.clock().toISOString();
     this.stateEngine.transition({ subjectId: current.assetId, to: OracleStatus.REVIEW_REQUIRED, reasonHash, evidenceVersion, occurredAt: now });
+    this.#updateAssetStatus(current.assetId, OracleStatus.REVIEW_REQUIRED, evidenceVersion, now);
     const cancelled = Object.freeze({ ...current, status: "CANCELLED", failureReasonHash: reasonHash, cancelledAt: now });
     this.#settlements.set(settlementId, cancelled);
     this.auditJournal.append({ type: "settlement.cancelled", subjectId: current.assetId, payloadHash: reasonHash, actorId, occurredAt: now });
@@ -148,6 +156,7 @@ export class SettlementCoordinator {
     if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
     const now = this.clock().toISOString();
     this.stateEngine.transition({ subjectId: current.assetId, to: OracleStatus.REVIEW_REQUIRED, reasonHash, evidenceVersion, occurredAt: now });
+    this.#updateAssetStatus(current.assetId, OracleStatus.REVIEW_REQUIRED, evidenceVersion, now);
     const disputed = Object.freeze({ ...current, status: "DISPUTED", failureReasonHash: reasonHash, disputedAt: now });
     this.#settlements.set(settlementId, disputed);
     this.auditJournal.append({ type: "settlement.disputed", subjectId: current.assetId, payloadHash: reasonHash, actorId, occurredAt: now });
@@ -162,6 +171,7 @@ export class SettlementCoordinator {
     if (this.clock() <= new Date(current.deadlineAt)) throw new Error("SETTLEMENT_DEADLINE_NOT_REACHED");
     const now = this.clock().toISOString();
     this.stateEngine.transition({ subjectId: current.assetId, to: OracleStatus.REVIEW_REQUIRED, reasonHash, evidenceVersion, occurredAt: now });
+    this.#updateAssetStatus(current.assetId, OracleStatus.REVIEW_REQUIRED, evidenceVersion, now);
     const timedOut = Object.freeze({ ...current, status: "TIMED_OUT", failureReasonHash: reasonHash, timedOutAt: now });
     this.#settlements.set(settlementId, timedOut);
     this.auditJournal.append({ type: "settlement.timed-out", subjectId: current.assetId, payloadHash: reasonHash, actorId, occurredAt: now });
