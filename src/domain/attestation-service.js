@@ -1,8 +1,8 @@
-import { randomUUID, sign, verify } from "node:crypto";
+import { createHash, randomUUID, sign, verify } from "node:crypto";
 import { canonicalJson, evidenceHash } from "./canonical-json.js";
 
-function signingBytes(envelope) {
-  return Buffer.from(canonicalJson(envelope), "utf8");
+function signingDigest(envelope) {
+  return createHash("sha256").update(canonicalJson(envelope), "utf8").digest();
 }
 
 export class AttestationService {
@@ -12,7 +12,7 @@ export class AttestationService {
   #verifyBytes;
   #verifyHistoricalBytes;
 
-  constructor({ signerSetId, privateKey = null, publicKey = null, signBytes = null, verifyBytes = null, verifyHistoricalBytes = null, revocations, signerPolicy = null, clock = () => new Date() }) {
+  constructor({ signerSetId, privateKey = null, publicKey = null, signBytes = null, verifyBytes = null, verifyHistoricalBytes = null, revocations, signerPolicy = null, environment = "test", clock = () => new Date() }) {
     const keyPairMode = privateKey && publicKey && !signBytes && !verifyBytes;
     const callbackMode = !privateKey && !publicKey && typeof signBytes === "function" && typeof verifyBytes === "function";
     if (!signerSetId || !revocations || (!keyPairMode && !callbackMode)) throw new Error("ATTESTATION_DEPENDENCY_MISSING");
@@ -26,6 +26,7 @@ export class AttestationService {
     this.revocations = revocations;
     if (signerPolicy && signerPolicy.record.signerSetId !== signerSetId) throw new Error("SIGNER_POLICY_SET_MISMATCH");
     this.signerPolicy = signerPolicy;
+    this.environment = environment;
     this.clock = clock;
   }
 
@@ -35,8 +36,8 @@ export class AttestationService {
     if (nextSignerSetId === expectedCurrentSignerSetId) throw new Error("SIGNER_SET_ACTIVATION_INVALID");
     if (!signerPolicy || signerPolicy.record?.signerSetId !== nextSignerSetId) throw new Error("SIGNER_POLICY_REPLACEMENT_REQUIRED");
     signerPolicy.assertActive();
-    const challenge = Buffer.from("giraffe-oracle-signer-backend-self-test-v1", "utf8");
-    const tamperedChallenge = Buffer.from("giraffe-oracle-signer-backend-self-test-v1-tampered", "utf8");
+    const challenge = createHash("sha256").update("giraffe-oracle-signer-backend-self-test-v1", "utf8").digest();
+    const tamperedChallenge = createHash("sha256").update("giraffe-oracle-signer-backend-self-test-v1-tampered", "utf8").digest();
     let testSignature;
     let valid;
     let tamperedValid;
@@ -72,6 +73,10 @@ export class AttestationService {
     if (!Number.isInteger(validForSeconds) || validForSeconds < 1 || validForSeconds > 86400) {
       throw new Error("ATTESTATION_TTL_INVALID");
     }
+    if (this.signerPolicy) {
+      if (typeof this.signerPolicy.authorizeAttestation !== "function") throw new Error("SIGNER_POLICY_AUTHORIZATION_MISSING");
+      this.signerPolicy.authorizeAttestation({ environment: this.environment, schemaVersion: "giraffe-attestation.v1", purpose: subject.purpose, subject: Object.freeze({ ...subject }), validForSeconds, factType });
+    }
     if (this.#issuedNonces.has(nonce)) throw new Error("ATTESTATION_NONCE_REUSED");
     const observedAt = this.clock();
     const expiresAt = new Date(observedAt.getTime() + validForSeconds * 1000);
@@ -90,7 +95,7 @@ export class AttestationService {
       revocationRef,
       signerSetId: this.signerSetId,
     });
-    const signatureBytes = this.#signBytes(signingBytes(envelope));
+    const signatureBytes = this.#signBytes(signingDigest(envelope));
     if (signatureBytes && typeof signatureBytes.then === "function") throw new Error("SIGNER_BACKEND_ASYNC_UNSUPPORTED");
     if (!Buffer.isBuffer(signatureBytes) && !(signatureBytes instanceof Uint8Array)) throw new Error("SIGNER_BACKEND_RESULT_INVALID");
     const attestation = Object.freeze({
@@ -123,7 +128,7 @@ export class AttestationService {
     try { this.signerPolicy?.assertActive(); } catch { return { valid: false, errorCode: "SIGNER_SET_NOT_ACTIVE" }; }
     const { envelope, envelopeHash, signature } = attestation ?? {};
     if (!envelope || !signature || evidenceHash(envelope) !== envelopeHash) return { valid: false, errorCode: "HASH_INVALID" };
-    const signatureValid = this.#verifyBytes(signingBytes(envelope), Buffer.from(signature, "base64url"));
+    const signatureValid = this.#verifyBytes(signingDigest(envelope), Buffer.from(signature, "base64url"));
     if (signatureValid && typeof signatureValid.then === "function") return { valid: false, errorCode: "SIGNER_BACKEND_ASYNC_UNSUPPORTED" };
     if (signatureValid !== true) {
       return { valid: false, errorCode: "SIGNATURE_INVALID" };
@@ -148,7 +153,7 @@ export class AttestationService {
     const seenIds = new Set();
     for (const attestation of state.attestations) {
       const { envelope, envelopeHash, signature } = attestation ?? {};
-      if (!envelope || typeof envelope.attestationId !== "string" || !envelope.attestationId || seenIds.has(envelope.attestationId) || typeof envelope.signerSetId !== "string" || !envelope.signerSetId || evidenceHash(envelope) !== envelopeHash || !nonceSet.has(envelope.nonce) || typeof signature !== "string" || !/^[A-Za-z0-9_-]+$/.test(signature) || Buffer.from(signature, "base64url").length === 0 || this.#verifyHistoricalBytes(envelope.signerSetId, signingBytes(envelope), Buffer.from(signature, "base64url")) !== true) throw new Error("ATTESTATION_STATE_IMPORT_INVALID");
+      if (!envelope || typeof envelope.attestationId !== "string" || !envelope.attestationId || seenIds.has(envelope.attestationId) || typeof envelope.signerSetId !== "string" || !envelope.signerSetId || evidenceHash(envelope) !== envelopeHash || !nonceSet.has(envelope.nonce) || typeof signature !== "string" || !/^[A-Za-z0-9_-]+$/.test(signature) || Buffer.from(signature, "base64url").length === 0 || this.#verifyHistoricalBytes(envelope.signerSetId, signingDigest(envelope), Buffer.from(signature, "base64url")) !== true) throw new Error("ATTESTATION_STATE_IMPORT_INVALID");
       seenIds.add(envelope.attestationId);
       this.#attestations.set(envelope.attestationId, Object.freeze({ envelope: Object.freeze({ ...envelope, subject: Object.freeze({ ...envelope.subject }) }), envelopeHash, signature }));
     }

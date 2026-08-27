@@ -23,6 +23,8 @@ The application stores each authoritative projection, audit/outbox delta, durabl
 hash-verified recovery snapshot in one MySQL transaction. A durability failure marks the runtime compromised;
 all readiness, query and write routes then return fail-closed until a clean restart restores the last committed
 snapshot. Production verification accepts only fixed source record references and never caller-submitted facts.
+The production readiness route also requires an affirmative result from the deployment-owned dependency health
+boundary; a truthy adapter object alone is never considered ready.
 
 ## Recovery objectives for production approval
 

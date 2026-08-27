@@ -62,6 +62,12 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
   const durableControlPlane = new DurableOracleControlPlane({ controlPlane: baseControlPlane, repository: assembled.ports.repository, runtime, dualControl });
   const controlPlane = new AuthoritativeOracleControlPlane({ controlPlane: durableControlPlane, sourcePorts: assembled.ports, sourceDefinitions });
   const adminOperations = new AdminOperations({ runtime, sourceRegistry: runtime.sourceRegistry, authorizer, reviewQueue: runtime.reviewQueue, dualControl, clock });
+  if (typeof assembled.ports.monitoring?.checkReadiness !== "function") throw new Error("PRODUCTION_READINESS_BOUNDARY_INVALID");
+  const readinessCheck = async () => {
+    if (runtime.operationalState.compromised) return Object.freeze({ ok: false });
+    const result = await assembled.ports.monitoring.checkReadiness();
+    return Object.freeze({ ok: result?.ok === true });
+  };
   if (typeof assembled.ports.eventPublisher.publish !== "function") throw new Error("PRODUCTION_EVENT_PUBLISHER_INVALID");
   const outboxDispatcher = new OutboxDispatcher({ outbox: runtime.outbox, publisher: assembled.ports.eventPublisher, clock });
   let backgroundWorker = null;
@@ -100,5 +106,5 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
     authorizer.registerActor(identity.actorId, identity.roles);
     return identity.actorId;
   };
-  return Object.freeze({ ...assembled, runtime, sourceRegistry: runtime.sourceRegistry, controlPlane, adminOperations, authenticateAdmin, outboxDispatcher, startBackgroundWorkers });
+  return Object.freeze({ ...assembled, runtime, sourceRegistry: runtime.sourceRegistry, controlPlane, adminOperations, authenticateAdmin, readinessCheck, outboxDispatcher, startBackgroundWorkers });
 }

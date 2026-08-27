@@ -10,7 +10,7 @@ const assembly = config.environment === "production"
   : config.environment === "test" ? assembleIsolatedTestApplication({ config }) : null;
 const runtime = assembly?.runtime ?? null;
 const sourceRegistry = assembly?.sourceRegistry ?? new SourceRegistry();
-const server = createApp({ config, sourceRegistry, runtime, controlPlane: assembly?.controlPlane, adminOperations: assembly?.adminOperations, authenticateAdmin: assembly?.authenticateAdmin, l2Profile: assembly?.l2 ?? null, protocolProfile: assembly?.l3 ?? null });
+const server = createApp({ config, sourceRegistry, runtime, controlPlane: assembly?.controlPlane, adminOperations: assembly?.adminOperations, authenticateAdmin: assembly?.authenticateAdmin, readinessCheck: assembly?.readinessCheck, l2Profile: assembly?.l2 ?? null, protocolProfile: assembly?.l3 ?? null });
 
 server.listen(config.port, config.host, () => {
   assembly?.startBackgroundWorkers?.();

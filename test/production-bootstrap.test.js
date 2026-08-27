@@ -13,6 +13,8 @@ import { SignerSetPolicy } from "../src/domain/signer-set-policy.js";
 import { RevocationRegistry } from "../src/domain/revocation-registry.js";
 import { AttestationService } from "../src/domain/attestation-service.js";
 import { DurableOracleControlPlane } from "../src/services/durable-control-plane.js";
+import { createApp } from "../src/app.js";
+import { SourceRegistry } from "../src/domain/source-registry.js";
 
 const NOW = new Date("2026-08-27T00:00:00.000Z");
 const HASH_A = "a".repeat(64);
@@ -53,13 +55,14 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
   const resolver = {
     async resolve(reference, kind) {
       if (kind === "repository") return repository;
-      if (kind === "signer") return { signerSetId: "production-test-signers", ...(omitSignerPolicy ? {} : { signerPolicy: new SignerSetPolicy({ signerSetId: "production-test-signers", threshold: 1, signers: ["production-test-signer"] }) }), signBytes: (bytes) => sign(null, bytes, privateKey), verifyBytes: (bytes, signature) => verify(null, bytes, publicKey, signature), verifyHistoricalBytes: (signerSetId, bytes, signature) => signerSetId === "production-test-signers" && verify(null, bytes, publicKey, signature), async rotate() { throw new Error("NOT_USED"); }, async reconcile() { throw new Error("NOT_USED"); }, async activateRuntime() { throw new Error("NOT_USED"); } };
+      if (kind === "signer") return { signerSetId: "production-test-signers", ...(omitSignerPolicy ? {} : { signerPolicy: new SignerSetPolicy({ signerSetId: "production-test-signers", threshold: 1, signers: ["production-test-signer"], environment: "production" }) }), signBytes: (bytes) => sign(null, bytes, privateKey), verifyBytes: (bytes, signature) => verify(null, bytes, publicKey, signature), verifyHistoricalBytes: (signerSetId, bytes, signature) => signerSetId === "production-test-signers" && verify(null, bytes, publicKey, signature), async rotate() { throw new Error("NOT_USED"); }, async reconcile() { throw new Error("NOT_USED"); }, async activateRuntime() { throw new Error("NOT_USED"); } };
       if (kind === "source") {
         const source = l2Profile.sources.find(({ transportRef }) => transportRef === reference);
         return { async fetchByFixedReference() { sourceFetches += 1; const record = recordBySource[source.sourceId]; return { authenticated: true, sourceId: source.sourceId, schemaVersion: source.schemaVersions[0], record, recordHash: evidenceHash(record) }; } };
       }
       if (kind === "admin-authenticator") return { async authenticate() { return { actorId: "production-operator", roles: ["ORACLE_OPERATOR"] }; } };
       if (kind === "event-publisher") return { async publish(event) { published.push(event); } };
+      if (kind === "monitoring") return { async checkReadiness() { return { ok: true }; } };
       return { kind, sourceById };
     },
   };
@@ -86,6 +89,7 @@ test("production assembly fetches three authenticated sources and persists the a
   assert.equal(getSourceFetches(), 3);
   assert.deepEqual(await assembly.outboxDispatcher.drain(), [{ eventId: assembly.runtime.outbox.list()[0].eventId, status: "PUBLISHED" }]);
   assert.equal(published.length, 1);
+  assert.deepEqual(await assembly.readinessCheck(), { ok: true });
 });
 
 test("production rejects caller records and becomes unavailable after durability failure", async () => {
@@ -174,12 +178,63 @@ test("durable audit replay rechecks current export authorization", async () => {
   const { adminOperations: _capability, ...serializable } = command;
   const commandHash = evidenceHash({ method: "exportAudit", input: serializable });
   const durable = new DurableOracleControlPlane({
-    controlPlane: { exportAudit() { throw new Error("SHOULD_NOT_EXECUTE"); } },
+    controlPlane: { authorizeCommand() { throw new Error("PERMISSION_DENIED:audit:export"); }, exportAudit() { throw new Error("SHOULD_NOT_EXECUTE"); } },
     repository: { async getCommand() { return { commandHash, status: "COMPLETED", result: { exportId: "prior" } }; }, async persistMutation() {} },
     runtime: { operationalState: { compromised: false }, auditJournal: { list() { return []; } }, outbox: { list() { return []; } } },
     dualControl: {},
   });
   await assert.rejects(() => durable.exportAudit(command), /PERMISSION_DENIED:audit:export/);
+});
+
+test("every durable replay rechecks the actor's current command authorization", async () => {
+  const command = { actorId: "former-operator", idempotencyKey: "durable-bind", binding: { assetId: "asset", chainId: "560048", contract: "test-only", tokenId: "1" } };
+  const commandHash = evidenceHash({ method: "bindToken", input: command });
+  const durable = new DurableOracleControlPlane({
+    controlPlane: { authorizeCommand() { throw new Error("PERMISSION_DENIED:token:bind"); }, bindToken() { throw new Error("SHOULD_NOT_EXECUTE"); } },
+    repository: { async getCommand() { return { commandHash, status: "COMPLETED", result: { assetId: "asset" } }; }, async persistMutation() {} },
+    runtime: { operationalState: { compromised: false }, auditJournal: { list() { return []; } }, outbox: { list() { return []; } } },
+    dualControl: {},
+  });
+  await assert.rejects(() => durable.bindToken(command), /PERMISSION_DENIED:token:bind/);
+});
+
+test("production readiness fails closed when the deployment health boundary is unavailable", async () => {
+  const server = createApp({ config: { environment: "production", externalWritesEnabled: true }, sourceRegistry: new SourceRegistry(), readinessCheck: async () => ({ ok: false }) });
+  await new Promise((resolve) => server.listen(0, "localhost", resolve));
+  try {
+    const response = await fetch(`http://localhost:${server.address().port}/readyz`);
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { ok: false, errorCode: "PRODUCTION_DEPENDENCIES_UNAVAILABLE" });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("signer policy receives and enforces attestation context before signing", () => {
+  const keys = generateKeyPairSync("ed25519");
+  const policy = new SignerSetPolicy({ signerSetId: "context-signers", threshold: 1, signers: ["context"], environment: "production", purposes: ["OWNERSHIP"], maxTtlSeconds: 60 });
+  const service = new AttestationService({ signerSetId: "context-signers", privateKey: keys.privateKey, publicKey: keys.publicKey, signerPolicy: policy, environment: "production", revocations: new RevocationRegistry(), clock: () => NOW });
+  const base = { subject: { assetId: "asset-context", chainId: "560048", contract: "test-only", tokenId: "1", purpose: "OWNERSHIP" }, factType: "STATUS", factValue: "VALID", sourceAuthority: "registry", sourceRecordHash: HASH_A, validForSeconds: 60, nonce: "context-ok" };
+  assert.equal(service.issue(base).envelope.signerSetId, "context-signers");
+  assert.throws(() => service.issue({ ...base, subject: { ...base.subject, purpose: "LENDING" }, nonce: "context-purpose" }), /SIGNER_POLICY_PURPOSE_REJECTED/);
+  assert.throws(() => service.issue({ ...base, validForSeconds: 61, nonce: "context-ttl" }), /SIGNER_POLICY_TTL_REJECTED/);
+});
+
+test("protected signer callbacks receive only a 32-byte canonical envelope digest", () => {
+  const keys = generateKeyPairSync("ed25519");
+  let signedLength = null;
+  let verifiedLength = null;
+  const service = new AttestationService({
+    signerSetId: "digest-signers",
+    signBytes(bytes) { signedLength = bytes.length; return sign(null, bytes, keys.privateKey); },
+    verifyBytes(bytes, signature) { verifiedLength = bytes.length; return verify(null, bytes, keys.publicKey, signature); },
+    revocations: new RevocationRegistry(),
+    clock: () => NOW,
+  });
+  const attestation = service.issue({ subject: { assetId: "asset-digest", chainId: "560048", contract: "test-only", tokenId: "1", purpose: "OWNERSHIP" }, factType: "STATUS", factValue: "VALID", sourceAuthority: "registry", sourceRecordHash: HASH_A, validForSeconds: 60, nonce: "digest-nonce" });
+  assert.equal(service.verify(attestation).valid, true);
+  assert.equal(signedLength, 32);
+  assert.equal(verifiedLength, 32);
 });
 
 test("restart imports hash-protected attestations issued by a retired signer", () => {

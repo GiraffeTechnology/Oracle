@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { generateKeyPairSync, sign } from "node:crypto";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import test from "node:test";
 import { SyntheticAuthorityAdapter } from "../src/adapters/synthetic-authority.js";
 import { AttestationService } from "../src/domain/attestation-service.js";
@@ -114,7 +114,7 @@ test("attestation is subject-bound, expires and can be revoked", () => {
   const unsupported = {
     envelope: unsupportedEnvelope,
     envelopeHash: evidenceHash(unsupportedEnvelope),
-    signature: sign(null, Buffer.from(canonicalJson(unsupportedEnvelope), "utf8"), privateKey).toString("base64url"),
+    signature: sign(null, createHash("sha256").update(canonicalJson(unsupportedEnvelope), "utf8").digest(), privateKey).toString("base64url"),
   };
   assert.deepEqual(service.verify(unsupported, { now: NOW }), { valid: false, errorCode: "SCHEMA_VERSION_UNSUPPORTED" });
   assert.deepEqual(service.verify(attestation, { now: new Date(NOW.getTime() + 60000) }), { valid: false, errorCode: "NOT_CURRENT" });

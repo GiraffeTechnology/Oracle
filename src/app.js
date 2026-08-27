@@ -100,7 +100,7 @@ function assertSameOriginAdminWrite(request) {
   return true;
 }
 
-export function createApp({ config, sourceRegistry, runtime = null, controlPlane = null, adminOperations = null, authenticateAdmin = null, l2Profile = null, protocolProfile = null, verificationRateLimiter = new FixedWindowRateLimiter({ limit: 60, windowMs: 60000 }) }) {
+export function createApp({ config, sourceRegistry, runtime = null, controlPlane = null, adminOperations = null, authenticateAdmin = null, readinessCheck = null, l2Profile = null, protocolProfile = null, verificationRateLimiter = new FixedWindowRateLimiter({ limit: 60, windowMs: 60000 }) }) {
   if (!config || !sourceRegistry) throw new Error("APP_DEPENDENCY_MISSING");
 
   return http.createServer(async (request, response) => {
@@ -258,14 +258,21 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
     }
 
     if (requestUrl.pathname === "/readyz") {
-      sendJson(response, 200, {
-        ok: true,
-        environment: config.environment,
-        externalWritesEnabled: config.externalWritesEnabled,
-        registeredSources: sourceRegistry.listPublic().length,
-        l2Configured: l2Profile !== null,
-        l3Configured: protocolProfile !== null,
-      });
+      try {
+        const dependencies = readinessCheck ? await readinessCheck() : null;
+        if (config.environment === "production" && dependencies?.ok !== true) throw new Error("PRODUCTION_DEPENDENCIES_UNAVAILABLE");
+        sendJson(response, 200, {
+          ok: true,
+          environment: config.environment,
+          externalWritesEnabled: config.externalWritesEnabled,
+          registeredSources: sourceRegistry.listPublic().length,
+          l2Configured: l2Profile !== null,
+          l3Configured: protocolProfile !== null,
+          dependenciesReady: dependencies?.ok ?? null,
+        });
+      } catch {
+        sendJson(response, 503, { ok: false, errorCode: "PRODUCTION_DEPENDENCIES_UNAVAILABLE" });
+      }
       return;
     }
 

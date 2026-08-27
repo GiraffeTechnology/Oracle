@@ -130,6 +130,8 @@ CREATE TABLE settlements (
   started_at TIMESTAMP(6) NOT NULL,
   finalized_at TIMESTAMP(6) NULL,
   cancelled_at TIMESTAMP(6) NULL,
+  disputed_at TIMESTAMP(6) NULL,
+  timed_out_at TIMESTAMP(6) NULL,
   INDEX idx_settlement_deadline (settlement_status, deadline_at),
   CONSTRAINT fk_settlement_asset FOREIGN KEY (asset_id) REFERENCES assets(asset_id)
 ) ENGINE=InnoDB;

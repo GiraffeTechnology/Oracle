@@ -28,10 +28,8 @@ export class DurableOracleControlPlane {
     if (this.runtime.operationalState.compromised) throw new Error("DURABLE_STATE_COMPROMISED");
     if (typeof commandInput?.idempotencyKey !== "string" || !commandInput.idempotencyKey || typeof resolveOperationInput !== "function") throw new Error("IDEMPOTENCY_KEY_REQUIRED");
     const durableCommandHash = evidenceHash({ method, input: durableInput(method, commandInput) });
-    if (method === "exportAudit") {
-      if (typeof commandInput.adminOperations?.authorizeExport !== "function") throw new Error("AUDIT_EXPORT_AUTHORIZATION_UNAVAILABLE");
-      commandInput.adminOperations.authorizeExport(commandInput.actorId, commandInput.purpose);
-    }
+    if (typeof this.controlPlane.authorizeCommand !== "function") throw new Error("COMMAND_AUTHORIZATION_UNAVAILABLE");
+    this.controlPlane.authorizeCommand(method, commandInput);
     const prior = await this.repository.getCommand(commandInput.idempotencyKey);
     if (prior) {
       if (prior.commandHash !== durableCommandHash) throw new Error("COMMAND_IDEMPOTENCY_CONFLICT");

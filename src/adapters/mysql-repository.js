@@ -151,10 +151,10 @@ export class MySqlOracleRepository {
     if (["beginSettlement", "finalizeSettlement", "cancelSettlement", "disputeSettlement", "timeoutSettlement"].includes(method)) {
       const record = result;
       await connection.execute(
-        `INSERT INTO settlements (settlement_id, asset_id, chain_id, contract_ref, token_id, seller_wallet, buyer_wallet, snapshot_hash, external_execution_ref, old_certificate_hash, new_certificate_hash, wenbao_change_ref, failure_reason_hash, settlement_status, deadline_at, started_at, finalized_at, cancelled_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE new_certificate_hash=VALUES(new_certificate_hash), wenbao_change_ref=VALUES(wenbao_change_ref), failure_reason_hash=VALUES(failure_reason_hash), settlement_status=VALUES(settlement_status), finalized_at=VALUES(finalized_at), cancelled_at=VALUES(cancelled_at)`,
-        [record.settlementId, record.assetId, record.token.chainId, record.token.contract, record.token.tokenId, record.sellerWallet, record.buyerWallet, record.snapshotHash, record.externalExecutionRef, record.oldCertificateHash, record.newCertificateHash ?? null, record.registryChangeRef ?? null, record.failureReasonHash ?? null, record.status, record.deadlineAt, record.startedAt, record.finalizedAt ?? null, record.cancelledAt ?? record.disputedAt ?? record.timedOutAt ?? null],
+        `INSERT INTO settlements (settlement_id, asset_id, chain_id, contract_ref, token_id, seller_wallet, buyer_wallet, snapshot_hash, external_execution_ref, old_certificate_hash, new_certificate_hash, wenbao_change_ref, failure_reason_hash, settlement_status, deadline_at, started_at, finalized_at, cancelled_at, disputed_at, timed_out_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE new_certificate_hash=VALUES(new_certificate_hash), wenbao_change_ref=VALUES(wenbao_change_ref), failure_reason_hash=VALUES(failure_reason_hash), settlement_status=VALUES(settlement_status), finalized_at=VALUES(finalized_at), cancelled_at=VALUES(cancelled_at), disputed_at=VALUES(disputed_at), timed_out_at=VALUES(timed_out_at)`,
+        [record.settlementId, record.assetId, record.token.chainId, record.token.contract, record.token.tokenId, record.sellerWallet, record.buyerWallet, record.snapshotHash, record.externalExecutionRef, record.oldCertificateHash, record.newCertificateHash ?? null, record.registryChangeRef ?? null, record.failureReasonHash ?? null, record.status, record.deadlineAt, record.startedAt, record.finalizedAt ?? null, record.cancelledAt ?? null, record.disputedAt ?? null, record.timedOutAt ?? null],
       );
       if (method === "finalizeSettlement") {
         await this.appendCertificate(connection, { ...input.request.certificate, sourceAuthority: input.request.certificateSourceId });

@@ -16,7 +16,10 @@ accept caller-selected network endpoints or credentials.
 
 - Production private keys remain in an HSM or equivalently protected signing service.
 - The application submits only the canonical envelope hash and receives a signature plus public signer-set ID.
-- Signer policy independently checks environment, schema, purpose, subject and maximum TTL.
+- The protected callback receives exactly the 32-byte SHA-256 of canonical envelope JSON, never the complete
+  asset/token/fact envelope.
+- Signer policy independently checks environment, schema, purpose, complete subject scope and maximum TTL
+  through `authorizeAttestation` before any signing callback is invoked.
 - A rotation is not complete when only the public signer-set identifier changes. The protected rotation
   adapter must atomically replace the runtime signing backend, verification backend and signer policy, then
   return only the activated public signer-set identifier and `privateMaterialIncluded=false`.
@@ -53,6 +56,13 @@ accept caller-selected network endpoints or credentials.
   turns an unacknowledged publish into a successful delivery.
 - Delivery is at-least-once; consumers must use `eventId` for idempotency.
 - Payloads contain hashes and non-sensitive status only.
+
+## Readiness
+
+- The deployment monitoring port supplies one fixed `checkReadiness` boundary covering MySQL, all three
+  authoritative sources, the event publisher and required operations dependencies.
+- Production `/readyz` returns 200 only for an affirmative result and returns a stable 503 error otherwise.
+  Liveness remains separate and does not claim that dependencies are ready.
 
 The current PR contains the production assembly, fixed-reference source gate, MySQL durability/recovery adapter
 and synthetic tests. It contains no production credentials or endpoints; deployment-owned adapter modules must

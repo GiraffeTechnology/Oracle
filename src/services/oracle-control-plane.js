@@ -1,6 +1,7 @@
 import { evidenceHash } from "../domain/canonical-json.js";
 import { OracleStatus } from "../domain/oracle-status.js";
 import { assertAssetFactsOnly } from "./product-boundary.js";
+import { assertAuthenticatedEvidence } from "./evidence-authentication.js";
 
 const SHA256_HEX = /^[a-f0-9]{64}$/i;
 const SAFE_ERROR_CODE = /^[A-Z][A-Z0-9_]{0,63}$/;
@@ -46,11 +47,39 @@ async function activateRuntimeSigner(signerRotationBroker, attestationService, s
 }
 
 export class OracleControlPlane {
-  constructor({ runtime, authorizer, dualControl, commandJournal, outbox, signerRotationBroker = null, clock = () => new Date() }) {
-    Object.assign(this, { runtime, authorizer, dualControl, commandJournal, outbox, signerRotationBroker, clock });
+  constructor({ runtime, authorizer, dualControl, commandJournal, outbox, signerRotationBroker = null, allowSyntheticEvidence = false, clock = () => new Date() }) {
+    Object.assign(this, { runtime, authorizer, dualControl, commandJournal, outbox, signerRotationBroker, allowSyntheticEvidence, clock });
   }
 
-  verifyAsset({ actorId, idempotencyKey, asset, certificate, warehouse, evidenceSources = {}, evidenceVersion }) {
+  authorizeCommand(method, input) {
+    if (method === "exportAudit") {
+      if (typeof input.adminOperations?.authorizeExport !== "function") throw new Error("AUDIT_EXPORT_AUTHORIZATION_UNAVAILABLE");
+      return input.adminOperations.authorizeExport(input.actorId, input.purpose);
+    }
+    const permissions = {
+      verifyAsset: "asset:verify",
+      bindToken: "token:bind",
+      issueAttestation: "attestation:issue",
+      requestRevocation: "attestation:revoke",
+      executeRevocation: "attestation:revoke",
+      approveAction: "action:approve",
+      requestSourceDisable: "source:disable",
+      executeSourceDisable: "source:disable",
+      requestSignerRotation: "signer:rotate",
+      executeSignerRotation: "signer:rotate",
+      reconcileSignerRotation: "signer:rotate",
+      beginSettlement: "settlement:manage",
+      finalizeSettlement: "settlement:manage",
+      cancelSettlement: "settlement:manage",
+      disputeSettlement: "settlement:manage",
+      timeoutSettlement: "settlement:manage",
+    };
+    const permission = permissions[method];
+    if (!permission) throw new Error("COMMAND_AUTHORIZATION_UNAVAILABLE");
+    return this.authorizer.require(input.actorId, permission);
+  }
+
+  verifyAsset({ actorId, idempotencyKey, asset, certificate, warehouse, evidenceSources = {}, evidenceAuthentication = null, evidenceVersion }) {
     this.authorizer.require(actorId, "asset:verify");
     assertAssetFactsOnly({ asset, certificate, warehouse });
     if (!asset?.assetId || certificate?.assetId !== asset.assetId || warehouse?.assetId !== asset.assetId) throw new Error("ASSET_EVIDENCE_ID_MISMATCH");
@@ -58,6 +87,8 @@ export class OracleControlPlane {
     this.runtime.schemaRegistry.validate("asset-record.v1", asset);
     this.runtime.schemaRegistry.validate("certificate-record.v1", certificate);
     this.runtime.schemaRegistry.validate("warehouse-record.v1", warehouse);
+    if (!this.allowSyntheticEvidence) assertAuthenticatedEvidence(evidenceAuthentication, { records: { asset, certificate, warehouse }, evidenceSources });
+    if (asset.oracleStatus !== OracleStatus.VALID || asset.transferEligibility !== OracleStatus.VALID || certificate.status !== "CURRENT" || warehouse.warehouseStatus !== "IN_CUSTODY" || asset.encumbranceStatus !== "CLEAR" || (warehouse.encumbranceStatus !== undefined && warehouse.encumbranceStatus !== "CLEAR")) throw new Error("ASSET_EVIDENCE_NOT_VALID");
     return this.commandJournal.execute(idempotencyKey, { type: "asset.verify", asset, certificate, warehouse, evidenceSources, evidenceVersion }, () => {
       const provenance = Object.freeze({
         REGISTRY: resolveEvidenceSource(this.runtime, "REGISTRY", evidenceSources.asset),
@@ -291,7 +322,9 @@ export class OracleControlPlane {
     return this.commandJournal.execute(idempotencyKey, { type: "settlement.finalize", request }, () => {
       const certificateProvenance = resolveEvidenceSource(this.runtime, "CERTIFICATE_AUTHORITY", request.certificateSourceId);
       if (request.certificateSourceRecordHash !== evidenceHash(request.certificate)) throw new Error("SETTLEMENT_CERTIFICATE_SOURCE_RECORD_MISMATCH");
+      if (!this.allowSyntheticEvidence) assertAuthenticatedEvidence(request.certificateAuthentication, { records: { certificate: request.certificate }, evidenceSources: { certificate: request.certificateSourceId } });
       this.runtime.schemaRegistry.validate("certificate-record.v1", request.certificate);
+      if (request.certificate.status !== "CURRENT") throw new Error("SETTLEMENT_CERTIFICATE_NOT_CURRENT");
       const result = this.runtime.settlements.finalize({ ...request, certificateProvenance, actorId });
       this.outbox.enqueue({ eventType: "settlement.finalized", subjectId: result.assetId, payloadHash: request.certificate.certificateHash, createdAt: result.finalizedAt });
       return result;

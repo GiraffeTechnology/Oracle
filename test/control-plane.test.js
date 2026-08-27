@@ -310,6 +310,27 @@ test("MySQL attestation projection stores a SHA-256 fact value hash", async () =
   assert.match(attestationParameters[10], /^[a-f0-9]{64}$/);
 });
 
+test("MySQL settlement projection preserves distinct terminal timestamps", async () => {
+  let settlementParameters = null;
+  const connection = {
+    async beginTransaction() {},
+    async commit() {},
+    async rollback() {},
+    release() {},
+    async execute(sql, parameters = []) {
+      if (sql.includes("INSERT INTO settlements")) settlementParameters = parameters;
+      return [[], []];
+    },
+  };
+  const repository = new MySqlOracleRepository({ pool: { async getConnection() { return connection; } } });
+  const disputedAt = "2026-08-24T01:00:00.000Z";
+  const record = { settlementId: "settlement-db", assetId: "asset-db", token: { chainId: "560048", contract: "test-only", tokenId: "1" }, sellerWallet: "seller-test", buyerWallet: "buyer-test", snapshotHash: HASH_A, externalExecutionRef: "test-execution", oldCertificateHash: HASH_B, failureReasonHash: HASH_C, status: "DISPUTED", deadlineAt: "2026-08-27T00:00:00.000Z", startedAt: NOW.toISOString(), disputedAt };
+  await repository.persistMutation({ method: "disputeSettlement", idempotencyKey: "db-dispute", commandHash: HASH_B, input: {}, result: record, auditEvents: [], outboxEvents: [], stateSnapshot: { state: { testOnly: true }, stateHash: HASH_A } });
+  assert.equal(settlementParameters[17], null);
+  assert.equal(settlementParameters[18], disputedAt);
+  assert.equal(settlementParameters[19], null);
+});
+
 test("command journal deduplicates concurrent async operations and clears failed pending records", async () => {
   const journal = new CommandJournal();
   let calls = 0;
