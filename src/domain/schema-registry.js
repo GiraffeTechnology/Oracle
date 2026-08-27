@@ -19,6 +19,9 @@ function isRfc3339DateTime(value) {
   return calendar.getUTCFullYear() === year && calendar.getUTCMonth() === month - 1 && calendar.getUTCDate() === day && !Number.isNaN(Date.parse(value));
 }
 
+const MYSQL_TIMESTAMP_MIN_MS = Date.parse("1970-01-01T00:00:01.000Z");
+const MYSQL_TIMESTAMP_MAX_MS = Date.parse("2038-01-19T03:14:07.499Z");
+
 function validateProperty(field, value, definition) {
   const allowedTypes = Array.isArray(definition.type) ? definition.type : [definition.type];
   if (definition.type !== undefined && !allowedTypes.some((type) => matchesType(value, type))) {
@@ -31,6 +34,10 @@ function validateProperty(field, value, definition) {
     if (definition.maxLength !== undefined && value.length > definition.maxLength) throw new Error(`PAYLOAD_FIELD_LENGTH_INVALID:${field}`);
     if (definition.pattern && !definition.pattern.test(value)) throw new Error(`PAYLOAD_FIELD_PATTERN_INVALID:${field}`);
     if (definition.format === "date-time" && !isRfc3339DateTime(value)) throw new Error(`PAYLOAD_FIELD_FORMAT_INVALID:${field}`);
+    if (definition.persistenceFormat === "mysql-timestamp") {
+      const instant = Date.parse(value);
+      if (!isRfc3339DateTime(value) || instant < MYSQL_TIMESTAMP_MIN_MS || instant > MYSQL_TIMESTAMP_MAX_MS) throw new Error(`PAYLOAD_FIELD_PERSISTENCE_RANGE_INVALID:${field}`);
+    }
   }
   if (typeof value === "number") {
     if (definition.minimum !== undefined && value < definition.minimum) throw new Error(`PAYLOAD_FIELD_RANGE_INVALID:${field}`);
@@ -92,7 +99,7 @@ export class SchemaRegistry {
 export function createDefaultSchemaRegistry() {
   const assetId = Object.freeze({ type: "string", pattern: /^[a-zA-Z0-9_-]{3,128}$/ });
   const hash = Object.freeze({ type: "string", pattern: /^[a-f0-9]{64}$/ });
-  const dateTime = Object.freeze({ type: "string", format: "date-time" });
+  const dateTime = Object.freeze({ type: "string", format: "date-time", persistenceFormat: "mysql-timestamp" });
   const shortString = Object.freeze({ type: "string", minLength: 1, maxLength: 128 });
   const status = Object.freeze({ type: "string", enum: ["VALID", "INVALID", "TRANSFER_PENDING", "FROZEN", "REVOKED", "EXPIRED", "REVIEW_REQUIRED", "NOT_VERIFIED"] });
   const registry = new SchemaRegistry();
