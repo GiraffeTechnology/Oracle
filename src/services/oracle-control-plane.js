@@ -268,6 +268,7 @@ export class OracleControlPlane {
       const reconciliation = await this.signerRotationBroker.reconcile({ actionId, fromSignerSetId, toSignerSetId, rotationDigest });
       if (reconciliation?.applied === false && reconciliation?.safelyNotApplied === true) {
         if (runtimeSignerSetId !== fromSignerSetId) throw new Error("SIGNER_ROTATION_RECONCILIATION_UNRESOLVED");
+        this.runtime.operationalState.signerRecoveryRequired = false;
         this.dualControl.failExecution(actionId, { failedAt: this.clock().toISOString(), errorCode: "SIGNER_ROTATION_NOT_APPLIED" });
         return Object.freeze({ applied: false, safelyNotApplied: true, privateMaterialIncluded: false });
       }
@@ -366,4 +367,5 @@ export class OracleControlPlane {
     this.outbox.enqueue({ eventType: "settlement.refund-required", subjectId: result.assetId, payloadHash: reasonHash, createdAt });
   }
 }
+
 
