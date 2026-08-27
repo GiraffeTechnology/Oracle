@@ -20,7 +20,7 @@ export class AttestationService {
   constructor({ signerSetId, privateKey = null, publicKey = null, signBytes = null, verifyBytes = null, verifyHistoricalBytes = null, revocations, signerPolicy = null, environment = "test", clock = () => new Date() }) {
     const keyPairMode = privateKey && publicKey && !signBytes && !verifyBytes;
     const callbackMode = !privateKey && !publicKey && typeof signBytes === "function" && typeof verifyBytes === "function";
-    if (!boundedString(signerSetId, 128) || !revocations || (!keyPairMode && !callbackMode)) throw new Error("ATTESTATION_DEPENDENCY_MISSING");
+    if (!boundedString(signerSetId, 64) || !revocations || (!keyPairMode && !callbackMode)) throw new Error("ATTESTATION_DEPENDENCY_MISSING");
     this.signerSetId = signerSetId;
     this.#signBytes = callbackMode ? signBytes : (bytes) => sign(null, bytes, privateKey);
     const initialVerify = callbackMode ? verifyBytes : (bytes, signature) => verify(null, bytes, publicKey, signature);
@@ -36,7 +36,7 @@ export class AttestationService {
   }
 
   activateSignerBackend({ signerSetId: nextSignerSetId, signBytes, verifyBytes, signerPolicy = null }, expectedCurrentSignerSetId) {
-    if (typeof nextSignerSetId !== "string" || !nextSignerSetId || typeof expectedCurrentSignerSetId !== "string" || !expectedCurrentSignerSetId || typeof signBytes !== "function" || typeof verifyBytes !== "function") throw new Error("SIGNER_SET_ACTIVATION_INVALID");
+    if (!boundedString(nextSignerSetId, 64) || !boundedString(expectedCurrentSignerSetId, 64) || typeof signBytes !== "function" || typeof verifyBytes !== "function") throw new Error("SIGNER_SET_ACTIVATION_INVALID");
     if (this.signerSetId !== expectedCurrentSignerSetId) throw new Error("SIGNER_ROTATION_SOURCE_NOT_ACTIVE");
     if (nextSignerSetId === expectedCurrentSignerSetId) throw new Error("SIGNER_SET_ACTIVATION_INVALID");
     if (!signerPolicy || signerPolicy.record?.signerSetId !== nextSignerSetId) throw new Error("SIGNER_POLICY_REPLACEMENT_REQUIRED");
@@ -77,7 +77,7 @@ export class AttestationService {
       && boundedString(subject.contract, 255)
       && boundedString(subject.tokenId, 255)
       && boundedString(subject.purpose, 128);
-    if (!subjectValid || !boundedString(factType, 64) || factValue === undefined || !boundedString(sourceAuthority, 64) || !SHA256_HEX.test(sourceRecordHash ?? "") || !boundedString(nonce, 128) || (revocationRef !== null && !boundedString(revocationRef, 256))) {
+    if (!boundedString(this.signerSetId, 64) || !subjectValid || !boundedString(factType, 64) || factValue === undefined || !boundedString(sourceAuthority, 64) || !SHA256_HEX.test(sourceRecordHash ?? "") || !boundedString(nonce, 128) || (revocationRef !== null && !boundedString(revocationRef, 256))) {
       throw new Error("ATTESTATION_REQUEST_INVALID");
     }
     if (!Number.isInteger(validForSeconds) || validForSeconds < 1 || validForSeconds > 86400) {
@@ -160,12 +160,12 @@ export class AttestationService {
 
   exportState() { return Object.freeze({ signerSetId: this.signerSetId, attestations: [...this.#attestations.values()], issuedNonces: [...this.#issuedNonces] }); }
   importState(state, { allowHistoricalSignerSet = false } = {}) {
-    if (this.#attestations.size || this.#issuedNonces.size || (!allowHistoricalSignerSet && state?.signerSetId !== this.signerSetId) || typeof state?.signerSetId !== "string" || !state.signerSetId || !Array.isArray(state?.attestations) || !Array.isArray(state?.issuedNonces)) throw new Error("ATTESTATION_STATE_IMPORT_REJECTED");
+    if (this.#attestations.size || this.#issuedNonces.size || (!allowHistoricalSignerSet && state?.signerSetId !== this.signerSetId) || !boundedString(state?.signerSetId, 64) || !Array.isArray(state?.attestations) || !Array.isArray(state?.issuedNonces)) throw new Error("ATTESTATION_STATE_IMPORT_REJECTED");
     const nonceSet = new Set(state.issuedNonces);
     const seenIds = new Set();
     for (const attestation of state.attestations) {
       const { envelope, envelopeHash, signature } = attestation ?? {};
-      if (!envelope || typeof envelope.attestationId !== "string" || !envelope.attestationId || seenIds.has(envelope.attestationId) || typeof envelope.signerSetId !== "string" || !envelope.signerSetId || evidenceHash(envelope) !== envelopeHash || !nonceSet.has(envelope.nonce) || typeof signature !== "string" || !/^[A-Za-z0-9_-]+$/.test(signature) || Buffer.from(signature, "base64url").length === 0 || this.#verifyHistoricalBytes(envelope.signerSetId, signingDigest(envelope), Buffer.from(signature, "base64url")) !== true) throw new Error("ATTESTATION_STATE_IMPORT_INVALID");
+      if (!envelope || typeof envelope.attestationId !== "string" || !envelope.attestationId || seenIds.has(envelope.attestationId) || !boundedString(envelope.signerSetId, 64) || evidenceHash(envelope) !== envelopeHash || !nonceSet.has(envelope.nonce) || typeof signature !== "string" || !/^[A-Za-z0-9_-]+$/.test(signature) || Buffer.from(signature, "base64url").length === 0 || this.#verifyHistoricalBytes(envelope.signerSetId, signingDigest(envelope), Buffer.from(signature, "base64url")) !== true) throw new Error("ATTESTATION_STATE_IMPORT_INVALID");
       seenIds.add(envelope.attestationId);
       this.#attestations.set(envelope.attestationId, Object.freeze({ envelope: Object.freeze({ ...envelope, subject: Object.freeze({ ...envelope.subject }) }), envelopeHash, signature }));
     }
@@ -173,5 +173,4 @@ export class AttestationService {
     this.#issuedNonces = nonceSet;
   }
 }
-
 
