@@ -341,6 +341,7 @@ export class OracleControlPlane {
       if (!this.allowSyntheticEvidence) assertAuthenticatedEvidence(request.certificateAuthentication, { records: { certificate: request.certificate }, evidenceSources: { certificate: request.certificateSourceId } });
       this.runtime.schemaRegistry.validate("certificate-record.v1", request.certificate);
       if (request.certificate.status !== "CURRENT") throw new Error("SETTLEMENT_CERTIFICATE_NOT_CURRENT");
+      if (request.certificate.supersededAt != null) throw new Error("CERTIFICATE_CURRENT_SUPERSEDED_AT_INVALID");
       const result = this.runtime.settlements.finalize({ ...request, certificateProvenance, actorId });
       this.outbox.enqueue({ eventType: "settlement.finalized", subjectId: result.assetId, payloadHash: request.certificate.certificateHash, createdAt: result.finalizedAt });
       return result;
