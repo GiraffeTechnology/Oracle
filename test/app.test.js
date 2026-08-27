@@ -311,6 +311,33 @@ test("asset detail local-time script is authorized by a per-response CSP nonce",
   }
 });
 
+test("public asset certificate and warehouse views redact settlement buyer commitments", async () => {
+  const runtime = createSyntheticRuntime();
+  const buyerCommitment = "e".repeat(64);
+  const assetId = "asset-buyer-redaction";
+  runtime.recordStore.putAsset({ assetId, assetFingerprintHash: "a".repeat(64), settlementBuyerCommitment: buyerCommitment });
+  runtime.recordStore.appendCertificate({ assetId, tokenId: "1", certificateVersion: 1, certificateHash: "b".repeat(64), previousCertificateHash: null, settlementBuyerCommitment: buyerCommitment });
+  runtime.recordStore.putWarehouse({ assetId, warehouseReceiptHash: "c".repeat(64), warehouseId: "warehouse-private", holderCommitment: "d".repeat(64), settlementBuyerCommitment: buyerCommitment });
+  runtime.tokenIndex.bind({ chainId: "test-chain", contract: "contract-private", tokenId: "1", assetId });
+  const server = createApp({ config: loadConfig({}), sourceRegistry: runtime.sourceRegistry, runtime });
+  await new Promise((resolve) => server.listen(0, "localhost", resolve));
+  try {
+    const baseUrl = "http://localhost:" + server.address().port;
+    const responses = await Promise.all([
+      fetch(baseUrl + "/v1/rwa/assets/" + assetId),
+      fetch(baseUrl + "/v1/rwa/assets/" + assetId + "/certificate-history"),
+      fetch(baseUrl + "/v1/rwa/tokens/test-chain/contract-private/1"),
+      fetch(baseUrl + "/v1/rwa/tokens/test-chain/contract-private/1/certificate-history"),
+      fetch(baseUrl + "/assets/" + assetId),
+    ]);
+    for (const response of responses) {
+      assert.equal(response.status, 200);
+      assert.equal((await response.text()).includes(buyerCommitment), false);
+    }
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
 test("token eligibility endpoint reflects Oracle status", async () => {
   const runtime = createSyntheticRuntime();
   runtime.recordStore.putAsset({ assetId: "asset-001", assetFingerprintHash: "a".repeat(64) });
