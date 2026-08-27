@@ -40,20 +40,21 @@ function sendCacheableJson(request, response, body) {
   response.end(`${JSON.stringify(body)}\n`);
 }
 
-function publicAsset(asset) {
-  if (!asset) return null;
-  const { currentOwnerCommitment, warehouseId, ...safe } = asset;
-  void currentOwnerCommitment;
-  void warehouseId;
-  return safe;
+function publicRecord(runtime, schemaId, record) {
+  if (!record) return null;
+  return runtime.schemaRegistry.publicProjection(schemaId, record);
 }
 
-function publicWarehouse(warehouse) {
-  if (!warehouse) return null;
-  const { holderCommitment, warehouseId, ...safe } = warehouse;
-  void holderCommitment;
-  void warehouseId;
-  return safe;
+function publicAsset(runtime, asset) {
+  return publicRecord(runtime, "asset-record.v1", asset);
+}
+
+function publicCertificate(runtime, certificate) {
+  return publicRecord(runtime, "certificate-record.v1", certificate);
+}
+
+function publicWarehouse(runtime, warehouse) {
+  return publicRecord(runtime, "warehouse-record.v1", warehouse);
 }
 
 export function publicSettlement(settlement) {
@@ -246,7 +247,7 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
       const settlement = runtime.settlements.byAsset?.(assetPageMatch[1]) ?? null;
       const scriptNonce = randomBytes(18).toString("base64url");
       response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${scriptNonce}'; frame-ancestors 'none'; base-uri 'none'`, "x-content-type-options": "nosniff", "x-frame-options": "DENY", "referrer-policy": "no-referrer" });
-      response.end(renderAssetDetailHtml({ asset: publicAsset(asset), certificate: runtime.recordStore.currentCertificate(asset.assetId), warehouse: publicWarehouse(runtime.recordStore.getWarehouse(asset.assetId)), status: runtime.stateEngine.current(asset.assetId), settlement, scriptNonce }));
+      response.end(renderAssetDetailHtml({ asset: publicAsset(runtime, asset), certificate: publicCertificate(runtime, runtime.recordStore.currentCertificate(asset.assetId)), warehouse: publicWarehouse(runtime, runtime.recordStore.getWarehouse(asset.assetId)), status: runtime.stateEngine.current(asset.assetId), settlement, scriptNonce }));
       return;
     }
     if (requestUrl.pathname === "/healthz") {
@@ -309,17 +310,17 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
         return;
       }
       sendJson(response, 200, {
-        asset: publicAsset(asset),
+        asset: publicAsset(runtime, asset),
         status: runtime.stateEngine.current(assetId),
-        currentCertificate: runtime.recordStore.currentCertificate(assetId),
-        warehouse: publicWarehouse(runtime.recordStore.getWarehouse(assetId)),
+        currentCertificate: publicCertificate(runtime, runtime.recordStore.currentCertificate(assetId)),
+        warehouse: publicWarehouse(runtime, runtime.recordStore.getWarehouse(assetId)),
       });
       return;
     }
 
     const certificateMatch = requestUrl.pathname.match(/^\/v1\/rwa\/assets\/([a-zA-Z0-9_-]{3,128})\/certificate-history$/);
     if (certificateMatch && runtime) {
-      sendJson(response, 200, { history: runtime.recordStore.certificateHistory(certificateMatch[1]) });
+      sendJson(response, 200, { history: runtime.recordStore.certificateHistory(certificateMatch[1]).map((record) => publicCertificate(runtime, record)) });
       return;
     }
 
@@ -332,7 +333,7 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
         return;
       }
       if (view === "certificate-history") {
-        sendJson(response, 200, { binding, history: runtime.recordStore.certificateHistory(binding.assetId) });
+        sendJson(response, 200, { binding, history: runtime.recordStore.certificateHistory(binding.assetId).map((record) => publicCertificate(runtime, record)) });
         return;
       }
       if (view === "eligibility" || view === "transfer-eligibility") {
@@ -340,7 +341,7 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
         sendJson(response, 200, { binding, status, transferable: status === "VALID" });
         return;
       }
-      sendJson(response, 200, { binding, status: runtime.stateEngine.current(binding.assetId), currentCertificate: runtime.recordStore.currentCertificate(binding.assetId) });
+      sendJson(response, 200, { binding, status: runtime.stateEngine.current(binding.assetId), currentCertificate: publicCertificate(runtime, runtime.recordStore.currentCertificate(binding.assetId)) });
       return;
     }
 
