@@ -79,14 +79,14 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
     if (backgroundWorker) return backgroundWorker;
     let stopped = false;
     let draining = false;
-    const failedAlertBoundaries = new Set();
+    const failedAlertBoundaries = new Map();
     const reportAlert = async (method, code) => {
       const boundary = method + ":" + code;
       try {
         await assembled.ports.alerting[method](code);
         failedAlertBoundaries.delete(boundary);
       } catch {
-        failedAlertBoundaries.add(boundary);
+        failedAlertBoundaries.set(boundary, Object.freeze({ method, code }));
       }
       runtime.operationalState.alertingFailed = failedAlertBoundaries.size > 0;
     };
@@ -94,6 +94,7 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
       if (stopped || draining) return;
       draining = true;
       try {
+        for (const { method, code } of [...failedAlertBoundaries.values()]) await reportAlert(method, code);
         const results = await outboxDispatcher.drain();
         for (const result of results) {
           if (result.status === "DEAD_LETTER_RETRY") await reportAlert("reportFailure", "OUTBOX_DEAD_LETTER_FAILED");
