@@ -150,6 +150,13 @@ export class MySqlOracleRepository {
     );
   }
 
+  async appendRevocation(connection, record) {
+    await connection.execute(
+      "INSERT INTO revocations (attestation_id, reason_hash, authority_id, revoked_at) VALUES (?, ?, ?, ?)",
+      [record.attestationId, record.reasonHash, record.authorityId, record.revokedAt],
+    );
+  }
+
   async appendAuditEvent(connection, event) {
     await connection.execute(
       `INSERT INTO audit_events
@@ -168,14 +175,15 @@ export class MySqlOracleRepository {
     );
   }
 
-  async persistMutation({ method, idempotencyKey, commandHash, input, result, auditEvents, outboxEvents, stateSnapshot }) {
-    if (!method || !idempotencyKey || !commandHash || !Array.isArray(auditEvents) || !Array.isArray(outboxEvents) || !stateSnapshot?.state || !stateSnapshot.stateHash) throw new Error("MYSQL_MUTATION_INVALID");
+  async persistMutation({ method, idempotencyKey, commandHash, input, result, auditEvents, outboxEvents, revocations = [], stateSnapshot }) {
+    if (!method || !idempotencyKey || !commandHash || !Array.isArray(auditEvents) || !Array.isArray(outboxEvents) || !Array.isArray(revocations) || !stateSnapshot?.state || !stateSnapshot.stateHash) throw new Error("MYSQL_MUTATION_INVALID");
     return this.transaction(async (connection) => {
       await connection.execute(
         "INSERT INTO command_journal (idempotency_key, command_hash, command_type, command_status, created_at, updated_at) VALUES (?, ?, ?, 'PENDING', UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))",
         [idempotencyKey, commandHash, method],
       );
       await this.#persistProjection(connection, method, input, result);
+      for (const revocation of revocations) await this.appendRevocation(connection, revocation);
       for (const event of auditEvents) await this.appendAuditEvent(connection, event);
       for (const event of outboxEvents) await this.enqueueOutbox(connection, event);
       await connection.execute(
@@ -222,10 +230,7 @@ export class MySqlOracleRepository {
       );
       return;
     }
-    if (method === "executeRevocation") {
-      await connection.execute("INSERT INTO revocations (attestation_id, reason_hash, authority_id, revoked_at) VALUES (?, ?, ?, ?)", [result.attestationId, result.reasonHash, result.authorityId, result.revokedAt]);
-      return;
-    }
+
     if (["beginSettlement", "finalizeSettlement", "cancelSettlement", "disputeSettlement", "timeoutSettlement"].includes(method)) {
       const record = result;
       await connection.execute(
