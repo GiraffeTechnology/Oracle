@@ -199,6 +199,21 @@ export class MySqlOracleRepository {
     });
   }
 
+  async persistRecoveryState({ method, idempotencyKey, commandHash, stateSnapshot }) {
+    if (!method || !idempotencyKey || !commandHash || !stateSnapshot?.state || !stateSnapshot.stateHash) throw new Error("MYSQL_RECOVERY_STATE_INVALID");
+    return this.transaction(async (connection) => {
+      await connection.execute(
+        "INSERT INTO command_journal (idempotency_key, command_hash, command_type, command_status, created_at, updated_at) VALUES (?, ?, ?, 'PENDING', UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))",
+        [idempotencyKey, commandHash, method],
+      );
+      await connection.execute(
+        "INSERT INTO production_state_snapshots (snapshot_id, state_hash, state_json, updated_at) VALUES (1, ?, ?, UTC_TIMESTAMP(6)) ON DUPLICATE KEY UPDATE state_hash=VALUES(state_hash), state_json=VALUES(state_json), updated_at=VALUES(updated_at)",
+        [stateSnapshot.stateHash, JSON.stringify(stateSnapshot.state)],
+      );
+      return Object.freeze({ idempotencyKey, commandHash, recoveryPersisted: true });
+    });
+  }
+
   async #persistProjection(connection, method, input, result) {
     if (method === "verifyAsset") {
       const now = input.asset.updatedAt;
