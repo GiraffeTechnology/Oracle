@@ -128,6 +128,7 @@ test("signer rotation rejects malformed scope and incomplete broker evidence", a
     signerRotationBroker: { async rotate() { return { oldSignerRejected: true, newSignerAccepted: true }; } },
   });
   assert.throws(() => controlPlane.requestSignerRotation({ actorId: "security-a", actionId: "bad", fromSignerSetId: "same", toSignerSetId: "same", rotationDigest: HASH }), /SIGNER_ROTATION_REQUEST_INVALID/);
+  assert.throws(() => controlPlane.requestSignerRotation({ actorId: "security-a", actionId: "wide-subject", fromSignerSetId: "f".repeat(64), toSignerSetId: "t".repeat(64), rotationDigest: HASH }), /SIGNER_ROTATION_REQUEST_INVALID/);
   controlPlane.requestSignerRotation({ actorId: "security-a", actionId: "rotate-incomplete", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH });
   controlPlane.approveAction({ actorId: "approver-b", actionId: "rotate-incomplete" });
   await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-incomplete", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH }), /SIGNER_ROTATION_BROKER_RESULT_INVALID/);
@@ -272,5 +273,4 @@ test("admin dashboard API requires authentication and rejects cross-origin write
     await new Promise((resolve) => server.close(resolve));
   }
 });
-
 
