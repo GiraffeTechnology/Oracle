@@ -394,13 +394,14 @@ test("MySQL settlement projection preserves distinct terminal timestamps", async
     release() {},
     async execute(sql, parameters = []) {
       if (sql.includes("INSERT INTO settlements")) settlementParameters = parameters;
+      if (sql.startsWith("UPDATE assets SET oracle_status=")) return [{ affectedRows: 1 }, []];
       return [[], []];
     },
   };
   const repository = new MySqlOracleRepository({ pool: { async getConnection() { return connection; } } });
   const disputedAt = "2026-08-24T01:00:00.000Z";
   const record = { settlementId: "settlement-db", assetId: "asset-db", token: { chainId: "560048", contract: "test-only", tokenId: "1" }, sellerWallet: "seller-test", buyerWallet: "buyer-test", snapshotHash: HASH_A, externalExecutionRef: "test-execution", oldCertificateHash: HASH_B, failureReasonHash: HASH_C, status: "DISPUTED", deadlineAt: "2026-08-27T00:00:00.000Z", startedAt: NOW.toISOString(), disputedAt };
-  await repository.persistMutation({ method: "disputeSettlement", idempotencyKey: "db-dispute", commandHash: HASH_B, input: {}, result: record, auditEvents: [], outboxEvents: [], stateSnapshot: { state: { testOnly: true }, stateHash: HASH_A } });
+  await repository.persistMutation({ method: "disputeSettlement", idempotencyKey: "db-dispute", commandHash: HASH_B, input: { request: { evidenceVersion: 3 } }, result: record, auditEvents: [], outboxEvents: [], stateSnapshot: { state: { testOnly: true }, stateHash: HASH_A } });
   assert.equal(settlementParameters[17], null);
   assert.equal(settlementParameters[18], disputedAt);
   assert.equal(settlementParameters[19], null);
@@ -430,7 +431,7 @@ test("MySQL re-verification supersedes exactly one previous current certificate"
 });
 test("MySQL finalization supersedes the old certificate before inserting the replacement", async () => {
   const statements = [];
-  const connection = { async beginTransaction() {}, async commit() {}, async rollback() {}, release() {}, async execute(sql, parameters = []) { statements.push({ sql, parameters }); return [sql.includes("UPDATE certificate_versions SET certificate_status='SUPERSEDED'") ? { affectedRows: 1 } : [], []]; } };
+  const connection = { async beginTransaction() {}, async commit() {}, async rollback() {}, release() {}, async execute(sql, parameters = []) { statements.push({ sql, parameters }); return [sql.includes("UPDATE certificate_versions SET certificate_status='SUPERSEDED'") || sql.startsWith("UPDATE assets SET") ? { affectedRows: 1 } : [], []]; } };
   const repository = new MySqlOracleRepository({ pool: { async getConnection() { return connection; } } });
   const certificate = { assetId: "asset-db", tokenId: "1", certificateVersion: 2, certificateHash: HASH_C, previousCertificateHash: HASH_B, wenbaoChangeRef: "change-db", warehouseReceiptHash: HASH_A, effectiveAt: NOW.toISOString(), status: "CURRENT" };
   const record = { settlementId: "settlement-final", assetId: "asset-db", token: { chainId: "560048", contract: "test-only", tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", snapshotHash: HASH_A, externalExecutionRef: "execution", oldCertificateHash: HASH_B, newCertificateHash: HASH_C, registryChangeRef: "change-db", status: "FINALIZED", deadlineAt: "2026-08-27T00:00:00.000Z", startedAt: NOW.toISOString(), finalizedAt: NOW.toISOString() };
@@ -450,7 +451,7 @@ test("MySQL finalization rolls back when the current certificate cannot be super
     async commit() {},
     async rollback() { rolledBack = true; },
     release() {},
-    async execute(sql) {
+    async execute(sql, parameters = []) {
       executeCount += 1;
       if (sql.includes("UPDATE certificate_versions SET certificate_status='SUPERSEDED'")) return [{ affectedRows: 0 }, []];
       return [[], []];
@@ -566,17 +567,155 @@ test("MySQL snapshot restore overlays independently committed outbox delivery st
   const storedState = { schemaVersion: "giraffe-production-state.v1", components: { outbox: { events: [event] } }, dualControl: { actions: [] } };
   const pool = {
     async getConnection() { throw new Error("not used"); },
-    async execute(sql) {
+    async execute(sql, parameters = []) {
       if (sql.includes("production_state_snapshots")) return [[{ state_json: JSON.stringify(storedState), state_hash: evidenceHash(storedState) }]];
-      if (sql.includes("outbox_events")) return [[{ event_id: event.eventId, attempts: 5, published_at: null, dead_lettered_at: "2026-08-24T00:01:00.000Z", dead_letter_attempts: 3, delivery_state_attempts: 2 }]];
+      if (sql.includes("outbox_events")) return [[{ event_id: event.eventId, attempts: 5, published_at: null, dead_lettered_at: "2026-08-24T00:01:00.000Z", dead_letter_attempts: 3, dead_letter_state_attempts: 4, delivery_state_attempts: 2 }]];
       throw new Error("unexpected query");
     },
   };
   const restored = await new MySqlOracleRepository({ pool }).loadStateSnapshot();
   assert.equal(restored.state.components.outbox.events[0].attempts, 5);
   assert.equal(restored.state.components.outbox.events[0].deadLetterAttempts, 3);
+  assert.equal(restored.state.components.outbox.events[0].deadLetterStateAttempts, 4);
   assert.equal(restored.state.components.outbox.events[0].deadLetteredAt, "2026-08-24T00:01:00.000Z");
   assert.equal(restored.stateHash, evidenceHash(restored.state));
 });
 
 
+
+test("an initial certificate rejects a non-null predecessor before runtime mutation", () => {
+  const { runtime, control } = controlFixture();
+  const bundle = evidenceBundle("asset-initial-predecessor");
+  bundle.certificate = { ...bundle.certificate, previousCertificateHash: HASH_A };
+  assert.throws(() => control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "initial-predecessor", ...bundle, evidenceVersion: 1 }), /CERTIFICATE_INITIAL_VERSION_INVALID/);
+  assert.equal(runtime.recordStore.getAsset("asset-initial-predecessor"), null);
+});
+
+test("MySQL outbox delivery updates reject missing or stale rows", async () => {
+  let rolledBack = 0;
+  const connection = {
+    async beginTransaction() {},
+    async commit() {},
+    async rollback() { rolledBack += 1; },
+    release() {},
+    async execute() { return [{ affectedRows: 0 }, []]; },
+  };
+  const repository = new MySqlOracleRepository({ pool: { async getConnection() { return connection; } } });
+  const calls = [
+    () => repository.recordOutboxAttempt("event", 1),
+    () => repository.recordOutboxDeliveryStateAttempt("event", 1),
+    () => repository.recordOutboxDeadLetterAttempt("event", 1),
+    () => repository.recordOutboxDeadLetterStateAttempt("event", 1),
+    () => repository.markOutboxPublished("event", NOW.toISOString()),
+    () => repository.markOutboxDeadLettered("event", NOW.toISOString()),
+  ];
+  for (const call of calls) await assert.rejects(call, /OUTBOX_DELIVERY_UPDATE_CONFLICT/);
+  assert.equal(rolledBack, calls.length);
+});
+
+test("dead-letter acknowledgement failures rotate independently across exhausted events", async () => {
+  const outbox = new Outbox();
+  const first = outbox.enqueue({ eventType: "first", subjectId: "asset-first-ack", payloadHash: HASH_A, createdAt: "2026-08-24T00:00:00.000Z" });
+  const second = outbox.enqueue({ eventType: "second", subjectId: "asset-second-ack", payloadHash: HASH_B, createdAt: "2026-08-24T00:00:01.000Z" });
+  for (const event of [first, second]) for (let attempt = 0; attempt < 5; attempt += 1) outbox.recordAttempt(event.eventId);
+  const attempted = [];
+  const dispatcher = new OutboxDispatcher({
+    outbox,
+    maxAttempts: 5,
+    publisher: { async publishDeadLetter(event) { attempted.push(event.eventId); } },
+    deliveryStore: {
+      async markOutboxDeadLettered(eventId) { if (eventId === first.eventId) throw new Error("state unavailable"); },
+      async recordOutboxDeadLetterStateAttempt() {},
+    },
+    clock: () => NOW,
+  });
+  assert.equal((await dispatcher.drain(1))[0].status, "DEAD_LETTER_STATE_RETRY");
+  assert.equal((await dispatcher.drain(1))[0].status, "DEAD_LETTERED");
+  assert.deepEqual(attempted, [first.eventId, second.eventId]);
+  assert.deepEqual(outbox.list().map(({ deadLetterStateAttempts }) => deadLetterStateAttempts), [1, 0]);
+});
+
+test("MySQL settlement transitions atomically project the runtime asset status", async () => {
+  const statements = [];
+  const connection = {
+    async beginTransaction() {},
+    async commit() {},
+    async rollback() {},
+    release() {},
+    async execute(sql, parameters = []) {
+      statements.push({ sql, parameters });
+      if (sql.startsWith("UPDATE assets SET oracle_status=")) return [{ affectedRows: 1 }, []];
+      return [[], []];
+    },
+  };
+  const repository = new MySqlOracleRepository({ pool: { async getConnection() { return connection; } } });
+  const cases = [
+    ["beginSettlement", "PENDING", "startedAt", "TRANSFER_PENDING"],
+    ["cancelSettlement", "CANCELLED", "cancelledAt", "REVIEW_REQUIRED"],
+    ["disputeSettlement", "DISPUTED", "disputedAt", "REVIEW_REQUIRED"],
+    ["timeoutSettlement", "TIMED_OUT", "timedOutAt", "REVIEW_REQUIRED"],
+  ];
+  for (const [method, status, timestampField, expectedStatus] of cases) {
+    const timestamp = NOW.toISOString();
+    const record = { settlementId: "settlement-" + method, assetId: "asset-" + method, token: { chainId: "560048", contract: "test-only", tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", snapshotHash: HASH_A, externalExecutionRef: "execution", oldCertificateHash: HASH_B, status, deadlineAt: "2026-08-30T00:00:00.000Z", startedAt: timestamp, [timestampField]: timestamp };
+    await repository.persistMutation({ method, idempotencyKey: "project-" + method, commandHash: HASH_C, input: { request: { evidenceVersion: 2 } }, result: record, auditEvents: [], outboxEvents: [], stateSnapshot: { state: { testOnly: true }, stateHash: HASH_A } });
+    const projection = statements.filter(({ sql }) => sql.startsWith("UPDATE assets SET oracle_status=")).at(-1);
+    assert.deepEqual(projection.parameters, [expectedStatus, 2, timestamp, record.assetId]);
+  }
+});
+test("MySQL outbox updates accept only verified idempotent persisted state", async () => {
+  const publishedAt = NOW.toISOString();
+  const rowsBySelect = {
+    attempts: { attempts: 3, published_at: null, dead_lettered_at: null },
+    delivery_state_attempts: { delivery_state_attempts: 2, published_at: null, dead_lettered_at: null },
+    dead_letter_attempts: { dead_letter_attempts: 4, published_at: null, dead_lettered_at: null },
+    dead_letter_state_attempts: { dead_letter_state_attempts: 5, published_at: null, dead_lettered_at: null },
+    published_at: { published_at: publishedAt, dead_lettered_at: null },
+    dead_lettered_at: { published_at: null, dead_lettered_at: publishedAt },
+  };
+  const connection = {
+    async beginTransaction() {}, async commit() {}, async rollback() {}, release() {},
+    async execute(sql, parameters = []) {
+      if (sql.startsWith("UPDATE")) return [{ affectedRows: 0 }, []];
+      const field = sql.startsWith("SELECT published_at, dead_lettered_at") ? (parameters[0] === "dead-event" ? "dead_lettered_at" : "published_at") : Object.keys(rowsBySelect).find((candidate) => sql.startsWith("SELECT " + candidate));
+      return [[rowsBySelect[field]], []];
+    },
+  };
+  const repository = new MySqlOracleRepository({ pool: { async getConnection() { return connection; } } });
+  assert.equal((await repository.recordOutboxAttempt("event", 3)).idempotent, true);
+  assert.equal((await repository.recordOutboxDeliveryStateAttempt("event", 2)).idempotent, true);
+  assert.equal((await repository.recordOutboxDeadLetterAttempt("event", 4)).idempotent, true);
+  assert.equal((await repository.recordOutboxDeadLetterStateAttempt("event", 5)).idempotent, true);
+  assert.equal((await repository.markOutboxPublished("event", publishedAt)).idempotent, true);
+  assert.equal((await repository.markOutboxDeadLettered("dead-event", publishedAt)).idempotent, true);
+});
+
+test("failed durable attempt counters rotate both active and dead-letter lanes in memory", async () => {
+  const activeOutbox = new Outbox();
+  const activeFirst = activeOutbox.enqueue({ eventType: "first", subjectId: "active-first", payloadHash: HASH_A, createdAt: "2026-08-24T00:00:00.000Z" });
+  const activeSecond = activeOutbox.enqueue({ eventType: "second", subjectId: "active-second", payloadHash: HASH_B, createdAt: "2026-08-24T00:00:01.000Z" });
+  const activeAttempts = [];
+  const activeDispatcher = new OutboxDispatcher({
+    outbox: activeOutbox,
+    publisher: { async publish(event) { activeAttempts.push(event.eventId); throw new Error("offline"); } },
+    deliveryStore: { async recordOutboxAttempt() { throw new Error("db unavailable"); }, async recordOutboxDeliveryStateAttempt() { throw new Error("db unavailable"); } },
+  });
+  assert.equal((await activeDispatcher.drain(1))[0].status, "DELIVERY_STATE_RETRY");
+  assert.equal((await activeDispatcher.drain(1))[0].status, "DELIVERY_STATE_RETRY");
+  assert.deepEqual(activeAttempts, [activeFirst.eventId, activeSecond.eventId]);
+
+  const deadOutbox = new Outbox();
+  const deadFirst = deadOutbox.enqueue({ eventType: "first", subjectId: "dead-first", payloadHash: HASH_A, createdAt: "2026-08-24T00:00:00.000Z" });
+  const deadSecond = deadOutbox.enqueue({ eventType: "second", subjectId: "dead-second", payloadHash: HASH_B, createdAt: "2026-08-24T00:00:01.000Z" });
+  for (const event of [deadFirst, deadSecond]) for (let attempt = 0; attempt < 5; attempt += 1) deadOutbox.recordAttempt(event.eventId);
+  const deadAttempts = [];
+  const deadDispatcher = new OutboxDispatcher({
+    outbox: deadOutbox,
+    maxAttempts: 5,
+    publisher: { async publishDeadLetter(event) { deadAttempts.push(event.eventId); throw new Error("offline"); } },
+    deliveryStore: { async recordOutboxDeadLetterAttempt() { throw new Error("db unavailable"); }, async recordOutboxDeadLetterStateAttempt() { throw new Error("db unavailable"); } },
+  });
+  assert.equal((await deadDispatcher.drain(1))[0].status, "DEAD_LETTER_STATE_RETRY");
+  assert.equal((await deadDispatcher.drain(1))[0].status, "DEAD_LETTER_STATE_RETRY");
+  assert.deepEqual(deadAttempts, [deadFirst.eventId, deadSecond.eventId]);
+});
