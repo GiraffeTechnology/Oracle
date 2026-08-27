@@ -141,6 +141,8 @@ test("production finalization derives confirmations from all authenticated sourc
   const finalized = await assembly.controlPlane.finalizeSettlement({ actorId: "production-operator", idempotencyKey: "production-finalize-complete", request: { settlementId: pending.settlementId, snapshotHash: pending.snapshotHash, evidenceVersion: 3, ...references } });
   assert.equal(finalized.result.status, "FINALIZED");
   assert.equal(assembly.runtime.recordStore.getAsset("asset-production").currentOwnerCommitment, HASH_B);
+  assert.equal(assembly.runtime.recordStore.getWarehouse("asset-production").holderCommitment, HASH_B);
+  assert.equal(assembly.runtime.recordStore.provenance("WAREHOUSE", "asset-production").sourceId, "authoritative-warehouse");
   assert.equal(getSourceFetches(), 12);
   const events = assembly.runtime.outbox.list().filter(({ subjectId }) => subjectId === "asset-production").map(({ eventType }) => eventType);
   assert.ok(events.includes("certificate.superseded"));
