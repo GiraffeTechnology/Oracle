@@ -67,6 +67,20 @@ export class RecordStore {
     return stored;
   }
 
+  replaceCurrentCertificate(record, provenance, supersededAt) {
+    this.assertCertificate(record);
+    if (typeof supersededAt !== "string" || !supersededAt) throw new Error("CERTIFICATE_SUPERSEDED_AT_INVALID");
+    const history = this.#certificates.get(record.assetId) ?? [];
+    const current = history.at(-1);
+    if (!current || (current.status !== undefined && current.status !== "CURRENT")) throw new Error("CERTIFICATE_CURRENT_REQUIRED");
+    const superseded = Object.freeze({ ...current, status: "SUPERSEDED", supersededAt });
+    const stored = Object.freeze({ ...record, status: "CURRENT", supersededAt: null });
+    this.#certificates.set(record.assetId, Object.freeze([...history.slice(0, -1), superseded, stored]));
+    this.#assetByCertificateHash.set(record.certificateHash, record.assetId);
+    this.#storeProvenance("CERTIFICATE_AUTHORITY", record.assetId, provenance);
+    return stored;
+  }
+
   assertWarehouse(record) {
     if (!record?.assetId || !record.warehouseReceiptHash) throw new Error("WAREHOUSE_RECORD_INCOMPLETE");
     const current = this.#warehouse.get(record.assetId);
@@ -119,3 +133,5 @@ export class RecordStore {
     for (const warehouse of state.warehouse ?? []) this.putWarehouse(warehouse, provenance.get(this.#provenanceKey("WAREHOUSE", warehouse.assetId)) ?? null);
   }
 }
+
+
