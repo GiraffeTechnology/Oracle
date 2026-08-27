@@ -153,6 +153,8 @@ export class OracleControlPlane {
   bindToken({ actorId, idempotencyKey, binding }) {
     this.authorizer.require(actorId, "token:bind");
     if (this.runtime.stateEngine.current(binding.assetId) !== OracleStatus.VALID) throw new Error("ASSET_NOT_VALID_FOR_TOKEN_BINDING");
+    const certificate = this.runtime.recordStore.currentCertificate(binding.assetId);
+    if (!certificate || certificate.tokenId !== binding.tokenId) throw new Error("TOKEN_BINDING_CERTIFICATE_MISMATCH");
     return this.commandJournal.execute(idempotencyKey, { type: "token.bind", binding }, () => {
       const result = this.runtime.tokenIndex.bind(binding);
       const now = this.clock().toISOString();
