@@ -91,7 +91,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
     clock: () => NOW,
   });
   await assembly.authenticateAdmin({ headers: {} });
-  return { assembly, persisted, published, deadLetters, deliveryUpdates, alerts, persistStarted, getSourceFetches: () => sourceFetches, setRejectAlerts(value) { alertState.reject = value === true; }, setRejectAlertCodes(codes) { alertState.rejectCodes = new Set(codes); } };
+  return { assembly, persisted, published, deadLetters, deliveryUpdates, alerts, persistStarted, getSourceFetches: () => sourceFetches, setSourceRecord(sourceId, record) { recordBySource[sourceId] = record; }, setRejectAlerts(value) { alertState.reject = value === true; }, setRejectAlertCodes(codes) { alertState.rejectCodes = new Set(codes); } };
 }
 
 test("production assembly fetches three authenticated sources and persists the authoritative mutation", async () => {
@@ -112,6 +112,29 @@ test("production assembly fetches three authenticated sources and persists the a
   assert.deepEqual(await assembly.readinessCheck(), { ok: true });
 });
 
+test("production finalization derives confirmations from all authenticated sources and emits certificate supersession", async () => {
+  const { assembly, setSourceRecord, getSourceFetches } = await productionFixture();
+  await assembly.controlPlane.verifyAsset({ actorId: "production-operator", idempotencyKey: "production-finalize-verify", evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" }, evidenceVersion: 1 });
+  await assembly.controlPlane.bindToken({ actorId: "production-operator", idempotencyKey: "production-finalize-bind", binding: { assetId: "asset-production", chainId: "560048", contract: "test-only", tokenId: "1" } });
+  const pending = (await assembly.controlPlane.beginSettlement({ actorId: "production-operator", idempotencyKey: "production-finalize-begin", request: { settlementId: "production-settlement", assetId: "asset-production", token: { chainId: "560048", contract: "test-only", tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", externalExecutionRef: "external-production", oldCertificateHash: HASH_B, warehouseReceiptHash: HASH_C, evidenceVersion: 2 } })).result;
+  const next = records("asset-production");
+  next.asset.currentCertificateHash = HASH_A;
+  next.asset.currentCertificateVersion = 2;
+  next.asset.currentOwnerCommitment = HASH_B;
+  next.certificate = { ...next.certificate, certificateVersion: 2, certificateHash: HASH_A, previousCertificateHash: HASH_B, wenbaoChangeRef: "change-production" };
+  setSourceRecord("authoritative-registry", next.asset);
+  setSourceRecord("authoritative-certificate", next.certificate);
+  setSourceRecord("authoritative-warehouse", next.warehouse);
+  const references = { assetReference: "record:asset-final", certificateReference: "record:certificate-final", warehouseReference: "record:warehouse-final" };
+  await assert.rejects(() => assembly.controlPlane.finalizeSettlement({ actorId: "production-operator", idempotencyKey: "production-finalize-injected", request: { settlementId: pending.settlementId, snapshotHash: pending.snapshotHash, evidenceVersion: 3, ...references, warehouseConfirmed: true } }), /AUTHORITATIVE_FINALIZATION_INPUT_INVALID/);
+  const finalized = await assembly.controlPlane.finalizeSettlement({ actorId: "production-operator", idempotencyKey: "production-finalize-complete", request: { settlementId: pending.settlementId, snapshotHash: pending.snapshotHash, evidenceVersion: 3, ...references } });
+  assert.equal(finalized.result.status, "FINALIZED");
+  assert.equal(assembly.runtime.recordStore.getAsset("asset-production").currentOwnerCommitment, HASH_B);
+  assert.equal(getSourceFetches(), 6);
+  const events = assembly.runtime.outbox.list().filter(({ subjectId }) => subjectId === "asset-production").map(({ eventType }) => eventType);
+  assert.ok(events.includes("certificate.superseded"));
+  assert.ok(events.includes("settlement.finalized"));
+});
 test("async alert rejection is awaited and makes production readiness fail closed", async () => {
   const { assembly } = await productionFixture({ rejectAlerts: true });
   const event = assembly.runtime.outbox.enqueue({ eventType: "test", subjectId: "asset-alert", payloadHash: HASH_A, createdAt: NOW.toISOString() });
