@@ -11,6 +11,17 @@ components:
       in: header
       required: true
       schema: { type: string, minLength: 8, maxLength: 128, pattern: '^[a-zA-Z0-9._:-]+$' }
+  schemas:
+    AuthoritativeSettlementFinalizationRequest:
+      type: object
+      additionalProperties: false
+      required: [snapshotHash, evidenceVersion, assetReference, certificateReference, warehouseReference]
+      properties:
+        snapshotHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        evidenceVersion: { type: integer, minimum: 1 }
+        assetReference: { type: string, minLength: 3, maxLength: 256, pattern: '^[a-zA-Z0-9][a-zA-Z0-9:._/-]{2,255}$' }
+        certificateReference: { type: string, minLength: 3, maxLength: 256, pattern: '^[a-zA-Z0-9][a-zA-Z0-9:._/-]{2,255}$' }
+        warehouseReference: { type: string, minLength: 3, maxLength: 256, pattern: '^[a-zA-Z0-9][a-zA-Z0-9:._/-]{2,255}$' }
   securitySchemes:
     mutualTLS:
       type: mutualTLS
@@ -83,6 +94,11 @@ paths:
       parameters:
         - { name: settlementId, in: path, required: true, schema: { type: string } }
         - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthoritativeSettlementFinalizationRequest' }
       responses:
         '200': { description: Settlement finalized after complete authoritative evidence }
         '503': { description: External writes disabled }
