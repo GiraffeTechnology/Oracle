@@ -132,7 +132,8 @@ export class MySqlOracleRepository {
        (asset_id, asset_fingerprint_hash, wenbao_registry_ref, classification_code, transfer_eligibility, warehouse_id, warehouse_receipt_hash, current_certificate_hash, current_certificate_version, current_owner_commitment, encumbrance_status, oracle_status, evidence_version, created_at, updated_at, source_authority)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
-       wenbao_registry_ref = VALUES(wenbao_registry_ref), transfer_eligibility = VALUES(transfer_eligibility),
+       wenbao_registry_ref = VALUES(wenbao_registry_ref), classification_code = VALUES(classification_code), transfer_eligibility = VALUES(transfer_eligibility),
+       warehouse_id = VALUES(warehouse_id),
        warehouse_receipt_hash = VALUES(warehouse_receipt_hash), current_certificate_hash = VALUES(current_certificate_hash),
        current_certificate_version = VALUES(current_certificate_version), current_owner_commitment = VALUES(current_owner_commitment),
        encumbrance_status = VALUES(encumbrance_status), oracle_status = VALUES(oracle_status),
@@ -254,7 +255,11 @@ export class MySqlOracleRepository {
       return;
     }
     if (method === "executeSourceDisable") {
-      await connection.execute("UPDATE source_authorities SET active=FALSE, updated_at=UTC_TIMESTAMP(6) WHERE source_id=?", [input.sourceId]);
+      const [disableResult] = await connection.execute("UPDATE source_authorities SET active=FALSE, updated_at=UTC_TIMESTAMP(6) WHERE source_id=?", [input.sourceId]);
+      if (disableResult?.affectedRows !== 1) {
+        const [rows] = await connection.execute("SELECT active FROM source_authorities WHERE source_id=? FOR UPDATE", [input.sourceId]);
+        if (rows.length !== 1 || ![false, 0, "0"].includes(rows[0].active)) throw new Error("SOURCE_PROJECTION_CONFLICT");
+      }
     }
   }
 }
