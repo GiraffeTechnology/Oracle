@@ -18,8 +18,9 @@ async function fetchAuthenticated(port, reference, expected) {
   if (!port || typeof port.fetchByFixedReference !== "function") throw new Error("AUTHORITATIVE_SOURCE_PORT_INVALID");
   const response = await port.fetchByFixedReference(assertFixedReference(reference));
   if (response?.authenticated !== true || response.sourceId !== expected.sourceId || response.schemaVersion !== expected.schemaVersion || !response.record) throw new Error("AUTHORITATIVE_SOURCE_AUTHENTICATION_FAILED");
-  if (response.recordHash !== evidenceHash(response.record)) throw new Error("AUTHORITATIVE_SOURCE_HASH_MISMATCH");
-  return response.record;
+  const record = structuredClone(response.record);
+  if (response.recordHash !== evidenceHash(record)) throw new Error("AUTHORITATIVE_SOURCE_HASH_MISMATCH");
+  return Object.freeze(record);
 }
 
 export class AuthoritativeOracleControlPlane {
