@@ -6,8 +6,10 @@ The normative synthetic NFR-004 load and fault profile is `config/nfr-004-load-p
 
 - `development`: local, loopback only, no external writes.
 - `test`: synthetic evidence and ephemeral signing keys only.
-- `production`: deliberately rejected until a separate approved deployment change supplies persistent
-  storage, protected signer infrastructure, authenticated source adapters and an incident-response owner.
+- `production`: starts only through an absolute, regular deployment module whose SHA-256 is pinned by the
+  controlled host. The module supplies persistent storage, a synchronous protected signer boundary,
+  authenticated fixed-reference sources, admin authentication and operations adapters. Missing or changed
+  pins fail before the listener starts.
 
 ## Required production dependencies
 
@@ -16,6 +18,11 @@ The normative synthetic NFR-004 load and fault profile is `config/nfr-004-load-p
 - Durable queue/outbox consumer with idempotent delivery.
 - Approved source adapters whose endpoint and credentials are injected by the controlled deployment layer.
 - Central logs with field allowlists and retention controls.
+
+The application stores each authoritative projection, audit/outbox delta, durable idempotency result and a
+hash-verified recovery snapshot in one MySQL transaction. A durability failure marks the runtime compromised;
+all readiness, query and write routes then return fail-closed until a clean restart restores the last committed
+snapshot. Production verification accepts only fixed source record references and never caller-submitted facts.
 
 ## Recovery objectives for production approval
 

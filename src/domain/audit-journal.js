@@ -30,5 +30,14 @@ export class AuditJournal {
     }
     return true;
   }
-}
 
+  exportState() { return Object.freeze({ events: [...this.#events] }); }
+  importState(state) {
+    if (this.#events.length || !Array.isArray(state?.events)) throw new Error("AUDIT_STATE_IMPORT_REJECTED");
+    for (const expected of state.events) {
+      const actual = this.append(expected);
+      if (actual.eventHash !== expected.eventHash || actual.sequence !== expected.sequence) throw new Error("AUDIT_STATE_IMPORT_INVALID");
+    }
+    if (!this.verify()) throw new Error("AUDIT_STATE_IMPORT_INVALID");
+  }
+}

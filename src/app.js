@@ -105,6 +105,10 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
 
   return http.createServer(async (request, response) => {
     const requestUrl = new URL(request.url, "http://localhost");
+    if (runtime?.operationalState?.compromised && requestUrl.pathname !== "/healthz") {
+      sendJson(response, 503, { ok: false, errorCode: "DURABLE_STATE_COMPROMISED" });
+      return;
+    }
     try {
       assertAssetFactsOnly(Object.fromEntries(requestUrl.searchParams));
     } catch (error) {

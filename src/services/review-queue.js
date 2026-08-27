@@ -15,4 +15,9 @@ export class ReviewQueue {
 
   get(reviewId) { return this.#items.get(reviewId) ?? null; }
   list() { return [...this.#items.values()]; }
+  exportState() { return Object.freeze({ items: this.list() }); }
+  importState(state) {
+    if (this.#items.size || !Array.isArray(state?.items)) throw new Error("REVIEW_STATE_IMPORT_REJECTED");
+    for (const item of state.items) this.#items.set(item.reviewId, Object.freeze({ ...item, findingCodes: Object.freeze([...item.findingCodes]) }));
+  }
 }

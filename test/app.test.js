@@ -126,7 +126,7 @@ test("explicit synthetic test gate enables authenticated idempotent admin comman
   const runtime = createSyntheticRuntime();
   const authorizer = new Authorizer();
   authorizer.registerActor("oracle-test", ["ORACLE_OPERATOR"]);
-  const controlPlane = new OracleControlPlane({ runtime, authorizer, dualControl: new DualControlQueue(), commandJournal: new CommandJournal(), outbox: new Outbox() });
+  const controlPlane = new OracleControlPlane({ runtime, authorizer, dualControl: new DualControlQueue(), commandJournal: new CommandJournal(), outbox: new Outbox(), allowSyntheticEvidence: true });
   const config = loadConfig({ GIRAFFE_ORACLE_ENV: "test", GIRAFFE_ORACLE_EXTERNAL_WRITES: "true", GIRAFFE_ORACLE_TEST_WRITE_ACK: "synthetic-only" });
   const server = createApp({ config, sourceRegistry: runtime.sourceRegistry, runtime, controlPlane, authenticateAdmin: async () => "oracle-test" });
   await new Promise((resolve) => server.listen(0, "localhost", resolve));

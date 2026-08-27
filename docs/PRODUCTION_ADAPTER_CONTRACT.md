@@ -9,6 +9,8 @@ accept caller-selected network endpoints or credentials.
   audit event and enqueue the outbox event.
 - Connection material is injected by the controlled deployment system and is never returned by health APIs.
 - Reads used for attestation issuance must use a consistent transaction snapshot.
+- Every committed mutation stores the durable idempotency result and a hash-verified runtime recovery snapshot
+  in the same transaction. Startup rejects a changed snapshot; a commit failure blocks all non-liveness routes.
 
 ## Protected signer
 
@@ -44,4 +46,6 @@ accept caller-selected network endpoints or credentials.
 - Delivery is at-least-once; consumers must use `eventId` for idempotency.
 - Payloads contain hashes and non-sensitive status only.
 
-The current PR contains interfaces and synthetic implementations, not production credentials or endpoints.
+The current PR contains the production assembly, fixed-reference source gate, MySQL durability/recovery adapter
+and synthetic tests. It contains no production credentials or endpoints; deployment-owned adapter modules must
+be absolute regular files with exact SHA-256 pins and remain independently reviewable.

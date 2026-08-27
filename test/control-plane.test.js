@@ -43,7 +43,7 @@ function controlFixture(clock = () => NOW) {
   authorizer.registerActor("approver-b", ["APPROVER"]);
   authorizer.registerActor("reader-c", ["READER"]);
   const outbox = new Outbox();
-  const control = new OracleControlPlane({ runtime, authorizer, dualControl: new DualControlQueue(), commandJournal: new CommandJournal(), outbox, clock });
+  const control = new OracleControlPlane({ runtime, authorizer, dualControl: new DualControlQueue(), commandJournal: new CommandJournal(), outbox, allowSyntheticEvidence: true, clock });
   return { runtime, authorizer, outbox, control };
 }
 
@@ -79,6 +79,20 @@ test("registered evidence schemas enforce types patterns enums formats and nulla
   assert.throws(() => runtime.schemaRegistry.validate("asset-record.v1", { ...valid.asset, assetFingerprintHash: "not-a-hash" }), /PAYLOAD_FIELD_PATTERN_INVALID/);
   assert.throws(() => runtime.schemaRegistry.validate("certificate-record.v1", { ...valid.certificate, status: "ACTIVE" }), /PAYLOAD_FIELD_ENUM_INVALID/);
   assert.throws(() => runtime.schemaRegistry.validate("warehouse-record.v1", { ...valid.warehouse, observedAt: "not-a-date" }), /PAYLOAD_FIELD_FORMAT_INVALID/);
+  for (const malformed of ["2024-01-01", "2024-01-01T00:00:00", "2024-02-30T00:00:00Z"]) {
+    assert.throws(() => runtime.schemaRegistry.validate("warehouse-record.v1", { ...valid.warehouse, observedAt: malformed }), /PAYLOAD_FIELD_FORMAT_INVALID/);
+  }
+});
+
+test("asset verification rejects authoritative records whose prerequisites are not valid", () => {
+  const { control } = controlFixture();
+  const valid = evidenceBundle("asset-invalid-prerequisite");
+  for (const [suffix, patch] of [
+    ["asset", { asset: { ...valid.asset, oracleStatus: "INVALID" } }],
+    ["transfer", { asset: { ...valid.asset, transferEligibility: "REVOKED" } }],
+    ["certificate", { certificate: { ...valid.certificate, status: "REVOKED" } }],
+    ["warehouse", { warehouse: { ...valid.warehouse, warehouseStatus: "RELEASED" } }],
+  ]) assert.throws(() => control.verifyAsset({ actorId: "oracle-a", idempotencyKey: `invalid-prerequisite-${suffix}`, ...valid, ...patch, evidenceVersion: 1 }), /ASSET_EVIDENCE_NOT_VALID/);
 });
 
 test("failed asset verification leaves no partial in-memory records", () => {
@@ -218,6 +232,16 @@ test("cancelled settlements emit an explicit refund-required notification", () =
   control.cancelSettlement({ actorId: "oracle-a", idempotencyKey: "cancel-refund", request: { settlementId: "settlement-refund", reasonHash: HASH_A, evidenceVersion: 3 } });
   assert.equal(outbox.pending().filter((event) => event.eventType === "settlement.refund-required").length, 1);
   assert.equal(runtime.settlements.get("settlement-refund").failureReasonHash, HASH_A);
+});
+
+test("settlement finalization rejects a non-current replacement certificate", () => {
+  const { runtime, control } = controlFixture();
+  control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-finalize-status", ...evidenceBundle("asset-finalize-status"), evidenceVersion: 1 });
+  control.bindToken({ actorId: "oracle-a", idempotencyKey: "bind-finalize-status", binding: { assetId: "asset-finalize-status", chainId: "test-chain", contract: "contract-finalize", tokenId: "1" } });
+  const pending = control.beginSettlement({ actorId: "oracle-a", idempotencyKey: "begin-finalize-status", request: { settlementId: "settlement-finalize-status", assetId: "asset-finalize-status", token: { chainId: "test-chain", contract: "contract-finalize", tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", externalExecutionRef: "external-finalize", oldCertificateHash: HASH_B, warehouseReceiptHash: HASH_C, evidenceVersion: 2 } }).result;
+  const certificate = { assetId: "asset-finalize-status", tokenId: "1", certificateVersion: 2, certificateHash: HASH_A, previousCertificateHash: HASH_B, wenbaoChangeRef: "change-finalize", warehouseReceiptHash: HASH_C, effectiveAt: NOW.toISOString(), status: "REVOKED" };
+  assert.throws(() => control.finalizeSettlement({ actorId: "oracle-a", idempotencyKey: "finalize-revoked", request: { settlementId: pending.settlementId, certificate, certificateSourceId: "synthetic-certificates", certificateSourceRecordHash: evidenceHash(certificate), registryChangeRef: "change-finalize", snapshotHash: pending.snapshotHash, warehouseConfirmed: true, ownerBindingConfirmed: true, newOwnerCommitment: HASH_A, evidenceVersion: 3 } }), /SETTLEMENT_CERTIFICATE_NOT_CURRENT/);
+  assert.equal(runtime.settlements.get(pending.settlementId).status, "PENDING");
 });
 
 test("settlement failure paths reject invalid reasons before mutation", () => {

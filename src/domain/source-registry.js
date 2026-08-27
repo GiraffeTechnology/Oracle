@@ -87,4 +87,14 @@ export class SourceRegistry {
       active,
     }));
   }
+
+  exportState() { return Object.freeze({ sources: [...this.#sources.values()] }); }
+  importState(state) {
+    if (!Array.isArray(state?.sources) || state.sources.length !== this.#sources.size) throw new Error("SOURCE_STATE_IMPORT_REJECTED");
+    for (const source of state.sources) {
+      const current = this.#sources.get(source.id);
+      if (!current || current.kind !== source.kind || current.keySetId !== source.keySetId || JSON.stringify(current.schemaVersions) !== JSON.stringify(source.schemaVersions)) throw new Error("SOURCE_STATE_IMPORT_INVALID");
+      this.#sources.set(source.id, normalizeSource(source));
+    }
+  }
 }

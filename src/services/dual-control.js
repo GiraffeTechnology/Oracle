@@ -71,4 +71,13 @@ export class DualControlQueue {
   list() {
     return Object.freeze([...this.#actions.values()]);
   }
+
+  exportState() { return Object.freeze({ actions: [...this.#actions.values()] }); }
+  importState(state) {
+    if (this.#actions.size || !Array.isArray(state?.actions)) throw new Error("DUAL_CONTROL_STATE_IMPORT_REJECTED");
+    for (const action of state.actions) {
+      if (!action.actionId || this.#actions.has(action.actionId)) throw new Error("DUAL_CONTROL_STATE_IMPORT_INVALID");
+      this.#actions.set(action.actionId, Object.freeze({ ...action }));
+    }
+  }
 }

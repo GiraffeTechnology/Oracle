@@ -30,5 +30,10 @@ export class TokenIndex {
   byAsset(assetId) {
     return this.#byAsset.get(assetId) ?? null;
   }
-}
 
+  exportState() { return Object.freeze({ bindings: [...this.#byAsset.values()] }); }
+  importState(state) {
+    if (this.#byAsset.size || !Array.isArray(state?.bindings)) throw new Error("TOKEN_STATE_IMPORT_REJECTED");
+    for (const binding of state.bindings) this.bind(binding);
+  }
+}

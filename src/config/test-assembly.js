@@ -25,6 +25,7 @@ export function assembleIsolatedTestApplication({ config, env = process.env, sig
     commandJournal: new CommandJournal(),
     outbox: runtime.outbox,
     signerRotationBroker,
+    allowSyntheticEvidence: true,
     clock,
   });
   const adminOperations = new AdminOperations({ runtime, sourceRegistry: runtime.sourceRegistry, authorizer, reviewQueue: runtime.reviewQueue, dualControl, clock });

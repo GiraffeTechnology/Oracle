@@ -11,11 +11,13 @@ export class AttestationService {
   #signBytes;
   #verifyBytes;
 
-  constructor({ signerSetId, privateKey, publicKey, revocations, signerPolicy = null, clock = () => new Date() }) {
-    if (!signerSetId || !privateKey || !publicKey || !revocations) throw new Error("ATTESTATION_DEPENDENCY_MISSING");
+  constructor({ signerSetId, privateKey = null, publicKey = null, signBytes = null, verifyBytes = null, revocations, signerPolicy = null, clock = () => new Date() }) {
+    const keyPairMode = privateKey && publicKey && !signBytes && !verifyBytes;
+    const callbackMode = !privateKey && !publicKey && typeof signBytes === "function" && typeof verifyBytes === "function";
+    if (!signerSetId || !revocations || (!keyPairMode && !callbackMode)) throw new Error("ATTESTATION_DEPENDENCY_MISSING");
     this.signerSetId = signerSetId;
-    this.#signBytes = (bytes) => sign(null, bytes, privateKey);
-    this.#verifyBytes = (bytes, signature) => verify(null, bytes, publicKey, signature);
+    this.#signBytes = callbackMode ? signBytes : (bytes) => sign(null, bytes, privateKey);
+    this.#verifyBytes = callbackMode ? verifyBytes : (bytes, signature) => verify(null, bytes, publicKey, signature);
     this.revocations = revocations;
     if (signerPolicy && signerPolicy.record.signerSetId !== signerSetId) throw new Error("SIGNER_POLICY_SET_MISMATCH");
     this.signerPolicy = signerPolicy;
@@ -128,5 +130,17 @@ export class AttestationService {
       }
     }
     return { valid: true, errorCode: null };
+  }
+
+  exportState() { return Object.freeze({ signerSetId: this.signerSetId, attestations: [...this.#attestations.values()], issuedNonces: [...this.#issuedNonces] }); }
+  importState(state) {
+    if (this.#attestations.size || this.#issuedNonces.size || state?.signerSetId !== this.signerSetId || !Array.isArray(state?.attestations) || !Array.isArray(state?.issuedNonces)) throw new Error("ATTESTATION_STATE_IMPORT_REJECTED");
+    const nonceSet = new Set(state.issuedNonces);
+    for (const attestation of state.attestations) {
+      const { envelope, envelopeHash, signature } = attestation ?? {};
+      if (!envelope || evidenceHash(envelope) !== envelopeHash || !nonceSet.has(envelope.nonce) || this.#verifyBytes(signingBytes(envelope), Buffer.from(signature, "base64url")) !== true) throw new Error("ATTESTATION_STATE_IMPORT_INVALID");
+      this.#attestations.set(envelope.attestationId, Object.freeze({ envelope: Object.freeze({ ...envelope, subject: Object.freeze({ ...envelope.subject }) }), envelopeHash, signature }));
+    }
+    this.#issuedNonces = nonceSet;
   }
 }

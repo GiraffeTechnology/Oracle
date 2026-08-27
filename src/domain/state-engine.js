@@ -41,4 +41,14 @@ export class StateEngine {
   history(subjectId) {
     return this.#history.filter((entry) => entry.subjectId === subjectId);
   }
+
+  exportState() { return Object.freeze({ history: [...this.#history] }); }
+  importState(state) {
+    if (this.#history.length || !Array.isArray(state?.history)) throw new Error("STATE_ENGINE_IMPORT_REJECTED");
+    for (const entry of state.history) {
+      if (this.current(entry.subjectId) !== entry.from || !TRANSITIONS[entry.from]?.has(entry.to)) throw new Error("STATE_ENGINE_IMPORT_INVALID");
+      this.#states.set(entry.subjectId, entry.to);
+      this.#history.push(Object.freeze({ ...entry }));
+    }
+  }
 }

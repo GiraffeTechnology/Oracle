@@ -163,4 +163,15 @@ export class SettlementCoordinator {
   byAsset(assetId) {
     return [...this.#settlements.values()].reverse().find((record) => record.assetId === assetId) ?? null;
   }
+
+  exportState() { return Object.freeze({ settlements: [...this.#settlements.values()], intentHashes: [...this.#intentHashes.entries()] }); }
+  importState(state) {
+    if (this.#settlements.size || this.#intentHashes.size || !Array.isArray(state?.settlements) || !Array.isArray(state?.intentHashes)) throw new Error("SETTLEMENT_STATE_IMPORT_REJECTED");
+    const hashes = new Map(state.intentHashes);
+    for (const record of state.settlements) {
+      if (!record.settlementId || !record.assetId || !hashes.has(record.settlementId)) throw new Error("SETTLEMENT_STATE_IMPORT_INVALID");
+      this.#settlements.set(record.settlementId, Object.freeze({ ...record, token: Object.freeze({ ...record.token }) }));
+    }
+    this.#intentHashes = hashes;
+  }
 }

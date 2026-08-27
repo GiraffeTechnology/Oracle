@@ -106,4 +106,16 @@ export class RecordStore {
   provenance(kind, assetId) {
     return this.#provenance.get(this.#provenanceKey(kind, assetId)) ?? null;
   }
+
+  exportState() {
+    return Object.freeze({ assets: [...this.#assets.values()], certificates: [...this.#certificates.values()].flat(), warehouse: [...this.#warehouse.values()], provenance: [...this.#provenance.entries()] });
+  }
+
+  importState(state) {
+    if (this.#assets.size || this.#certificates.size || this.#warehouse.size || !state) throw new Error("RECORD_STATE_IMPORT_REJECTED");
+    const provenance = new Map(state.provenance ?? []);
+    for (const asset of state.assets ?? []) this.putAsset(asset, provenance.get(this.#provenanceKey("REGISTRY", asset.assetId)) ?? null);
+    for (const certificate of state.certificates ?? []) this.appendCertificate(certificate, provenance.get(this.#provenanceKey("CERTIFICATE_AUTHORITY", certificate.assetId)) ?? null);
+    for (const warehouse of state.warehouse ?? []) this.putWarehouse(warehouse, provenance.get(this.#provenanceKey("WAREHOUSE", warehouse.assetId)) ?? null);
+  }
 }

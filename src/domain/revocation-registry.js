@@ -15,5 +15,10 @@ export class RevocationRegistry {
   get(attestationId) {
     return this.#items.get(attestationId) ?? null;
   }
-}
 
+  exportState() { return Object.freeze({ items: [...this.#items.values()] }); }
+  importState(state) {
+    if (this.#items.size || !Array.isArray(state?.items)) throw new Error("REVOCATION_STATE_IMPORT_REJECTED");
+    for (const item of state.items) this.revoke(item);
+  }
+}

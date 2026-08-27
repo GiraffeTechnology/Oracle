@@ -34,7 +34,8 @@ CREATE TABLE assets (
   oracle_status VARCHAR(32) NOT NULL,
   evidence_version BIGINT UNSIGNED NOT NULL,
   created_at TIMESTAMP(6) NOT NULL,
-  updated_at TIMESTAMP(6) NOT NULL
+  updated_at TIMESTAMP(6) NOT NULL,
+  source_authority VARCHAR(64) NOT NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE certificate_versions (
@@ -48,6 +49,7 @@ CREATE TABLE certificate_versions (
   effective_at TIMESTAMP(6) NOT NULL,
   superseded_at TIMESTAMP(6) NULL,
   certificate_status ENUM('CURRENT','SUPERSEDED','REVOKED') NOT NULL,
+  source_authority VARCHAR(64) NOT NULL,
   PRIMARY KEY (asset_id, certificate_version),
   CONSTRAINT fk_certificate_asset FOREIGN KEY (asset_id) REFERENCES assets(asset_id)
 ) ENGINE=InnoDB;
@@ -62,6 +64,7 @@ CREATE TABLE warehouse_records (
   observed_at TIMESTAMP(6) NOT NULL,
   evidence_version BIGINT UNSIGNED NOT NULL,
   updated_at TIMESTAMP(6) NOT NULL,
+  source_authority VARCHAR(64) NOT NULL,
   CONSTRAINT fk_warehouse_asset FOREIGN KEY (asset_id) REFERENCES assets(asset_id)
 ) ENGINE=InnoDB;
 
@@ -79,6 +82,7 @@ CREATE TABLE attestations (
   attestation_id CHAR(36) PRIMARY KEY,
   asset_id VARCHAR(128) NOT NULL,
   envelope_hash CHAR(64) NOT NULL UNIQUE,
+  signature TEXT NOT NULL,
   schema_version VARCHAR(128) NOT NULL,
   chain_id VARCHAR(64) NOT NULL,
   contract_ref VARCHAR(128) NOT NULL,
@@ -150,4 +154,22 @@ CREATE TABLE outbox_events (
   published_at TIMESTAMP(6) NULL,
   attempts INT UNSIGNED NOT NULL DEFAULT 0,
   INDEX idx_outbox_pending (published_at, created_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE command_journal (
+  idempotency_key VARCHAR(128) PRIMARY KEY,
+  command_hash CHAR(64) NOT NULL,
+  command_type VARCHAR(64) NOT NULL,
+  command_status ENUM('PENDING','COMPLETED','FAILED') NOT NULL,
+  result_json JSON NULL,
+  created_at TIMESTAMP(6) NOT NULL,
+  updated_at TIMESTAMP(6) NOT NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE production_state_snapshots (
+  snapshot_id TINYINT UNSIGNED PRIMARY KEY,
+  state_hash CHAR(64) NOT NULL,
+  state_json JSON NOT NULL,
+  updated_at TIMESTAMP(6) NOT NULL,
+  CONSTRAINT chk_single_production_snapshot CHECK (snapshot_id = 1)
 ) ENGINE=InnoDB;

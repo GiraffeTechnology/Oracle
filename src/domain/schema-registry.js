@@ -9,6 +9,16 @@ function matchesType(value, type) {
   return typeof value === type;
 }
 
+function isRfc3339DateTime(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|([+-])(\d{2}):(\d{2}))$/.exec(value);
+  if (!match) return false;
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText, , offsetHourText = "00", offsetMinuteText = "00"] = match;
+  const [year, month, day, hour, minute, second, offsetHour, offsetMinute] = [yearText, monthText, dayText, hourText, minuteText, secondText, offsetHourText, offsetMinuteText].map(Number);
+  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59 || offsetHour > 23 || offsetMinute > 59) return false;
+  const calendar = new Date(Date.UTC(year, month - 1, day));
+  return calendar.getUTCFullYear() === year && calendar.getUTCMonth() === month - 1 && calendar.getUTCDate() === day && !Number.isNaN(Date.parse(value));
+}
+
 function validateProperty(field, value, definition) {
   const allowedTypes = Array.isArray(definition.type) ? definition.type : [definition.type];
   if (definition.type !== undefined && !allowedTypes.some((type) => matchesType(value, type))) {
@@ -20,7 +30,7 @@ function validateProperty(field, value, definition) {
     if (definition.minLength !== undefined && value.length < definition.minLength) throw new Error(`PAYLOAD_FIELD_LENGTH_INVALID:${field}`);
     if (definition.maxLength !== undefined && value.length > definition.maxLength) throw new Error(`PAYLOAD_FIELD_LENGTH_INVALID:${field}`);
     if (definition.pattern && !definition.pattern.test(value)) throw new Error(`PAYLOAD_FIELD_PATTERN_INVALID:${field}`);
-    if (definition.format === "date-time" && Number.isNaN(Date.parse(value))) throw new Error(`PAYLOAD_FIELD_FORMAT_INVALID:${field}`);
+    if (definition.format === "date-time" && !isRfc3339DateTime(value)) throw new Error(`PAYLOAD_FIELD_FORMAT_INVALID:${field}`);
   }
   if (typeof value === "number") {
     if (definition.minimum !== undefined && value < definition.minimum) throw new Error(`PAYLOAD_FIELD_RANGE_INVALID:${field}`);

@@ -46,8 +46,9 @@ The public service exposes:
 - `POST /v1/rwa/revocations` (dual control; disabled by default)
 - `GET /admin` (read-only status page)
 
-The complete non-secret L2 profile and non-normative L3 compatibility pin live in `config/`. Authoritative writes are implemented behind
-the RBAC/dual-control service layer and production ports, but are not exposed by the default HTTP runtime.
-Production commissioning and approval remain deliberate external release gates.
+The complete non-secret L2 profile and non-normative L3 compatibility pin live in `config/`. Production mode
+starts only with an absolute, regular deployment module and exact SHA-256 pin; authoritative writes then use
+authenticated fixed-reference sources, RBAC/dual control, protected signing, and atomic MySQL durability.
+Production commissioning and Stage F approval remain deliberate external release gates.
 
 See `docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md`, `docs/ACCEPTANCE_RWA_ORACLE_ZH.md`, and `docs/STATUS.md`.

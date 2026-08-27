@@ -34,18 +34,23 @@
 | Oracle is treated as financial approval | Prohibited fields and public wording gates | I0, I6, I12 |
 | Dependency or build compromise | Locked dependencies, SBOM and reproducible artifacts | I0, I12 |
 
-## Iteration 0 controls implemented
+## Runtime controls implemented
 
-- Development/test environments only.
 - Loopback-only server binding.
-- External writes cannot be enabled.
+- Production startup requires an absolute regular deployment module with an exact SHA-256 pin.
+- Production writes require a separate authenticated-control-plane acknowledgement.
 - Caller-supplied source endpoints are rejected.
+- Production evidence is fetched only through authenticated fixed-reference adapters.
+- MySQL atomically stores projections, audit/outbox changes, idempotency results and a hash-verified recovery snapshot.
+- A failed durability commit compromises the runtime and blocks every non-liveness route.
 - No third-party runtime dependency.
 - Synthetic fixtures only.
 - Repository scan for common credential content and non-loopback IPv4 literals.
 
 ## Residual risk
 
-The current service is an engineering baseline, not a production Oracle. It has no persistent database,
-authenticated ingestion, production signing, revocation propagation, high availability or disaster
-recovery. It must not process real evidence or serve as a production decision source.
+The repository now includes a fail-closed production assembly contract and MySQL recovery path, but it is not
+itself a production authorization. Stage F remains blocked until deployment-owned adapters are independently
+reviewed, protected signer rotation and disaster recovery are exercised, the 72-hour availability gate passes,
+and all required legal, privacy, security, contract and operations approvals bind the same candidate commit.
+Until then it must not process real evidence or serve as a production decision source.
