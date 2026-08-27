@@ -34,6 +34,12 @@ function controlledFailureCode(error, fallback) {
   return SAFE_ERROR_CODE.test(candidate ?? "") ? candidate : fallback;
 }
 
+function signerRotationSubject(actionId, fromSignerSetId, toSignerSetId, rotationDigest) {
+  const subjectId = fromSignerSetId + "->" + toSignerSetId;
+  if (typeof actionId !== "string" || actionId.length < 1 || actionId.length > 128 || typeof fromSignerSetId !== "string" || fromSignerSetId.length < 1 || fromSignerSetId.length > 64 || typeof toSignerSetId !== "string" || toSignerSetId.length < 1 || toSignerSetId.length > 64 || fromSignerSetId === toSignerSetId || subjectId.length > 128 || !SHA256_HEX.test(rotationDigest ?? "")) throw new Error("SIGNER_ROTATION_REQUEST_INVALID");
+  return subjectId;
+}
+
 function assertRotationEvidence(result) {
   if (result?.oldSignerRejected !== true || result?.newSignerAccepted !== true || result?.rotationAudited !== true || result?.auditChainVerified !== true || result?.dualApprovalVerified !== true || result?.rollbackVerified !== true || !Number.isFinite(result?.rollbackWindowSeconds) || result.rollbackWindowSeconds < 3600 || !Number.isFinite(result?.timelockSeconds) || result.timelockSeconds < 300 || result?.privateMaterialObserved !== false || result?.networkUsed !== false || result?.transactionSigned !== false) throw new Error("SIGNER_ROTATION_BROKER_RESULT_INVALID");
   return result;
@@ -99,10 +105,14 @@ export class OracleControlPlane {
       this.runtime.recordStore.assertCertificate(certificate);
       this.runtime.recordStore.assertWarehouse(warehouse);
       this.runtime.stateEngine.assertTransition({ subjectId: asset.assetId, to: OracleStatus.VALID, evidenceVersion });
-      this.runtime.recordStore.putAsset(asset, provenance.REGISTRY);
-      this.runtime.recordStore.appendCertificate(certificate, provenance.CERTIFICATE_AUTHORITY);
-      this.runtime.recordStore.putWarehouse(warehouse, provenance.WAREHOUSE);
       const now = this.clock().toISOString();
+      this.runtime.recordStore.putAsset(asset, provenance.REGISTRY);
+      if (this.runtime.recordStore.currentCertificate(asset.assetId)) {
+        this.runtime.recordStore.replaceCurrentCertificate(certificate, provenance.CERTIFICATE_AUTHORITY, certificate.effectiveAt);
+      } else {
+        this.runtime.recordStore.appendCertificate(certificate, provenance.CERTIFICATE_AUTHORITY);
+      }
+      this.runtime.recordStore.putWarehouse(warehouse, provenance.WAREHOUSE);
       this.runtime.stateEngine.transition({ subjectId: asset.assetId, to: OracleStatus.VALID, reasonHash: evidenceHash({ asset, certificate, warehouse }), evidenceVersion, occurredAt: now });
       const event = this.runtime.auditJournal.append({ type: "asset.verified", subjectId: asset.assetId, payloadHash: evidenceHash({ asset, certificate, warehouse }), actorId, occurredAt: now });
       this.outbox.enqueue({ eventType: "asset.verified", subjectId: asset.assetId, payloadHash: event.eventHash, createdAt: now });
@@ -206,22 +216,21 @@ export class OracleControlPlane {
 
   requestSignerRotation({ actorId, actionId, fromSignerSetId, toSignerSetId, rotationDigest, idempotencyKey = null }) {
     this.authorizer.require(actorId, "signer:rotate");
-    if (![actionId, fromSignerSetId, toSignerSetId].every((value) => typeof value === "string" && value) || fromSignerSetId === toSignerSetId || !SHA256_HEX.test(rotationDigest ?? "")) throw new Error("SIGNER_ROTATION_REQUEST_INVALID");
+    const subjectId = signerRotationSubject(actionId, fromSignerSetId, toSignerSetId, rotationDigest);
     const operation = () => {
       if (this.runtime.attestations.signerSetId !== fromSignerSetId) throw new Error("SIGNER_ROTATION_SOURCE_NOT_ACTIVE");
-      return this.dualControl.request({ actionId, actionType: "SIGNER_ROTATE", subjectId: `${fromSignerSetId}->${toSignerSetId}`, payloadHash: rotationDigest, requestedBy: actorId, requestedAt: this.clock().toISOString() });
+      return this.dualControl.request({ actionId, actionType: "SIGNER_ROTATE", subjectId, payloadHash: rotationDigest, requestedBy: actorId, requestedAt: this.clock().toISOString() });
     };
     return idempotencyKey ? this.commandJournal.execute(idempotencyKey, { type: "signer-rotation.request", actionId, fromSignerSetId, toSignerSetId, rotationDigest }, operation) : operation();
   }
 
   async executeSignerRotation({ actorId, actionId, fromSignerSetId, toSignerSetId, rotationDigest, idempotencyKey = null }) {
     this.authorizer.require(actorId, "signer:rotate");
-    if (![actionId, fromSignerSetId, toSignerSetId].every((value) => typeof value === "string" && value) || fromSignerSetId === toSignerSetId || !SHA256_HEX.test(rotationDigest ?? "")) throw new Error("SIGNER_ROTATION_REQUEST_INVALID");
+    const subjectId = signerRotationSubject(actionId, fromSignerSetId, toSignerSetId, rotationDigest);
     if (!this.signerRotationBroker?.rotate) throw new Error("SIGNER_ROTATION_BROKER_UNAVAILABLE");
     const operation = async () => {
       const runtimeSignerSetId = this.runtime.attestations.signerSetId;
       if (runtimeSignerSetId !== fromSignerSetId && runtimeSignerSetId !== toSignerSetId) throw new Error("SIGNER_ROTATION_RUNTIME_STATE_CONFLICT");
-      const subjectId = `${fromSignerSetId}->${toSignerSetId}`;
       const occurredAt = this.clock().toISOString();
       this.dualControl.beginExecution(actionId, { actionType: "SIGNER_ROTATE", subjectId, payloadHash: rotationDigest, executedBy: actorId, executionStartedAt: occurredAt });
       try {
@@ -256,12 +265,11 @@ export class OracleControlPlane {
 
   async reconcileSignerRotation({ actorId, actionId, fromSignerSetId, toSignerSetId, rotationDigest, idempotencyKey = null }) {
     this.authorizer.require(actorId, "signer:rotate");
-    if (![actionId, fromSignerSetId, toSignerSetId].every((value) => typeof value === "string" && value) || fromSignerSetId === toSignerSetId || !SHA256_HEX.test(rotationDigest ?? "")) throw new Error("SIGNER_ROTATION_REQUEST_INVALID");
+    const subjectId = signerRotationSubject(actionId, fromSignerSetId, toSignerSetId, rotationDigest);
     if (!this.signerRotationBroker?.reconcile) throw new Error("SIGNER_ROTATION_RECONCILER_UNAVAILABLE");
     const operation = async () => {
       const runtimeSignerSetId = this.runtime.attestations.signerSetId;
       if (runtimeSignerSetId !== fromSignerSetId && runtimeSignerSetId !== toSignerSetId) throw new Error("SIGNER_ROTATION_RUNTIME_STATE_CONFLICT");
-      const subjectId = `${fromSignerSetId}->${toSignerSetId}`;
       const occurredAt = this.clock().toISOString();
       this.dualControl.beginRecovery(actionId, { actionType: "SIGNER_ROTATE", subjectId, payloadHash: rotationDigest, executedBy: actorId, recoveryStartedAt: occurredAt });
       try {
@@ -367,5 +375,4 @@ export class OracleControlPlane {
     this.outbox.enqueue({ eventType: "settlement.refund-required", subjectId: result.assetId, payloadHash: reasonHash, createdAt });
   }
 }
-
 
