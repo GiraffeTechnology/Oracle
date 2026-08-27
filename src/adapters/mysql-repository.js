@@ -126,7 +126,7 @@ export class MySqlOracleRepository {
          (asset_id, warehouse_id, warehouse_receipt_hash, warehouse_status, holder_commitment, encumbrance_status, observed_at, evidence_version, updated_at, source_authority)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE warehouse_status=VALUES(warehouse_status), holder_commitment=VALUES(holder_commitment), encumbrance_status=VALUES(encumbrance_status), observed_at=VALUES(observed_at), evidence_version=VALUES(evidence_version), updated_at=VALUES(updated_at), source_authority=VALUES(source_authority)`,
-        [input.warehouse.assetId, input.warehouse.warehouseId, input.warehouse.warehouseReceiptHash, input.warehouse.warehouseStatus, input.warehouse.holderCommitment ?? null, input.warehouse.encumbranceStatus, input.warehouse.observedAt, input.evidenceVersion, now, input.evidenceSources.warehouse],
+        [input.warehouse.assetId, input.warehouse.warehouseId, input.warehouse.warehouseReceiptHash, input.warehouse.warehouseStatus, input.warehouse.holderCommitment ?? null, input.warehouse.encumbranceStatus ?? input.asset.encumbranceStatus, input.warehouse.observedAt, input.evidenceVersion, now, input.evidenceSources.warehouse],
       );
       return;
     }
@@ -167,3 +167,4 @@ export class MySqlOracleRepository {
     }
   }
 }
+

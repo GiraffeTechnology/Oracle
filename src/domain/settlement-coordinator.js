@@ -3,6 +3,10 @@ import { evidenceHash } from "./canonical-json.js";
 
 const SHA256_HEX = /^[a-f0-9]{64}$/i;
 
+function validBoundedString(value, maximum) {
+  return typeof value === "string" && value.length > 0 && value.length <= maximum;
+}
+
 function assertFailureReason(reasonHash) {
   if (!SHA256_HEX.test(reasonHash ?? "")) throw new Error("SETTLEMENT_REASON_HASH_INVALID");
 }
@@ -33,7 +37,7 @@ export class SettlementCoordinator {
     if (!this.recordStore.getAsset(assetId) || !certificate || !warehouse) {
       throw new Error("SETTLEMENT_EVIDENCE_INCOMPLETE");
     }
-    if (!token?.chainId || !token.contract || !token.tokenId || !sellerWallet || !buyerWallet || !externalExecutionRef) {
+    if (!validBoundedString(settlementId, 128) || !validBoundedString(assetId, 128) || !validBoundedString(token?.chainId, 64) || !validBoundedString(token?.contract, 255) || !validBoundedString(token?.tokenId, 255) || !validBoundedString(sellerWallet, 128) || !validBoundedString(buyerWallet, 128) || !validBoundedString(externalExecutionRef, 256)) {
       throw new Error("SETTLEMENT_SNAPSHOT_INCOMPLETE");
     }
     const binding = this.tokenIndex?.byToken(token.chainId, token.contract, token.tokenId);
@@ -45,7 +49,7 @@ export class SettlementCoordinator {
     const targetBusinessDays = this.settlementProfile?.targetBusinessDays;
     if (!this.businessCalendar || !Number.isInteger(targetBusinessDays) || targetBusinessDays < 1 || !this.settlementProfile?.businessCalendarRef) throw new Error("SETTLEMENT_CALENDAR_PROFILE_REQUIRED");
     const deadline = this.businessCalendar.addBusinessDays(now, targetBusinessDays);
-    if (![settlementId, actorId].every((value) => typeof value === "string" && value)) throw new Error("SETTLEMENT_SNAPSHOT_INCOMPLETE");
+    if (!validBoundedString(actorId, 128)) throw new Error("SETTLEMENT_SNAPSHOT_INCOMPLETE");
     const normalizedDeadlineAt = deadline.toISOString();
     const intent = Object.freeze({
       schemaVersion: "giraffe-settlement-intent.v1",
@@ -175,3 +179,4 @@ export class SettlementCoordinator {
     this.#intentHashes = hashes;
   }
 }
+

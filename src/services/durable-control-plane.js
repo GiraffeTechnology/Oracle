@@ -26,6 +26,7 @@ export class DurableOracleControlPlane {
 
   async executeResolved(method, commandInput, resolveOperationInput) {
     if (this.runtime.operationalState.compromised) throw new Error("DURABLE_STATE_COMPROMISED");
+    if (this.runtime.operationalState.signerRecoveryRequired && method !== "reconcileSignerRotation") throw new Error("SIGNER_ROTATION_RECOVERY_REQUIRED");
     if (typeof commandInput?.idempotencyKey !== "string" || !commandInput.idempotencyKey || typeof resolveOperationInput !== "function") throw new Error("IDEMPOTENCY_KEY_REQUIRED");
     const durableCommandHash = evidenceHash({ method, input: durableInput(method, commandInput) });
     if (typeof this.controlPlane.authorizeCommand !== "function") throw new Error("COMMAND_AUTHORIZATION_UNAVAILABLE");
@@ -42,7 +43,7 @@ export class DurableOracleControlPlane {
       const committed = await active.promise;
       return Object.freeze({ ...committed, replayed: true });
     }
-    const promise = this.#serialize(() => this.#executeAndPersist(method, commandInput, durableCommandHash, resolveOperationInput));
+    const promise = this.#serialize(method, () => this.#executeAndPersist(method, commandInput, durableCommandHash, resolveOperationInput));
     this.inFlight.set(commandInput.idempotencyKey, { commandHash: durableCommandHash, promise });
     try {
       return await promise;
@@ -51,9 +52,10 @@ export class DurableOracleControlPlane {
     }
   }
 
-  #serialize(operation) {
+  #serialize(method, operation) {
     const guarded = () => {
       if (this.runtime.operationalState.compromised) throw new Error("DURABLE_STATE_COMPROMISED");
+      if (this.runtime.operationalState.signerRecoveryRequired && method !== "reconcileSignerRotation") throw new Error("SIGNER_ROTATION_RECOVERY_REQUIRED");
       return operation();
     };
     const current = this.writeTail.then(guarded, guarded);

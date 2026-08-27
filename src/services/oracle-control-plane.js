@@ -276,6 +276,7 @@ export class OracleControlPlane {
       this.runtime.auditJournal.append({ type: "signer.rotated", subjectId, payloadHash: rotationDigest, actorId, occurredAt });
       this.outbox.enqueue({ eventType: "signer.rotated", subjectId, payloadHash: rotationDigest, createdAt: occurredAt });
       this.dualControl.completeExecution(actionId, occurredAt);
+      this.runtime.operationalState.signerRecoveryRequired = false;
       return Object.freeze({ applied: true, oldSignerRejected: true, newSignerAccepted: true, rotationAudited: true, auditChainVerified: true, privateMaterialIncluded: false, evidenceSha256: SHA256_HEX.test(result.evidenceSha256 ?? "") ? result.evidenceSha256.toLowerCase() : null });
       } catch (error) {
         this.dualControl.markRecoveryRequired(actionId, { failedAt: this.clock().toISOString(), errorCode: controlledFailureCode(error, "SIGNER_ROTATION_RECOVERY_REQUIRED") });
@@ -364,3 +365,4 @@ export class OracleControlPlane {
     this.outbox.enqueue({ eventType: "settlement.refund-required", subjectId: result.assetId, payloadHash: reasonHash, createdAt });
   }
 }
+

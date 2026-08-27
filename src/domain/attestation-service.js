@@ -147,8 +147,8 @@ export class AttestationService {
   }
 
   exportState() { return Object.freeze({ signerSetId: this.signerSetId, attestations: [...this.#attestations.values()], issuedNonces: [...this.#issuedNonces] }); }
-  importState(state) {
-    if (this.#attestations.size || this.#issuedNonces.size || state?.signerSetId !== this.signerSetId || !Array.isArray(state?.attestations) || !Array.isArray(state?.issuedNonces)) throw new Error("ATTESTATION_STATE_IMPORT_REJECTED");
+  importState(state, { allowHistoricalSignerSet = false } = {}) {
+    if (this.#attestations.size || this.#issuedNonces.size || (!allowHistoricalSignerSet && state?.signerSetId !== this.signerSetId) || typeof state?.signerSetId !== "string" || !state.signerSetId || !Array.isArray(state?.attestations) || !Array.isArray(state?.issuedNonces)) throw new Error("ATTESTATION_STATE_IMPORT_REJECTED");
     const nonceSet = new Set(state.issuedNonces);
     const seenIds = new Set();
     for (const attestation of state.attestations) {
@@ -161,3 +161,4 @@ export class AttestationService {
     this.#issuedNonces = nonceSet;
   }
 }
+

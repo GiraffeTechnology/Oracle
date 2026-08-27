@@ -13,6 +13,9 @@ import { SignerSetPolicy } from "../src/domain/signer-set-policy.js";
 import { RevocationRegistry } from "../src/domain/revocation-registry.js";
 import { AttestationService } from "../src/domain/attestation-service.js";
 import { DurableOracleControlPlane } from "../src/services/durable-control-plane.js";
+import { captureProductionState, restoreProductionState } from "../src/services/production-state.js";
+import { createSyntheticRuntime } from "../src/oracle-runtime.js";
+import { DualControlQueue } from "../src/services/dual-control.js";
 import { createApp } from "../src/app.js";
 import { SourceRegistry } from "../src/domain/source-registry.js";
 
@@ -109,6 +112,25 @@ test("production restarts from the hash-verified authoritative state snapshot", 
   assert.equal(restored.assembly.runtime.recordStore.getAsset("asset-production").oracleStatus, "VALID");
   assert.equal(restored.assembly.runtime.auditJournal.verify(), true);
   await assert.rejects(() => productionFixture({ initialSnapshot: { ...snapshot, stateHash: HASH_A } }), /PRODUCTION_STATE_SNAPSHOT_INVALID/);
+});
+
+test("startup restores an approved ambiguous rotation under the active destination signer", () => {
+  const sourceRuntime = createSyntheticRuntime({ clock: () => NOW });
+  const sourceDualControl = new DualControlQueue();
+  sourceDualControl.request({ actionId: "startup-rotation", actionType: "SIGNER_ROTATE", subjectId: "synthetic-oracle-signers->destination-signers", payloadHash: HASH_A, requestedBy: "security-a", requestedAt: NOW.toISOString() });
+  sourceDualControl.approve("startup-rotation", { approvedBy: "approver-b", approvedAt: NOW.toISOString() });
+  const snapshot = captureProductionState(sourceRuntime, sourceDualControl);
+
+  const destinationRuntime = createSyntheticRuntime({ clock: () => NOW });
+  const destinationKeys = generateKeyPairSync("ed25519");
+  const destinationPolicy = new SignerSetPolicy({ signerSetId: "destination-signers", threshold: 1, signers: ["destination"], environment: "test" });
+  destinationRuntime.attestations.activateSignerBackend({ signerSetId: "destination-signers", signBytes: (bytes) => sign(null, bytes, destinationKeys.privateKey), verifyBytes: (bytes, signature) => verify(null, bytes, destinationKeys.publicKey, signature), signerPolicy: destinationPolicy }, "synthetic-oracle-signers");
+  const destinationDualControl = new DualControlQueue();
+  assert.equal(restoreProductionState(destinationRuntime, destinationDualControl, snapshot), true);
+  assert.equal(destinationRuntime.attestations.signerSetId, "destination-signers");
+  assert.equal(destinationRuntime.operationalState.signerRecoveryRequired, true);
+  assert.equal(destinationDualControl.list()[0].status, "RECOVERY_REQUIRED");
+  assert.equal(destinationDualControl.list()[0].errorCode, "SIGNER_ROTATION_STARTUP_RECONCILIATION_REQUIRED");
 });
 
 test("deployment module loader requires an absolute regular file and exact SHA-256", async () => {

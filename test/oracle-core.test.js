@@ -130,6 +130,8 @@ test("settlement requires complete evidence and upgrades the certificate", () =>
   runtime.recordStore.putWarehouse({ assetId: "asset-001", warehouseReceiptHash: HASH_A, warehouseStatus: "HELD" });
   runtime.stateEngine.transition({ subjectId: "asset-001", to: OracleStatus.VALID, reasonHash: HASH_A, evidenceVersion: 1, occurredAt: NOW.toISOString() });
   runtime.tokenIndex.bind({ chainId: "test-chain", contract: "contract-001", tokenId: "1", assetId: "asset-001" });
+  assert.throws(() => runtime.settlements.begin({ settlementId: "settlement-too-long", assetId: "asset-001", token: { chainId: "test-chain", contract: "contract-001", tokenId: "1" }, sellerWallet: "s".repeat(129), buyerWallet: "buyer-wallet", externalExecutionRef: "external-execution-001", oldCertificateHash: HASH_B, warehouseReceiptHash: HASH_A, actorId: "synthetic-market", evidenceVersion: 2 }), /SETTLEMENT_SNAPSHOT_INCOMPLETE/);
+  assert.equal(runtime.stateEngine.current("asset-001"), OracleStatus.VALID);
   const pending = runtime.settlements.begin({ settlementId: "settlement-001", assetId: "asset-001", token: { chainId: "test-chain", contract: "contract-001", tokenId: "1" }, sellerWallet: "seller-wallet", buyerWallet: "buyer-wallet", externalExecutionRef: "external-execution-001", oldCertificateHash: HASH_B, warehouseReceiptHash: HASH_A, actorId: "synthetic-market", evidenceVersion: 2 });
   assert.equal(pending.businessCalendarRef, "synthetic://calendar/wenbao-v1");
   assert.equal(pending.targetBusinessDays, 3);
@@ -159,3 +161,4 @@ test("settlement records the Oracle-generated versioned T+3 deadline", () => {
   assert.equal(settlement.deadlineAt, "2026-08-27T00:00:00.000Z");
   assert.equal(settlement.businessCalendarRef, "synthetic://calendar/wenbao-v1");
 });
+

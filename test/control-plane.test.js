@@ -322,6 +322,22 @@ test("MySQL attestation projection stores a SHA-256 fact value hash", async () =
   assert.match(attestationParameters[10], /^[a-f0-9]{64}$/);
 });
 
+test("MySQL warehouse projection falls back to the schema-required asset encumbrance", async () => {
+  let warehouseParameters = null;
+  const connection = {
+    async beginTransaction() {}, async commit() {}, async rollback() {}, release() {},
+    async execute(sql, parameters = []) {
+      if (sql.includes("INSERT INTO warehouse_records")) warehouseParameters = parameters;
+      return [[], []];
+    },
+  };
+  const repository = new MySqlOracleRepository({ pool: { async getConnection() { return connection; } } });
+  const bundle = evidenceBundle("asset-warehouse-fallback");
+  delete bundle.warehouse.encumbranceStatus;
+  await repository.persistMutation({ method: "verifyAsset", idempotencyKey: "warehouse-fallback", commandHash: HASH_A, input: { ...bundle, evidenceVersion: 1, evidenceSources: { asset: "registry", certificate: "certificates", warehouse: "warehouse" } }, result: { status: "VALID" }, auditEvents: [], outboxEvents: [], stateSnapshot: { state: { schemaVersion: "test" }, stateHash: HASH_B } });
+  assert.equal(warehouseParameters[5], "CLEAR");
+});
+
 test("MySQL settlement projection preserves distinct terminal timestamps", async () => {
   let settlementParameters = null;
   const connection = {
