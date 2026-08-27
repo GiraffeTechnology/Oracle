@@ -62,6 +62,27 @@ test("control plane verifies an asset idempotently and rejects unauthorized acto
   assert.throws(() => control.verifyAsset({ ...command, actorId: "reader-c", idempotencyKey: "verify-002" }), /PERMISSION_DENIED/);
 });
 
+test("authorizer rejects actor identifiers wider than the audit projection", () => {
+  const authorizer = new Authorizer();
+  assert.throws(() => authorizer.registerActor("x".repeat(65), ["ORACLE_OPERATOR"]), /ACTOR_REGISTRATION_INVALID/);
+  assert.throws(() => authorizer.require("x".repeat(65), "asset:verify"), /ACTOR_ID_INVALID/);
+});
+
+test("authoritative re-verification supersedes the previous current certificate", () => {
+  const { runtime, control } = controlFixture();
+  const first = evidenceBundle("asset-reverify");
+  control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-reverify-1", ...first, evidenceVersion: 1 });
+  runtime.stateEngine.transition({ subjectId: "asset-reverify", to: "TRANSFER_PENDING", reasonHash: HASH_B, evidenceVersion: 2, occurredAt: NOW.toISOString() });
+  runtime.stateEngine.transition({ subjectId: "asset-reverify", to: "REVIEW_REQUIRED", reasonHash: HASH_C, evidenceVersion: 3, occurredAt: NOW.toISOString() });
+  const second = evidenceBundle("asset-reverify");
+  second.asset.currentCertificateHash = HASH_A;
+  second.asset.currentCertificateVersion = 2;
+  second.certificate = { ...second.certificate, certificateHash: HASH_A, certificateVersion: 2, previousCertificateHash: HASH_B, wenbaoChangeRef: "change-reverify" };
+  control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-reverify-2", ...second, evidenceVersion: 4 });
+  const history = runtime.recordStore.certificateHistory("asset-reverify");
+  assert.deepEqual(history.map(({ status }) => status), ["SUPERSEDED", "CURRENT"]);
+  assert.equal(history[0].supersededAt, second.certificate.effectiveAt);
+});
 test("asset verification replays before mutable source-state checks", () => {
   const { runtime, control } = controlFixture();
   const evidence = evidenceBundle("asset-source-replay");
@@ -383,6 +404,28 @@ test("MySQL settlement projection preserves distinct terminal timestamps", async
   assert.equal(settlementParameters[19], null);
 });
 
+test("MySQL re-verification supersedes exactly one previous current certificate", async () => {
+  const statements = [];
+  const connection = {
+    async beginTransaction() {}, async commit() {}, async rollback() {}, release() {},
+    async execute(sql, parameters = []) {
+      statements.push({ sql, parameters });
+      if (sql.startsWith("SELECT asset_id FROM assets")) return [[], []];
+      if (sql.includes("UPDATE certificate_versions SET certificate_status='SUPERSEDED'")) return [{ affectedRows: 1 }, []];
+      return [[], []];
+    },
+  };
+  const repository = new MySqlOracleRepository({ pool: { async getConnection() { return connection; } } });
+  const bundle = evidenceBundle("asset-db-reverify");
+  bundle.asset.currentCertificateHash = HASH_A;
+  bundle.asset.currentCertificateVersion = 2;
+  bundle.certificate = { ...bundle.certificate, certificateHash: HASH_A, certificateVersion: 2, previousCertificateHash: HASH_B, wenbaoChangeRef: "change-db-reverify" };
+  await repository.persistMutation({ method: "verifyAsset", idempotencyKey: "db-reverify", commandHash: HASH_A, input: { ...bundle, evidenceVersion: 2, evidenceSources: { asset: "registry", certificate: "certificates", warehouse: "warehouse" } }, result: { status: "VALID" }, auditEvents: [], outboxEvents: [], stateSnapshot: { state: { testOnly: true }, stateHash: HASH_B } });
+  const supersede = statements.findIndex(({ sql }) => sql.includes("UPDATE certificate_versions SET certificate_status='SUPERSEDED'"));
+  const replacement = statements.findIndex(({ sql }) => sql.includes("INSERT INTO certificate_versions"));
+  assert.equal(supersede >= 0, true);
+  assert.equal(replacement > supersede, true);
+});
 test("MySQL finalization supersedes the old certificate before inserting the replacement", async () => {
   const statements = [];
   const connection = { async beginTransaction() {}, async commit() {}, async rollback() {}, release() {}, async execute(sql, parameters = []) { statements.push({ sql, parameters }); return [sql.includes("UPDATE certificate_versions SET certificate_status='SUPERSEDED'") ? { affectedRows: 1 } : [], []]; } };
@@ -483,6 +526,25 @@ test("publisher failures are counted only after a real publish attempt", async (
   assert.equal(outbox.list()[0].attempts, 1);
 });
 
+test("delivery-state retry scheduling lets newer active events progress", async () => {
+  const outbox = new Outbox();
+  const first = outbox.enqueue({ eventType: "first", subjectId: "asset-first", payloadHash: HASH_A, createdAt: "2026-08-24T00:00:00.000Z" });
+  const second = outbox.enqueue({ eventType: "second", subjectId: "asset-second", payloadHash: HASH_B, createdAt: "2026-08-24T00:00:01.000Z" });
+  const published = [];
+  const dispatcher = new OutboxDispatcher({
+    outbox,
+    publisher: { async publish(event) { published.push(event.eventId); } },
+    deliveryStore: {
+      async markOutboxPublished(eventId) { if (eventId === first.eventId) throw new Error("state unavailable"); },
+      async recordOutboxDeliveryStateAttempt() {},
+    },
+    clock: () => NOW,
+  });
+  assert.equal((await dispatcher.drain(1))[0].status, "DELIVERY_STATE_RETRY");
+  assert.equal((await dispatcher.drain(1))[0].status, "PUBLISHED");
+  assert.deepEqual(published, [first.eventId, second.eventId]);
+  assert.equal(outbox.list()[0].deliveryStateAttempts, 1);
+});
 test("dead-letter retry scheduling is fair across exhausted events", async () => {
   const outbox = new Outbox();
   const first = outbox.enqueue({ eventType: "first", subjectId: "asset-first", payloadHash: HASH_A, createdAt: "2026-08-24T00:00:00.000Z" });
@@ -503,7 +565,7 @@ test("MySQL snapshot restore overlays independently committed outbox delivery st
     async getConnection() { throw new Error("not used"); },
     async execute(sql) {
       if (sql.includes("production_state_snapshots")) return [[{ state_json: JSON.stringify(storedState), state_hash: evidenceHash(storedState) }]];
-      if (sql.includes("outbox_events")) return [[{ event_id: event.eventId, attempts: 5, published_at: null, dead_lettered_at: "2026-08-24T00:01:00.000Z", dead_letter_attempts: 3 }]];
+      if (sql.includes("outbox_events")) return [[{ event_id: event.eventId, attempts: 5, published_at: null, dead_lettered_at: "2026-08-24T00:01:00.000Z", dead_letter_attempts: 3, delivery_state_attempts: 2 }]];
       throw new Error("unexpected query");
     },
   };
@@ -513,6 +575,5 @@ test("MySQL snapshot restore overlays independently committed outbox delivery st
   assert.equal(restored.state.components.outbox.events[0].deadLetteredAt, "2026-08-24T00:01:00.000Z");
   assert.equal(restored.stateHash, evidenceHash(restored.state));
 });
-
 
 
