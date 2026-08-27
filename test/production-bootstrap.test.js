@@ -64,6 +64,11 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
       persisted.push(value);
       commands.set(value.idempotencyKey, { commandHash: value.commandHash, status: "COMPLETED", result: value.result });
     },
+    async persistRecoveryState(value) {
+      if (failPersistence) throw new Error("db unavailable");
+      persisted.push(value);
+      commands.set(value.idempotencyKey, { commandHash: value.commandHash, status: "PENDING", result: null });
+    },
   };
   const resolver = {
     async resolve(reference, kind) {
@@ -394,4 +399,39 @@ test("a failed terminal alert boundary recovers without another outbox event", a
   assert.equal(alerts.filter(({ code }) => code === "OUTBOX_EVENT_DEAD_LETTERED").length >= 2, true);
   assert.equal(assembly.runtime.operationalState.alertingFailed, false);
   assert.deepEqual(await assembly.readinessCheck(), { ok: true });
+});
+test("ambiguous signer rotation persists recovery state before propagating failure", async () => {
+  const runtime = createSyntheticRuntime({ clock: () => NOW });
+  const dualControl = new DualControlQueue();
+  dualControl.request({ actionId: "rotate", actionType: "SIGNER_ROTATE", subjectId: "old->new", payloadHash: HASH_A, requestedBy: "security-a", requestedAt: NOW.toISOString() });
+  dualControl.approve("rotate", { approvedBy: "approver-b", approvedAt: NOW.toISOString() });
+  dualControl.beginExecution("rotate", { actionType: "SIGNER_ROTATE", subjectId: "old->new", payloadHash: HASH_A, executedBy: "security-a", executionStartedAt: NOW.toISOString() });
+  dualControl.markRecoveryRequired("rotate", { failedAt: NOW.toISOString(), errorCode: "SIGNER_ROTATION_OUTCOME_AMBIGUOUS" });
+  const recoveryWrites = [];
+  const durable = new DurableOracleControlPlane({
+    controlPlane: {
+      authorizeCommand() {},
+      async executeSignerRotation() {
+        runtime.operationalState.signerRecoveryRequired = true;
+        throw new Error("SIGNER_ROTATION_OUTCOME_AMBIGUOUS");
+      },
+    },
+    repository: {
+      async getCommand() { return null; },
+      async persistMutation() { throw new Error("SHOULD_NOT_COMPLETE"); },
+      async persistRecoveryState(record) { recoveryWrites.push(record); },
+    },
+    runtime,
+    dualControl,
+  });
+  await assert.rejects(() => durable.executeSignerRotation({ actorId: "security-a", idempotencyKey: "rotation-recovery", actionId: "rotate", fromSignerSetId: "old", toSignerSetId: "new", rotationDigest: HASH_A }), /SIGNER_ROTATION_OUTCOME_AMBIGUOUS/);
+  assert.equal(recoveryWrites.length, 1);
+  assert.equal(recoveryWrites[0].method, "executeSignerRotation");
+  assert.equal(recoveryWrites[0].stateSnapshot.state.dualControl.actions[0].status, "RECOVERY_REQUIRED");
+  const restoredRuntime = createSyntheticRuntime({ clock: () => NOW });
+  const restoredDualControl = new DualControlQueue();
+  restoreProductionState(restoredRuntime, restoredDualControl, recoveryWrites[0].stateSnapshot);
+  assert.equal(restoredRuntime.operationalState.signerRecoveryRequired, true);
+  assert.equal(restoredDualControl.list()[0].status, "RECOVERY_REQUIRED");
+  assert.equal(runtime.operationalState.compromised, false);
 });
