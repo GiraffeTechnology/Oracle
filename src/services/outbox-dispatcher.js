@@ -27,6 +27,13 @@ export class OutboxDispatcher {
         this.outbox.markPublished(event.eventId, publishedAt);
         results.push({ eventId: event.eventId, status: "PUBLISHED" });
       } catch {
+        const attempts = (event.deliveryStateAttempts ?? 0) + 1;
+        try {
+          await this.deliveryStore?.recordOutboxDeliveryStateAttempt(event.eventId, attempts);
+        } catch {
+          // In-memory rotation still prevents one failed acknowledgement from starving newer deliveries.
+        }
+        this.outbox.recordDeliveryStateAttempt(event.eventId);
         results.push({ eventId: event.eventId, status: "DELIVERY_STATE_RETRY" });
       }
     }
