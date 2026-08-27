@@ -8,7 +8,7 @@ export class FixedSourceTransportAdapter {
   }
 
   async fetchByFixedReference(recordRef) {
-    if (typeof recordRef !== "string" || !/^[a-zA-Z0-9._:-]{3,256}$/.test(recordRef)) {
+    if (typeof recordRef !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9:._/-]{2,255}$/.test(recordRef) || /^(?:https?|wss?):/i.test(recordRef)) {
       throw new Error("SOURCE_RECORD_REFERENCE_INVALID");
     }
     return this.transport.fetch({ sourceRegistrationId: this.registration.sourceId, recordRef });
