@@ -249,6 +249,8 @@ test("attestation persistence bounds are enforced before the signer is called", 
   const base = { subject: { assetId: "asset", chainId: "560048", contract: "test-only", tokenId: "1", purpose: "OWNERSHIP" }, factType: "STATUS", factValue: "VALID", sourceAuthority: "registry", sourceRecordHash: HASH_A, validForSeconds: 60, nonce: "valid" };
   for (const request of [
     { ...base, subject: { ...base.subject, purpose: "p".repeat(129) } },
+    { ...base, subject: { ...base.subject, contract: "c".repeat(129) } },
+    { ...base, subject: { ...base.subject, tokenId: "t".repeat(129) } },
     { ...base, nonce: "n".repeat(129) },
     { ...base, revocationRef: "r".repeat(257) },
     { ...base, sourceAuthority: "s".repeat(65) },
@@ -464,6 +466,7 @@ test("MySQL finalization rolls back when the current certificate cannot be super
 
 test("command journal deduplicates concurrent async operations and clears failed pending records", async () => {
   const journal = new CommandJournal();
+  assert.throws(() => journal.execute("i".repeat(129), { type: "oversized" }, () => "never"), /COMMAND_INVALID/);
   let calls = 0;
   let resolveOperation;
   const operation = () => {
