@@ -33,6 +33,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
   const sourceById = new Map(l2Profile.sources.map((source) => [source.sourceId, source]));
   const recordBySource = { "authoritative-registry": evidence.asset, "authoritative-certificate": evidence.certificate, "authoritative-warehouse": evidence.warehouse };
   const persisted = [];
+  const published = [];
   let sourceFetches = 0;
   let markPersistStarted;
   const persistStarted = new Promise((resolve) => { markPersistStarted = resolve; });
@@ -52,12 +53,13 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
   const resolver = {
     async resolve(reference, kind) {
       if (kind === "repository") return repository;
-      if (kind === "signer") return { signerSetId: "production-test-signers", ...(omitSignerPolicy ? {} : { signerPolicy: new SignerSetPolicy({ signerSetId: "production-test-signers", threshold: 1, signers: ["production-test-signer"] }) }), signBytes: (bytes) => sign(null, bytes, privateKey), verifyBytes: (bytes, signature) => verify(null, bytes, publicKey, signature), verifyHistoricalBytes: (signerSetId, bytes, signature) => signerSetId === "production-test-signers" && verify(null, bytes, publicKey, signature) };
+      if (kind === "signer") return { signerSetId: "production-test-signers", ...(omitSignerPolicy ? {} : { signerPolicy: new SignerSetPolicy({ signerSetId: "production-test-signers", threshold: 1, signers: ["production-test-signer"] }) }), signBytes: (bytes) => sign(null, bytes, privateKey), verifyBytes: (bytes, signature) => verify(null, bytes, publicKey, signature), verifyHistoricalBytes: (signerSetId, bytes, signature) => signerSetId === "production-test-signers" && verify(null, bytes, publicKey, signature), async rotate() { throw new Error("NOT_USED"); }, async reconcile() { throw new Error("NOT_USED"); }, async activateRuntime() { throw new Error("NOT_USED"); } };
       if (kind === "source") {
         const source = l2Profile.sources.find(({ transportRef }) => transportRef === reference);
         return { async fetchByFixedReference() { sourceFetches += 1; const record = recordBySource[source.sourceId]; return { authenticated: true, sourceId: source.sourceId, schemaVersion: source.schemaVersions[0], record, recordHash: evidenceHash(record) }; } };
       }
       if (kind === "admin-authenticator") return { async authenticate() { return { actorId: "production-operator", roles: ["ORACLE_OPERATOR"] }; } };
+      if (kind === "event-publisher") return { async publish(event) { published.push(event); } };
       return { kind, sourceById };
     },
   };
@@ -67,11 +69,11 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
     clock: () => NOW,
   });
   await assembly.authenticateAdmin({ headers: {} });
-  return { assembly, persisted, persistStarted, getSourceFetches: () => sourceFetches };
+  return { assembly, persisted, published, persistStarted, getSourceFetches: () => sourceFetches };
 }
 
 test("production assembly fetches three authenticated sources and persists the authoritative mutation", async () => {
-  const { assembly, persisted, getSourceFetches } = await productionFixture();
+  const { assembly, persisted, published, getSourceFetches } = await productionFixture();
   const command = { actorId: "production-operator", idempotencyKey: "production-verify-001", evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" }, evidenceVersion: 1 };
   const result = await assembly.controlPlane.verifyAsset(command);
   assert.equal(result.result.status, "VALID");
@@ -82,6 +84,8 @@ test("production assembly fetches three authenticated sources and persists the a
   assert.match(persisted[0].stateSnapshot.stateHash, /^[a-f0-9]{64}$/);
   assert.equal((await assembly.controlPlane.verifyAsset(command)).replayed, true);
   assert.equal(getSourceFetches(), 3);
+  assert.deepEqual(await assembly.outboxDispatcher.drain(), [{ eventId: assembly.runtime.outbox.list()[0].eventId, status: "PUBLISHED" }]);
+  assert.equal(published.length, 1);
 });
 
 test("production rejects caller records and becomes unavailable after durability failure", async () => {
@@ -124,6 +128,7 @@ test("overlapping durable commands do not resolve before the shared commit", asy
   const command = { actorId: "production-operator", idempotencyKey: "production-overlap", evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" }, evidenceVersion: 1 };
   const first = assembly.controlPlane.verifyAsset(command);
   await persistStarted;
+  assert.equal(assembly.runtime.outbox.pending().length, 0);
   let secondResolved = false;
   const second = assembly.controlPlane.verifyAsset(command).then((value) => { secondResolved = true; return value; });
   await new Promise((resolve) => setImmediate(resolve));
@@ -133,6 +138,7 @@ test("overlapping durable commands do not resolve before the shared commit", asy
   assert.equal(firstResult.result.status, "VALID");
   assert.equal(secondResult.replayed, true);
   assert.equal(persisted.length, 1);
+  assert.equal(assembly.runtime.outbox.pending().length, 1);
 });
 
 test("overlapping durable commands all reject when the shared commit fails", async () => {
@@ -147,6 +153,20 @@ test("overlapping durable commands all reject when the shared commit fails", asy
   const settled = await Promise.allSettled([first, second]);
   assert.deepEqual(settled.map(({ status }) => status), ["rejected", "rejected"]);
   assert.equal(settled.every(({ reason }) => reason.message === "MYSQL_DURABILITY_FAILURE"), true);
+});
+
+test("different durable writes serialize runtime mutation with snapshot persistence", async () => {
+  let releasePersistence;
+  const persistenceGate = new Promise((resolve) => { releasePersistence = resolve; });
+  const { assembly, persistStarted } = await productionFixture({ persistenceGate });
+  const verification = assembly.controlPlane.verifyAsset({ actorId: "production-operator", idempotencyKey: "production-serialized-verify", evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" }, evidenceVersion: 1 });
+  await persistStarted;
+  const binding = assembly.controlPlane.bindToken({ actorId: "production-operator", idempotencyKey: "production-serialized-bind", binding: { assetId: "asset-production", chainId: "560048", contract: "test-only-contract", tokenId: "1" } });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(assembly.runtime.tokenIndex.byAsset("asset-production"), null);
+  releasePersistence();
+  await Promise.all([verification, binding]);
+  assert.equal(assembly.runtime.tokenIndex.byAsset("asset-production").tokenId, "1");
 });
 
 test("durable audit replay rechecks current export authorization", async () => {

@@ -17,6 +17,7 @@ export class DurableOracleControlPlane {
     this.runtime = runtime;
     this.dualControl = dualControl;
     this.inFlight = new Map();
+    this.writeTail = Promise.resolve();
   }
 
   async execute(method, args) {
@@ -43,7 +44,7 @@ export class DurableOracleControlPlane {
       const committed = await active.promise;
       return Object.freeze({ ...committed, replayed: true });
     }
-    const promise = this.#executeAndPersist(method, commandInput, durableCommandHash, resolveOperationInput);
+    const promise = this.#serialize(() => this.#executeAndPersist(method, commandInput, durableCommandHash, resolveOperationInput));
     this.inFlight.set(commandInput.idempotencyKey, { commandHash: durableCommandHash, promise });
     try {
       return await promise;
@@ -52,12 +53,19 @@ export class DurableOracleControlPlane {
     }
   }
 
+  #serialize(operation) {
+    const current = this.writeTail.then(operation, operation);
+    this.writeTail = current.then(() => undefined, () => undefined);
+    return current;
+  }
+
   async #executeAndPersist(method, commandInput, durableCommandHash, resolveOperationInput) {
     const operationInput = await resolveOperationInput();
     const beforeAudit = this.runtime.auditJournal.list().length;
     const beforeOutbox = new Set(this.runtime.outbox.list().map(({ eventId }) => eventId));
     const result = await this.controlPlane[method](operationInput);
     if (result?.replayed === true) return result;
+    const outboxEvents = this.runtime.outbox.list().filter(({ eventId }) => !beforeOutbox.has(eventId));
     try {
       await this.repository.persistMutation({
         method,
@@ -66,9 +74,10 @@ export class DurableOracleControlPlane {
         input: durableInput(method, operationInput),
         result: result?.result ?? result,
         auditEvents: this.runtime.auditJournal.list().slice(beforeAudit),
-        outboxEvents: this.runtime.outbox.list().filter(({ eventId }) => !beforeOutbox.has(eventId)),
+        outboxEvents,
         stateSnapshot: captureProductionState(this.runtime, this.dualControl),
       });
+      for (const { eventId } of outboxEvents) this.runtime.outbox.markDurable(eventId);
       return result;
     } catch {
       this.runtime.operationalState.compromised = true;

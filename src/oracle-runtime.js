@@ -18,14 +18,14 @@ const SYNTHETIC_SETTLEMENT_PROFILE = Object.freeze({
   targetBusinessDays: 3,
 });
 
-function createRuntimeComponents({ sourceRegistry, attestationService, settlementProfile, businessCalendar, clock }) {
+function createRuntimeComponents({ sourceRegistry, attestationService, settlementProfile, businessCalendar, clock, requireDurableOutbox = false }) {
   const schemaRegistry = createDefaultSchemaRegistry();
   const recordStore = new RecordStore();
   const stateEngine = new StateEngine();
   const auditJournal = new AuditJournal();
   const revocations = attestationService.revocations;
   const tokenIndex = new TokenIndex();
-  const outbox = new Outbox();
+  const outbox = new Outbox({ requireDurable: requireDurableOutbox });
   const reviewQueue = new ReviewQueue();
   const settlements = new SettlementCoordinator({ recordStore, stateEngine, auditJournal, tokenIndex, attestations: attestationService, businessCalendar, settlementProfile, clock });
   const operationalState = { compromised: false, errorCode: null };
@@ -41,7 +41,7 @@ export function createProductionRuntime({ sources, signer, businessCalendar, set
   const sourceRegistry = new SourceRegistry(sources);
   const revocations = new RevocationRegistry();
   const attestations = new AttestationService({ signerSetId: signer.signerSetId, signBytes: signer.signBytes, verifyBytes: signer.verifyBytes, verifyHistoricalBytes: signer.verifyHistoricalBytes, signerPolicy: signer.signerPolicy, revocations, clock });
-  return createRuntimeComponents({ sourceRegistry, attestationService: attestations, settlementProfile, businessCalendar, clock });
+  return createRuntimeComponents({ sourceRegistry, attestationService: attestations, settlementProfile, businessCalendar, clock, requireDurableOutbox: true });
 }
 
 export function createSyntheticRuntime({ clock = () => new Date() } = {}) {

@@ -1,3 +1,5 @@
+import { evidenceHash } from "../domain/canonical-json.js";
+
 export class MySqlOracleRepository {
   constructor({ pool }) {
     if (!pool || typeof pool.getConnection !== "function") throw new Error("MYSQL_POOL_INVALID");
@@ -138,7 +140,7 @@ export class MySqlOracleRepository {
       await connection.execute(
         `INSERT INTO attestations (attestation_id, asset_id, envelope_hash, signature, schema_version, chain_id, contract_ref, token_id, purpose, fact_type, fact_value_hash, source_authority, source_record_hash, observed_at, nonce, revocation_ref, signer_set_id, valid_from, expires_at, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [envelope.attestationId, envelope.subject.assetId, envelopeHash, signature, envelope.schemaVersion, envelope.subject.chainId, envelope.subject.contract, envelope.subject.tokenId, envelope.subject.purpose, envelope.factType, JSON.stringify(envelope.factValue), envelope.sourceAuthority, envelope.sourceRecordHash, envelope.observedAt, envelope.nonce, envelope.revocationRef, envelope.signerSetId, envelope.validFrom, envelope.expiresAt, envelope.observedAt],
+        [envelope.attestationId, envelope.subject.assetId, envelopeHash, signature, envelope.schemaVersion, envelope.subject.chainId, envelope.subject.contract, envelope.subject.tokenId, envelope.subject.purpose, envelope.factType, evidenceHash(envelope.factValue), envelope.sourceAuthority, envelope.sourceRecordHash, envelope.observedAt, envelope.nonce, envelope.revocationRef, envelope.signerSetId, envelope.validFrom, envelope.expiresAt, envelope.observedAt],
       );
       return;
     }

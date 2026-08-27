@@ -11,6 +11,7 @@ import { AuthoritativeOracleControlPlane } from "../services/authoritative-contr
 import { AdminOperations } from "../services/admin-operations.js";
 import { BusinessCalendar } from "../services/business-calendar.js";
 import { restoreProductionState } from "../services/production-state.js";
+import { OutboxDispatcher } from "../services/outbox-dispatcher.js";
 
 export async function assembleProductionConfiguration({ l2Profile, l3Profile, resolver }) {
   const l2 = validateL2DeploymentProfile(l2Profile);
@@ -53,12 +54,45 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
   });
   const authorizer = new Authorizer();
   const dualControl = new DualControlQueue();
+  const signerRotationBroker = assembled.ports.signer;
+  if (typeof signerRotationBroker.rotate !== "function" || typeof signerRotationBroker.reconcile !== "function" || typeof signerRotationBroker.activateRuntime !== "function") throw new Error("PRODUCTION_SIGNER_ROTATION_BROKER_INVALID");
   if (typeof assembled.ports.repository.loadStateSnapshot !== "function") throw new Error("PRODUCTION_STATE_RESTORE_UNAVAILABLE");
   restoreProductionState(runtime, dualControl, await assembled.ports.repository.loadStateSnapshot());
-  const baseControlPlane = new OracleControlPlane({ runtime, authorizer, dualControl, commandJournal: new CommandJournal(), outbox: runtime.outbox, signerRotationBroker: assembled.ports.signerRotationBroker ?? null, clock });
+  const baseControlPlane = new OracleControlPlane({ runtime, authorizer, dualControl, commandJournal: new CommandJournal(), outbox: runtime.outbox, signerRotationBroker, clock });
   const durableControlPlane = new DurableOracleControlPlane({ controlPlane: baseControlPlane, repository: assembled.ports.repository, runtime, dualControl });
   const controlPlane = new AuthoritativeOracleControlPlane({ controlPlane: durableControlPlane, sourcePorts: assembled.ports, sourceDefinitions });
   const adminOperations = new AdminOperations({ runtime, sourceRegistry: runtime.sourceRegistry, authorizer, reviewQueue: runtime.reviewQueue, dualControl, clock });
+  if (typeof assembled.ports.eventPublisher.publish !== "function") throw new Error("PRODUCTION_EVENT_PUBLISHER_INVALID");
+  const outboxDispatcher = new OutboxDispatcher({ outbox: runtime.outbox, publisher: assembled.ports.eventPublisher, clock });
+  let backgroundWorker = null;
+  const startBackgroundWorkers = ({ intervalMs = 1000 } = {}) => {
+    if (!Number.isInteger(intervalMs) || intervalMs < 100) throw new Error("PRODUCTION_WORKER_INTERVAL_INVALID");
+    if (backgroundWorker) return backgroundWorker;
+    let stopped = false;
+    let draining = false;
+    const drain = async () => {
+      if (stopped || draining) return;
+      draining = true;
+      try {
+        await outboxDispatcher.drain();
+      } catch {
+        assembled.ports.monitoring?.reportFailure?.("OUTBOX_DISPATCH_FAILED");
+      } finally {
+        draining = false;
+      }
+    };
+    const timer = setInterval(drain, intervalMs);
+    timer.unref?.();
+    void drain();
+    backgroundWorker = Object.freeze({
+      stop() {
+        if (stopped) return;
+        stopped = true;
+        clearInterval(timer);
+      },
+    });
+    return backgroundWorker;
+  };
   const authenticateAdmin = async (request) => {
     if (typeof assembled.ports.adminAuthenticator?.authenticate !== "function") throw new Error("PRODUCTION_ADMIN_AUTHENTICATOR_INVALID");
     const identity = await assembled.ports.adminAuthenticator.authenticate(request);
@@ -66,5 +100,5 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
     authorizer.registerActor(identity.actorId, identity.roles);
     return identity.actorId;
   };
-  return Object.freeze({ ...assembled, runtime, sourceRegistry: runtime.sourceRegistry, controlPlane, adminOperations, authenticateAdmin });
+  return Object.freeze({ ...assembled, runtime, sourceRegistry: runtime.sourceRegistry, controlPlane, adminOperations, authenticateAdmin, outboxDispatcher, startBackgroundWorkers });
 }

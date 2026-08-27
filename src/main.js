@@ -13,6 +13,7 @@ const sourceRegistry = assembly?.sourceRegistry ?? new SourceRegistry();
 const server = createApp({ config, sourceRegistry, runtime, controlPlane: assembly?.controlPlane, adminOperations: assembly?.adminOperations, authenticateAdmin: assembly?.authenticateAdmin, l2Profile: assembly?.l2 ?? null, protocolProfile: assembly?.l3 ?? null });
 
 server.listen(config.port, config.host, () => {
+  assembly?.startBackgroundWorkers?.();
   process.stdout.write(
     `${JSON.stringify({
       event: "server.started",

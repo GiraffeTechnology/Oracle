@@ -23,6 +23,8 @@ accept caller-selected network endpoints or credentials.
 - The control plane never accepts a private key, mnemonic, key path or raw key reference. Runtime activation
   is performed through the deployment-owned `activateRuntime` broker operation and is fail-closed if the
   active runtime signer set does not exactly match the approved destination set.
+- The resolved signer port is also the fixed rotation broker and must implement `rotate`, `reconcile` and
+  `activateRuntime`; production startup fails before listening when any operation is absent.
 - Runtime `signBytes` and `verifyBytes` callbacks are synchronous-only. The deployment adapter must expose a
   synchronous local protected-broker boundary; Promise/thenable results are rejected fail-closed and must not
   be coerced into signature bytes or truthy verification results.
@@ -46,6 +48,9 @@ accept caller-selected network endpoints or credentials.
 ## Event publisher
 
 - Publishes only outbox events after database commit.
+- Production assembly installs the resolved publisher in the outbox dispatcher, and production startup starts
+  its single non-overlapping drain worker. Failed publishes remain pending for retry; the dispatcher never
+  turns an unacknowledged publish into a successful delivery.
 - Delivery is at-least-once; consumers must use `eventId` for idempotency.
 - Payloads contain hashes and non-sensitive status only.
 

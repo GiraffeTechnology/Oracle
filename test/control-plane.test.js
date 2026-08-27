@@ -291,6 +291,25 @@ test("MySQL asset upsert rejects unique identity collisions before mutation", as
   assert.equal(writes, 0);
 });
 
+test("MySQL attestation projection stores a SHA-256 fact value hash", async () => {
+  let attestationParameters = null;
+  const connection = {
+    async beginTransaction() {},
+    async commit() {},
+    async rollback() {},
+    release() {},
+    async execute(sql, parameters = []) {
+      if (sql.includes("INSERT INTO attestations")) attestationParameters = parameters;
+      return [[], []];
+    },
+  };
+  const repository = new MySqlOracleRepository({ pool: { async getConnection() { return connection; } } });
+  const envelope = { attestationId: "attestation-db", subject: { assetId: "asset-db", chainId: "560048", contract: "test-only", tokenId: "1", purpose: "OWNERSHIP" }, schemaVersion: "giraffe-attestation.v1", factType: "STATUS", factValue: "VALID", sourceAuthority: "registry", sourceRecordHash: HASH_A, observedAt: NOW.toISOString(), nonce: "db-nonce", revocationRef: null, signerSetId: "test-signers", validFrom: NOW.toISOString(), expiresAt: new Date(NOW.getTime() + 60000).toISOString() };
+  await repository.persistMutation({ method: "issueAttestation", idempotencyKey: "db-attestation", commandHash: HASH_B, input: {}, result: { envelope, envelopeHash: HASH_C, signature: "test-signature" }, auditEvents: [], outboxEvents: [], stateSnapshot: { state: { testOnly: true }, stateHash: HASH_A } });
+  assert.equal(attestationParameters[10], evidenceHash("VALID"));
+  assert.match(attestationParameters[10], /^[a-f0-9]{64}$/);
+});
+
 test("command journal deduplicates concurrent async operations and clears failed pending records", async () => {
   const journal = new CommandJournal();
   let calls = 0;
