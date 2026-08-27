@@ -337,6 +337,7 @@ export class OracleControlPlane {
     this.authorizer.require(actorId, "settlement:manage");
     return this.commandJournal.execute(idempotencyKey, { type: "settlement.finalize", request }, () => {
       let certificateProvenance;
+      let warehouseProvenance;
       let verifiedRequest = request;
       if (this.allowSyntheticEvidence) {
         certificateProvenance = resolveEvidenceSource(this.runtime, "CERTIFICATE_AUTHORITY", request.certificateSourceId);
@@ -350,6 +351,7 @@ export class OracleControlPlane {
           warehouse: resolveEvidenceSource(this.runtime, "WAREHOUSE", evidenceSources.warehouse),
         };
         certificateProvenance = provenances.certificate;
+        warehouseProvenance = provenances.warehouse;
         for (const [name, record] of Object.entries(records)) {
           if (request.evidenceRecordHashes?.[name] !== evidenceHash(record)) throw new Error("SETTLEMENT_SOURCE_RECORD_MISMATCH");
         }
@@ -370,7 +372,7 @@ export class OracleControlPlane {
       this.runtime.schemaRegistry.validate("certificate-record.v1", request.certificate);
       if (request.certificate.status !== "CURRENT") throw new Error("SETTLEMENT_CERTIFICATE_NOT_CURRENT");
       if (request.certificate.supersededAt != null) throw new Error("CERTIFICATE_CURRENT_SUPERSEDED_AT_INVALID");
-      const result = this.runtime.settlements.finalize({ ...verifiedRequest, certificateProvenance, actorId });
+      const result = this.runtime.settlements.finalize({ ...verifiedRequest, certificateProvenance, warehouseProvenance, actorId });
       this.outbox.enqueue({ eventType: "certificate.superseded", subjectId: result.assetId, payloadHash: evidenceHash({ assetId: result.assetId, previousCertificateHash: result.oldCertificateHash, certificateHash: result.newCertificateHash }), createdAt: result.finalizedAt });
       this.outbox.enqueue({ eventType: "settlement.finalized", subjectId: result.assetId, payloadHash: request.certificate.certificateHash, createdAt: result.finalizedAt });
       return result;
