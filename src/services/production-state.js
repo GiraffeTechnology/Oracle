@@ -24,7 +24,7 @@ export function restoreProductionState(runtime, dualControl, snapshot) {
   }
   for (const name of COMPONENTS) runtime[name].importState(snapshot.state.components[name], name === "attestations" ? { allowHistoricalSignerSet: signerMismatch } : undefined);
   dualControl.importState(dualControlState);
-  runtime.operationalState.signerRecoveryRequired = signerMismatch;
+  const persistedRecoveryRequired = dualControlState.actions.some(({ actionType, status }) => actionType === "SIGNER_ROTATE" && ["RECOVERY_REQUIRED", "RECOVERING"].includes(status));
+  runtime.operationalState.signerRecoveryRequired = signerMismatch || persistedRecoveryRequired;
   return true;
 }
-
