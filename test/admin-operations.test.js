@@ -174,6 +174,22 @@ test("ambiguous signer rotation is reconciled without replaying rotation", async
   assert.equal(runtime.operationalState.signerRecoveryRequired, false);
 });
 
+test("reconciliation clears recovery mode when the broker proves rotation was not applied", async () => {
+  const { authorizer, runtime } = fixture();
+  const dualControl = new DualControlQueue();
+  const controlPlane = new OracleControlPlane({ runtime, authorizer, dualControl, commandJournal: new CommandJournal(), outbox: runtime.outbox, signerRotationBroker: {
+    async rotate() { throw new Error("response lost before apply"); },
+    async reconcile() { return { applied: false, safelyNotApplied: true }; },
+  } });
+  controlPlane.requestSignerRotation({ actorId: "security-a", actionId: "rotate-not-applied", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH });
+  controlPlane.approveAction({ actorId: "approver-b", actionId: "rotate-not-applied" });
+  await assert.rejects(() => controlPlane.executeSignerRotation({ actorId: "security-a", actionId: "rotate-not-applied", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH }));
+  assert.equal(runtime.operationalState.signerRecoveryRequired, true);
+  assert.deepEqual(await controlPlane.reconcileSignerRotation({ actorId: "security-a", actionId: "rotate-not-applied", fromSignerSetId: ACTIVE_SIGNER_SET, toSignerSetId: "new", rotationDigest: HASH }), { applied: false, safelyNotApplied: true, privateMaterialIncluded: false });
+  assert.equal(runtime.operationalState.signerRecoveryRequired, false);
+  assert.equal(dualControl.list()[0].status, "FAILED");
+});
+
 test("reconciliation accepts a runtime already switched before activation acknowledgement", async () => {
   const { authorizer, runtime } = fixture();
   const dualControl = new DualControlQueue();
@@ -256,4 +272,5 @@ test("admin dashboard API requires authentication and rejects cross-origin write
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
 
