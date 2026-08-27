@@ -356,8 +356,14 @@ export class OracleControlPlane {
         assertAuthenticatedEvidence(request.evidenceAuthentication, { records, evidenceSources });
         this.runtime.schemaRegistry.validate("asset-record.v1", request.asset);
         this.runtime.schemaRegistry.validate("warehouse-record.v1", request.warehouse);
-        if (request.asset.assetId !== request.certificate.assetId || request.warehouse.assetId !== request.certificate.assetId || request.asset.currentCertificateHash !== request.certificate.certificateHash || request.asset.currentCertificateVersion !== request.certificate.certificateVersion || request.asset.warehouseId !== request.warehouse.warehouseId || request.asset.warehouseReceiptHash !== request.certificate.warehouseReceiptHash || request.asset.warehouseReceiptHash !== request.warehouse.warehouseReceiptHash) throw new Error("SETTLEMENT_AUTHORITATIVE_EVIDENCE_MISMATCH");
+        const pending = this.runtime.settlements.get(request.settlementId);
+        if (!pending || pending.status !== "PENDING" || pending.snapshotHash !== request.snapshotHash) throw new Error("SETTLEMENT_SCOPE_EVIDENCE_MISMATCH");
+        const expectedBuyerCommitment = evidenceHash({ schemaVersion: "giraffe-settlement-buyer-commitment.v1", settlementId: pending.settlementId, buyerWallet: pending.buyerWallet });
+        for (const record of Object.values(records)) {
+          if (record.settlementId !== pending.settlementId || record.settlementSnapshotHash !== pending.snapshotHash || record.settlementBuyerCommitment !== expectedBuyerCommitment) throw new Error("SETTLEMENT_SCOPE_EVIDENCE_MISMATCH");
+        }        if (request.asset.assetId !== request.certificate.assetId || request.warehouse.assetId !== request.certificate.assetId || request.asset.currentCertificateHash !== request.certificate.certificateHash || request.asset.currentCertificateVersion !== request.certificate.certificateVersion || request.asset.warehouseId !== request.warehouse.warehouseId || request.asset.warehouseReceiptHash !== request.certificate.warehouseReceiptHash || request.asset.warehouseReceiptHash !== request.warehouse.warehouseReceiptHash) throw new Error("SETTLEMENT_AUTHORITATIVE_EVIDENCE_MISMATCH");
         if (request.warehouse.warehouseStatus !== "IN_CUSTODY") throw new Error("SETTLEMENT_WAREHOUSE_NOT_CONFIRMED");
+        if (!request.warehouse.holderCommitment || request.warehouse.holderCommitment !== request.asset.currentOwnerCommitment) throw new Error("SETTLEMENT_HOLDER_CONFIRMATION_MISMATCH");
         if (request.asset.transferEligibility !== OracleStatus.VALID || request.asset.oracleStatus !== OracleStatus.VALID || request.asset.encumbranceStatus !== "CLEAR" || (request.warehouse.encumbranceStatus !== undefined && request.warehouse.encumbranceStatus !== "CLEAR")) throw new Error("SETTLEMENT_ASSET_NOT_CONFIRMED");
         verifiedRequest = { ...request, registryChangeRef: request.certificate.wenbaoChangeRef, warehouseConfirmed: true, ownerBindingConfirmed: true, newOwnerCommitment: request.asset.currentOwnerCommitment };
       }
