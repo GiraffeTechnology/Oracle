@@ -32,14 +32,15 @@ export class AuthoritativeOracleControlPlane {
 
   async verifyAsset({ actorId, idempotencyKey, evidenceReferences, evidenceVersion }) {
     if (!evidenceReferences || Object.keys(evidenceReferences).some((key) => !Object.hasOwn(RECORD_KINDS, key))) throw new Error("AUTHORITATIVE_REFERENCES_REQUIRED");
-    const commandInput = { actorId, idempotencyKey, evidenceReferences, evidenceVersion };
+    const fixedEvidenceReferences = Object.freeze(Object.fromEntries(Object.keys(RECORD_KINDS).map((name) => [name, evidenceReferences[name]])));
+    const commandInput = { actorId, idempotencyKey, evidenceReferences: fixedEvidenceReferences, evidenceVersion };
     return this.controlPlane.executeResolved("verifyAsset", commandInput, async () => {
       const records = {};
       const evidenceSources = {};
       await Promise.all(Object.entries(RECORD_KINDS).map(async ([name, definition]) => {
         const source = this.sourceDefinitions.find(({ kind }) => kind === definition.sourceKind);
         if (!source) throw new Error("AUTHORITATIVE_SOURCE_DEFINITION_MISSING");
-        records[name] = await fetchAuthenticated(this.sourcePorts[definition.portName], evidenceReferences[name], { sourceId: source.sourceId, schemaVersion: definition.schemaVersion });
+        records[name] = await fetchAuthenticated(this.sourcePorts[definition.portName], fixedEvidenceReferences[name], { sourceId: source.sourceId, schemaVersion: definition.schemaVersion });
         evidenceSources[name] = source.sourceId;
       }));
       return { actorId, idempotencyKey, ...records, evidenceSources, evidenceAuthentication: sealAuthenticatedEvidence({ records, evidenceSources }), evidenceVersion };
@@ -48,17 +49,18 @@ export class AuthoritativeOracleControlPlane {
 
   async finalizeSettlement({ actorId, idempotencyKey, request }) {
     if (!request || Object.keys(request).some((key) => !FINALIZATION_INPUT_FIELDS.has(key))) throw new Error("AUTHORITATIVE_FINALIZATION_INPUT_INVALID");
-    const commandInput = { actorId, idempotencyKey, request };
+    const fixedRequest = Object.freeze(Object.fromEntries([...FINALIZATION_INPUT_FIELDS].map((name) => [name, request[name]])));
+    const commandInput = { actorId, idempotencyKey, request: fixedRequest };
     return this.controlPlane.executeResolved("finalizeSettlement", commandInput, async () => {
       const records = {};
       const evidenceSources = {};
       await Promise.all(Object.entries(RECORD_KINDS).map(async ([name, definition]) => {
         const source = this.sourceDefinitions.find(({ kind }) => kind === definition.sourceKind);
         if (!source) throw new Error("AUTHORITATIVE_SOURCE_DEFINITION_MISSING");
-        records[name] = await fetchAuthenticated(this.sourcePorts[definition.portName], request[`${name}Reference`], { sourceId: source.sourceId, schemaVersion: definition.schemaVersion });
+        records[name] = await fetchAuthenticated(this.sourcePorts[definition.portName], fixedRequest[`${name}Reference`], { sourceId: source.sourceId, schemaVersion: definition.schemaVersion });
         evidenceSources[name] = source.sourceId;
       }));
-      const { assetReference, certificateReference, warehouseReference, ...safeRequest } = request;
+      const { assetReference, certificateReference, warehouseReference, ...safeRequest } = fixedRequest;
       void assetReference;
       void certificateReference;
       void warehouseReference;
