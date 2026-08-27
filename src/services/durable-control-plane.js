@@ -68,7 +68,31 @@ export class DurableOracleControlPlane {
     const beforeAudit = this.runtime.auditJournal.list().length;
     const beforeOutbox = new Set(this.runtime.outbox.list().map(({ eventId }) => eventId));
     const beforeRevocations = new Set(this.runtime.revocations.exportState().items.map(({ attestationId }) => attestationId));
-    const result = await this.controlPlane[method](operationInput);
+    let result;
+    try {
+      result = await this.controlPlane[method](operationInput);
+    } catch (error) {
+      if (method === "executeSignerRotation" && this.runtime.operationalState.signerRecoveryRequired) {
+        if (typeof this.repository.persistRecoveryState !== "function") {
+          this.runtime.operationalState.compromised = true;
+          this.runtime.operationalState.errorCode = "MYSQL_DURABILITY_FAILURE";
+          throw new Error("MYSQL_DURABILITY_FAILURE");
+        }
+        try {
+          await this.repository.persistRecoveryState({
+            method,
+            idempotencyKey: commandInput.idempotencyKey,
+            commandHash: durableCommandHash,
+            stateSnapshot: captureProductionState(this.runtime, this.dualControl),
+          });
+        } catch {
+          this.runtime.operationalState.compromised = true;
+          this.runtime.operationalState.errorCode = "MYSQL_DURABILITY_FAILURE";
+          throw new Error("MYSQL_DURABILITY_FAILURE");
+        }
+      }
+      throw error;
+    }
     if (result?.replayed === true) return result;
     const outboxEvents = this.runtime.outbox.list().filter(({ eventId }) => !beforeOutbox.has(eventId));
     const revocations = this.runtime.revocations.exportState().items.filter(({ attestationId }) => !beforeRevocations.has(attestationId));
