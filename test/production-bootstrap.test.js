@@ -379,3 +379,19 @@ test("durable commands capture every newly created implicit revocation", async (
   await durable.beginSettlement({ actorId: "production-operator", idempotencyKey: "implicit-revocation", request: {} });
   assert.deepEqual(persisted[0].revocations, [{ attestationId, reasonHash: HASH_A, revokedAt: NOW.toISOString(), authorityId: "production-operator" }]);
 });
+test("a failed terminal alert boundary recovers without another outbox event", async () => {
+  const { assembly, setRejectAlerts, alerts } = await productionFixture({ rejectAlerts: true });
+  const event = assembly.runtime.outbox.enqueue({ eventType: "test", subjectId: "asset-alert-terminal", payloadHash: HASH_A, createdAt: NOW.toISOString() });
+  assembly.runtime.outbox.markDurable(event.eventId);
+  for (let attempt = 0; attempt < 5; attempt += 1) assembly.runtime.outbox.recordAttempt(event.eventId);
+  const worker = assembly.startBackgroundWorkers({ intervalMs: 100 });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(assembly.runtime.operationalState.alertingFailed, true);
+  assert.equal(assembly.runtime.outbox.pending().length, 0);
+  setRejectAlerts(false);
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  worker.stop();
+  assert.equal(alerts.filter(({ code }) => code === "OUTBOX_EVENT_DEAD_LETTERED").length >= 2, true);
+  assert.equal(assembly.runtime.operationalState.alertingFailed, false);
+  assert.deepEqual(await assembly.readinessCheck(), { ok: true });
+});
