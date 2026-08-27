@@ -841,3 +841,13 @@ test("re-verification cannot change the token identifier of an existing binding"
   assert.equal(runtime.recordStore.currentCertificate("asset-reverify-token").tokenId, "1");
   assert.equal(runtime.tokenIndex.byAsset("asset-reverify-token").tokenId, "1");
 });
+test("settlement finalization rejects a CURRENT certificate carrying supersededAt", () => {
+  const { runtime, control } = controlFixture();
+  control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-finalize-superseded", ...evidenceBundle("asset-finalize-superseded"), evidenceVersion: 1 });
+  control.bindToken({ actorId: "oracle-a", idempotencyKey: "bind-finalize-superseded", binding: { assetId: "asset-finalize-superseded", chainId: "test-chain", contract: "contract-finalize-superseded", tokenId: "1" } });
+  const pending = control.beginSettlement({ actorId: "oracle-a", idempotencyKey: "begin-finalize-superseded", request: { settlementId: "settlement-finalize-superseded", assetId: "asset-finalize-superseded", token: { chainId: "test-chain", contract: "contract-finalize-superseded", tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", externalExecutionRef: "external", oldCertificateHash: HASH_B, warehouseReceiptHash: HASH_C, evidenceVersion: 2 } }).result;
+  const certificate = { assetId: "asset-finalize-superseded", tokenId: "1", certificateVersion: 2, certificateHash: HASH_A, previousCertificateHash: HASH_B, wenbaoChangeRef: "change-finalize-superseded", warehouseReceiptHash: HASH_C, effectiveAt: NOW.toISOString(), supersededAt: NOW.toISOString(), status: "CURRENT" };
+  assert.throws(() => control.finalizeSettlement({ actorId: "oracle-a", idempotencyKey: "finalize-superseded-current", request: { settlementId: pending.settlementId, certificate, certificateSourceId: "synthetic-certificates", certificateSourceRecordHash: evidenceHash(certificate), registryChangeRef: "change-finalize-superseded", snapshotHash: pending.snapshotHash, warehouseConfirmed: true, ownerBindingConfirmed: true, newOwnerCommitment: HASH_A, evidenceVersion: 3 } }), /CERTIFICATE_CURRENT_SUPERSEDED_AT_INVALID/);
+  assert.equal(runtime.settlements.get(pending.settlementId).status, "PENDING");
+  assert.equal(runtime.recordStore.currentCertificate("asset-finalize-superseded").certificateVersion, 1);
+});
