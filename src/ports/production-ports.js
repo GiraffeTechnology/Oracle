@@ -8,6 +8,7 @@ export class OracleRepositoryPort {
   appendCertificate() { return abstractMethod("repository.appendCertificate"); }
   appendAuditEvent() { return abstractMethod("repository.appendAuditEvent"); }
   recordOutboxAttempt() { return abstractMethod("repository.recordOutboxAttempt"); }
+  recordOutboxDeliveryStateAttempt() { return abstractMethod("repository.recordOutboxDeliveryStateAttempt"); }
   recordOutboxDeadLetterAttempt() { return abstractMethod("repository.recordOutboxDeadLetterAttempt"); }
   markOutboxPublished() { return abstractMethod("repository.markOutboxPublished"); }
   markOutboxDeadLettered() { return abstractMethod("repository.markOutboxDeadLettered"); }
