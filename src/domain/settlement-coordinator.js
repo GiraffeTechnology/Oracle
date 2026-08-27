@@ -105,7 +105,7 @@ export class SettlementCoordinator {
     return record;
   }
 
-  finalize({ settlementId, certificate, certificateProvenance, registryChangeRef, snapshotHash, warehouseConfirmed, ownerBindingConfirmed, newOwnerCommitment, actorId, evidenceVersion }) {
+  finalize({ settlementId, certificate, certificateProvenance, warehouse, warehouseProvenance, registryChangeRef, snapshotHash, warehouseConfirmed, ownerBindingConfirmed, newOwnerCommitment, actorId, evidenceVersion }) {
     assertActor(actorId);
     const current = this.#settlements.get(settlementId);
     if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
@@ -118,6 +118,11 @@ export class SettlementCoordinator {
     if (snapshotHash !== current.snapshotHash) throw new Error("SETTLEMENT_SNAPSHOT_EVIDENCE_MISMATCH");
     if (!SHA256_HEX.test(newOwnerCommitment ?? "")) throw new Error("SETTLEMENT_OWNER_COMMITMENT_INVALID");
     if (!certificateProvenance?.sourceId || certificateProvenance.schemaVersion !== "certificate-record.v1") throw new Error("SETTLEMENT_CERTIFICATE_PROVENANCE_REQUIRED");
+    if (warehouse !== undefined) {
+      if (warehouse.assetId !== current.assetId || warehouse.warehouseReceiptHash !== current.warehouseReceiptHash || warehouse.holderCommitment !== newOwnerCommitment || warehouse.warehouseStatus !== "IN_CUSTODY") throw new Error("SETTLEMENT_WAREHOUSE_EVIDENCE_MISMATCH");
+      if (!warehouseProvenance?.sourceId || warehouseProvenance.schemaVersion !== "warehouse-record.v1") throw new Error("SETTLEMENT_WAREHOUSE_PROVENANCE_REQUIRED");
+      this.recordStore.assertWarehouse(warehouse);
+    }
     if (this.clock() > new Date(current.deadlineAt)) throw new Error("SETTLEMENT_DEADLINE_EXCEEDED");
     this.stateEngine.assertTransition({ subjectId: current.assetId, to: OracleStatus.VALID, evidenceVersion });
     this.recordStore.assertCertificate(certificate);
@@ -128,6 +133,7 @@ export class SettlementCoordinator {
     const assetProvenance = this.recordStore.provenance("REGISTRY", current.assetId);
     this.recordStore.replaceCurrentCertificate(certificate, certificateProvenance, now);
     this.recordStore.putAsset(updatedAsset, assetProvenance);
+    if (warehouse !== undefined) this.recordStore.putWarehouse(warehouse, warehouseProvenance);
     this.stateEngine.transition({ subjectId: current.assetId, to: OracleStatus.VALID, reasonHash: certificate.certificateHash, evidenceVersion, occurredAt: now });
     const finalized = Object.freeze({ ...current, status: "FINALIZED", registryChangeRef, newCertificateHash: certificate.certificateHash, finalizedAt: now });
     this.#settlements.set(settlementId, finalized);
