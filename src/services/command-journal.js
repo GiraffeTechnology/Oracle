@@ -4,7 +4,7 @@ export class CommandJournal {
   #commands = new Map();
 
   execute(idempotencyKey, command, operation) {
-    if (!idempotencyKey || !command || typeof operation !== "function") throw new Error("COMMAND_INVALID");
+    if (typeof idempotencyKey !== "string" || idempotencyKey.length < 1 || idempotencyKey.length > 128 || !command || typeof operation !== "function") throw new Error("COMMAND_INVALID");
     const commandHash = evidenceHash(command);
     const prior = this.#commands.get(idempotencyKey);
     if (prior && prior.commandHash !== commandHash) throw new Error("COMMAND_IDEMPOTENCY_CONFLICT");
