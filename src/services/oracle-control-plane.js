@@ -336,18 +336,40 @@ export class OracleControlPlane {
   finalizeSettlement({ actorId, idempotencyKey, request }) {
     this.authorizer.require(actorId, "settlement:manage");
     return this.commandJournal.execute(idempotencyKey, { type: "settlement.finalize", request }, () => {
-      const certificateProvenance = resolveEvidenceSource(this.runtime, "CERTIFICATE_AUTHORITY", request.certificateSourceId);
-      if (request.certificateSourceRecordHash !== evidenceHash(request.certificate)) throw new Error("SETTLEMENT_CERTIFICATE_SOURCE_RECORD_MISMATCH");
-      if (!this.allowSyntheticEvidence) assertAuthenticatedEvidence(request.certificateAuthentication, { records: { certificate: request.certificate }, evidenceSources: { certificate: request.certificateSourceId } });
+      let certificateProvenance;
+      let verifiedRequest = request;
+      if (this.allowSyntheticEvidence) {
+        certificateProvenance = resolveEvidenceSource(this.runtime, "CERTIFICATE_AUTHORITY", request.certificateSourceId);
+        if (request.certificateSourceRecordHash !== evidenceHash(request.certificate)) throw new Error("SETTLEMENT_CERTIFICATE_SOURCE_RECORD_MISMATCH");
+      } else {
+        const records = { asset: request.asset, certificate: request.certificate, warehouse: request.warehouse };
+        const evidenceSources = request.evidenceSources ?? {};
+        const provenances = {
+          asset: resolveEvidenceSource(this.runtime, "REGISTRY", evidenceSources.asset),
+          certificate: resolveEvidenceSource(this.runtime, "CERTIFICATE_AUTHORITY", evidenceSources.certificate),
+          warehouse: resolveEvidenceSource(this.runtime, "WAREHOUSE", evidenceSources.warehouse),
+        };
+        certificateProvenance = provenances.certificate;
+        for (const [name, record] of Object.entries(records)) {
+          if (request.evidenceRecordHashes?.[name] !== evidenceHash(record)) throw new Error("SETTLEMENT_SOURCE_RECORD_MISMATCH");
+        }
+        assertAuthenticatedEvidence(request.evidenceAuthentication, { records, evidenceSources });
+        this.runtime.schemaRegistry.validate("asset-record.v1", request.asset);
+        this.runtime.schemaRegistry.validate("warehouse-record.v1", request.warehouse);
+        if (request.asset.assetId !== request.certificate.assetId || request.warehouse.assetId !== request.certificate.assetId || request.asset.currentCertificateHash !== request.certificate.certificateHash || request.asset.currentCertificateVersion !== request.certificate.certificateVersion || request.asset.warehouseId !== request.warehouse.warehouseId || request.asset.warehouseReceiptHash !== request.certificate.warehouseReceiptHash || request.asset.warehouseReceiptHash !== request.warehouse.warehouseReceiptHash) throw new Error("SETTLEMENT_AUTHORITATIVE_EVIDENCE_MISMATCH");
+        if (request.warehouse.warehouseStatus !== "IN_CUSTODY") throw new Error("SETTLEMENT_WAREHOUSE_NOT_CONFIRMED");
+        if (request.asset.transferEligibility !== OracleStatus.VALID || request.asset.oracleStatus !== OracleStatus.VALID || request.asset.encumbranceStatus !== "CLEAR" || (request.warehouse.encumbranceStatus !== undefined && request.warehouse.encumbranceStatus !== "CLEAR")) throw new Error("SETTLEMENT_ASSET_NOT_CONFIRMED");
+        verifiedRequest = { ...request, registryChangeRef: request.certificate.wenbaoChangeRef, warehouseConfirmed: true, ownerBindingConfirmed: true, newOwnerCommitment: request.asset.currentOwnerCommitment };
+      }
       this.runtime.schemaRegistry.validate("certificate-record.v1", request.certificate);
       if (request.certificate.status !== "CURRENT") throw new Error("SETTLEMENT_CERTIFICATE_NOT_CURRENT");
       if (request.certificate.supersededAt != null) throw new Error("CERTIFICATE_CURRENT_SUPERSEDED_AT_INVALID");
-      const result = this.runtime.settlements.finalize({ ...request, certificateProvenance, actorId });
+      const result = this.runtime.settlements.finalize({ ...verifiedRequest, certificateProvenance, actorId });
+      this.outbox.enqueue({ eventType: "certificate.superseded", subjectId: result.assetId, payloadHash: evidenceHash({ assetId: result.assetId, previousCertificateHash: result.oldCertificateHash, certificateHash: result.newCertificateHash }), createdAt: result.finalizedAt });
       this.outbox.enqueue({ eventType: "settlement.finalized", subjectId: result.assetId, payloadHash: request.certificate.certificateHash, createdAt: result.finalizedAt });
       return result;
     });
   }
-
   cancelSettlement({ actorId, idempotencyKey, request }) {
     this.authorizer.require(actorId, "settlement:manage");
     return this.commandJournal.execute(idempotencyKey, { type: "settlement.cancel", request }, () => {
