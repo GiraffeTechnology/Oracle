@@ -106,36 +106,40 @@ export function createDefaultSchemaRegistry() {
   registry.register({
     id: "asset-record.v1",
     required: ["assetId", "assetFingerprintHash", "wenbaoRegistryRef", "transferEligibility", "warehouseId", "warehouseReceiptHash", "currentCertificateHash", "currentCertificateVersion", "currentOwnerCommitment", "encumbranceStatus", "oracleStatus", "updatedAt"],
-    allowed: ["assetId", "assetFingerprintHash", "wenbaoRegistryRef", "classificationCode", "transferEligibility", "warehouseId", "warehouseReceiptHash", "currentCertificateHash", "currentCertificateVersion", "currentOwnerCommitment", "encumbranceStatus", "oracleStatus", "updatedAt"],
-    sensitive: ["currentOwnerCommitment", "warehouseId"],
+    allowed: ["assetId", "assetFingerprintHash", "wenbaoRegistryRef", "classificationCode", "transferEligibility", "warehouseId", "warehouseReceiptHash", "currentCertificateHash", "currentCertificateVersion", "currentOwnerCommitment", "encumbranceStatus", "oracleStatus", "settlementId", "settlementSnapshotHash", "settlementBuyerCommitment", "updatedAt"],
+    sensitive: ["currentOwnerCommitment", "warehouseId", "settlementBuyerCommitment"],
     properties: {
       assetId, assetFingerprintHash: hash, wenbaoRegistryRef: { type: "string", minLength: 1, maxLength: 256 },
       classificationCode: { type: "string", maxLength: 64 }, transferEligibility: status, warehouseId: shortString,
       warehouseReceiptHash: hash, currentCertificateHash: hash, currentCertificateVersion: { type: "integer", minimum: 1 },
-      currentOwnerCommitment: hash, encumbranceStatus: { type: "string", maxLength: 64 }, oracleStatus: status, updatedAt: dateTime,
+      currentOwnerCommitment: hash, encumbranceStatus: { type: "string", maxLength: 64 }, oracleStatus: status,
+      settlementId: assetId, settlementSnapshotHash: hash, settlementBuyerCommitment: hash, updatedAt: dateTime,
     },
   });
   registry.register({
     id: "certificate-record.v1",
     required: ["assetId", "tokenId", "certificateVersion", "certificateHash", "previousCertificateHash", "wenbaoChangeRef", "warehouseReceiptHash", "effectiveAt", "status"],
-    allowed: ["assetId", "tokenId", "certificateVersion", "certificateHash", "previousCertificateHash", "wenbaoChangeRef", "warehouseReceiptHash", "effectiveAt", "supersededAt", "status"],
+    allowed: ["assetId", "tokenId", "certificateVersion", "certificateHash", "previousCertificateHash", "wenbaoChangeRef", "warehouseReceiptHash", "effectiveAt", "supersededAt", "status", "settlementId", "settlementSnapshotHash", "settlementBuyerCommitment"],
+    sensitive: ["settlementBuyerCommitment"],
     properties: {
       assetId, tokenId: shortString, certificateVersion: { type: "integer", minimum: 1 }, certificateHash: hash,
       previousCertificateHash: { type: ["string", "null"], pattern: /^[a-f0-9]{64}$/ },
       wenbaoChangeRef: { type: "string", minLength: 1, maxLength: 256 }, warehouseReceiptHash: hash,
       effectiveAt: dateTime, supersededAt: { type: ["string", "null"], format: "date-time", persistenceFormat: "mysql-timestamp" },
       status: { type: "string", enum: ["CURRENT", "SUPERSEDED", "REVOKED"] },
+      settlementId: assetId, settlementSnapshotHash: hash, settlementBuyerCommitment: hash,
     },
   });
   registry.register({
     id: "warehouse-record.v1",
     required: ["assetId", "warehouseId", "warehouseReceiptHash", "warehouseStatus", "observedAt"],
-    allowed: ["assetId", "warehouseId", "warehouseReceiptHash", "warehouseStatus", "holderCommitment", "encumbranceStatus", "observedAt"],
-    sensitive: ["holderCommitment", "warehouseId"],
+    allowed: ["assetId", "warehouseId", "warehouseReceiptHash", "warehouseStatus", "holderCommitment", "encumbranceStatus", "settlementId", "settlementSnapshotHash", "settlementBuyerCommitment", "observedAt"],
+    sensitive: ["holderCommitment", "warehouseId", "settlementBuyerCommitment"],
     properties: {
       assetId, warehouseId: shortString, warehouseReceiptHash: hash,
       warehouseStatus: { type: "string", enum: ["IN_CUSTODY", "FROZEN", "RELEASE_PENDING", "RELEASED", "REVIEW_REQUIRED"] },
-      holderCommitment: hash, encumbranceStatus: { type: "string", maxLength: 64 }, observedAt: dateTime,
+      holderCommitment: hash, encumbranceStatus: { type: "string", maxLength: 64 },
+      settlementId: assetId, settlementSnapshotHash: hash, settlementBuyerCommitment: hash, observedAt: dateTime,
     },
   });
   return registry;
