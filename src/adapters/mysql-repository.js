@@ -187,7 +187,8 @@ export class MySqlOracleRepository {
         [record.settlementId, record.assetId, record.token.chainId, record.token.contract, record.token.tokenId, record.sellerWallet, record.buyerWallet, record.snapshotHash, record.externalExecutionRef, record.oldCertificateHash, record.newCertificateHash ?? null, record.registryChangeRef ?? null, record.failureReasonHash ?? null, record.status, record.deadlineAt, record.startedAt, record.finalizedAt ?? null, record.cancelledAt ?? null, record.disputedAt ?? null, record.timedOutAt ?? null],
       );
       if (method === "finalizeSettlement") {
-        await connection.execute("UPDATE certificate_versions SET certificate_status='SUPERSEDED', superseded_at=? WHERE asset_id=? AND certificate_hash=? AND certificate_status='CURRENT'", [record.finalizedAt, record.assetId, record.oldCertificateHash]);
+        const [supersedeResult] = await connection.execute("UPDATE certificate_versions SET certificate_status='SUPERSEDED', superseded_at=? WHERE asset_id=? AND certificate_hash=? AND certificate_status='CURRENT'", [record.finalizedAt, record.assetId, record.oldCertificateHash]);
+        if (supersedeResult?.affectedRows !== 1) throw new Error("CERTIFICATE_SUPERSEDE_CONFLICT");
         await this.appendCertificate(connection, { ...input.request.certificate, status: "CURRENT", supersededAt: null, sourceAuthority: input.request.certificateSourceId });
         await connection.execute("UPDATE assets SET current_certificate_hash=?, current_certificate_version=?, current_owner_commitment=?, oracle_status='VALID', evidence_version=?, updated_at=? WHERE asset_id=?", [input.request.certificate.certificateHash, input.request.certificate.certificateVersion, input.request.newOwnerCommitment, input.request.evidenceVersion, record.finalizedAt, record.assetId]);
       }
