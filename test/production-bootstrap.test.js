@@ -138,12 +138,17 @@ test("production finalization derives confirmations from all authenticated sourc
   setSourceRecord("authoritative-certificate", { ...next.certificate, settlementId: "different-settlement" });
   await assert.rejects(() => assembly.controlPlane.finalizeSettlement({ actorId: "production-operator", idempotencyKey: "production-finalize-scope-mismatch", request: { settlementId: pending.settlementId, snapshotHash: pending.snapshotHash, evidenceVersion: 3, ...references } }), /SETTLEMENT_SCOPE_EVIDENCE_MISMATCH/);
   setSourceRecord("authoritative-certificate", next.certificate);
+  setSourceRecord("authoritative-registry", { ...next.asset, warehouseId: "warehouse-replaced" });
+  setSourceRecord("authoritative-warehouse", { ...next.warehouse, warehouseId: "warehouse-replaced" });
+  await assert.rejects(() => assembly.controlPlane.finalizeSettlement({ actorId: "production-operator", idempotencyKey: "production-finalize-warehouse-replaced", request: { settlementId: pending.settlementId, snapshotHash: pending.snapshotHash, evidenceVersion: 3, ...references } }), /SETTLEMENT_WAREHOUSE_EVIDENCE_MISMATCH/);
+  setSourceRecord("authoritative-registry", next.asset);
+  setSourceRecord("authoritative-warehouse", next.warehouse);
   const finalized = await assembly.controlPlane.finalizeSettlement({ actorId: "production-operator", idempotencyKey: "production-finalize-complete", request: { settlementId: pending.settlementId, snapshotHash: pending.snapshotHash, evidenceVersion: 3, ...references } });
   assert.equal(finalized.result.status, "FINALIZED");
   assert.equal(assembly.runtime.recordStore.getAsset("asset-production").currentOwnerCommitment, HASH_B);
   assert.equal(assembly.runtime.recordStore.getWarehouse("asset-production").holderCommitment, HASH_B);
   assert.equal(assembly.runtime.recordStore.provenance("WAREHOUSE", "asset-production").sourceId, "authoritative-warehouse");
-  assert.equal(getSourceFetches(), 12);
+  assert.equal(getSourceFetches(), 15);
   const events = assembly.runtime.outbox.list().filter(({ subjectId }) => subjectId === "asset-production").map(({ eventType }) => eventType);
   assert.ok(events.includes("certificate.superseded"));
   assert.ok(events.includes("settlement.finalized"));
