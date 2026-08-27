@@ -385,7 +385,7 @@ test("MySQL settlement projection preserves distinct terminal timestamps", async
 
 test("MySQL finalization supersedes the old certificate before inserting the replacement", async () => {
   const statements = [];
-  const connection = { async beginTransaction() {}, async commit() {}, async rollback() {}, release() {}, async execute(sql, parameters = []) { statements.push({ sql, parameters }); return [[], []]; } };
+  const connection = { async beginTransaction() {}, async commit() {}, async rollback() {}, release() {}, async execute(sql, parameters = []) { statements.push({ sql, parameters }); return [sql.includes("UPDATE certificate_versions SET certificate_status='SUPERSEDED'") ? { affectedRows: 1 } : [], []]; } };
   const repository = new MySqlOracleRepository({ pool: { async getConnection() { return connection; } } });
   const certificate = { assetId: "asset-db", tokenId: "1", certificateVersion: 2, certificateHash: HASH_C, previousCertificateHash: HASH_B, wenbaoChangeRef: "change-db", warehouseReceiptHash: HASH_A, effectiveAt: NOW.toISOString(), status: "CURRENT" };
   const record = { settlementId: "settlement-final", assetId: "asset-db", token: { chainId: "560048", contract: "test-only", tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", snapshotHash: HASH_A, externalExecutionRef: "execution", oldCertificateHash: HASH_B, newCertificateHash: HASH_C, registryChangeRef: "change-db", status: "FINALIZED", deadlineAt: "2026-08-27T00:00:00.000Z", startedAt: NOW.toISOString(), finalizedAt: NOW.toISOString() };
@@ -395,6 +395,28 @@ test("MySQL finalization supersedes the old certificate before inserting the rep
   assert.equal(supersede >= 0, true);
   assert.equal(replacement > supersede, true);
   assert.deepEqual(statements[supersede].parameters, [NOW.toISOString(), "asset-db", HASH_B]);
+});
+
+test("MySQL finalization rolls back when the current certificate cannot be superseded", async () => {
+  let rolledBack = false;
+  let executeCount = 0;
+  const connection = {
+    async beginTransaction() {},
+    async commit() {},
+    async rollback() { rolledBack = true; },
+    release() {},
+    async execute(sql) {
+      executeCount += 1;
+      if (sql.includes("UPDATE certificate_versions SET certificate_status='SUPERSEDED'")) return [{ affectedRows: 0 }, []];
+      return [[], []];
+    },
+  };
+  const repository = new MySqlOracleRepository({ pool: { async getConnection() { return connection; } } });
+  const certificate = { assetId: "asset-db", tokenId: "1", certificateVersion: 2, certificateHash: HASH_C, previousCertificateHash: HASH_B, wenbaoChangeRef: "change-db", warehouseReceiptHash: HASH_A, effectiveAt: NOW.toISOString(), status: "CURRENT" };
+  const record = { settlementId: "settlement-final-conflict", assetId: "asset-db", token: { chainId: "560048", contract: "test-only", tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", snapshotHash: HASH_A, externalExecutionRef: "execution", oldCertificateHash: HASH_B, newCertificateHash: HASH_C, registryChangeRef: "change-db", status: "FINALIZED", deadlineAt: "2026-08-27T00:00:00.000Z", startedAt: NOW.toISOString(), finalizedAt: NOW.toISOString() };
+  await assert.rejects(() => repository.persistMutation({ method: "finalizeSettlement", idempotencyKey: "db-finalize-conflict", commandHash: HASH_A, input: { request: { certificate, certificateSourceId: "certificate-authority", newOwnerCommitment: HASH_C, evidenceVersion: 3 } }, result: record, auditEvents: [], outboxEvents: [], stateSnapshot: { state: { testOnly: true }, stateHash: HASH_B } }), /CERTIFICATE_SUPERSEDE_CONFLICT/);
+  assert.equal(rolledBack, true);
+  assert.equal(executeCount, 3);
 });
 
 test("command journal deduplicates concurrent async operations and clears failed pending records", async () => {
