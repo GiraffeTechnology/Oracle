@@ -123,7 +123,7 @@ export function createDefaultSchemaRegistry() {
       assetId, tokenId: shortString, certificateVersion: { type: "integer", minimum: 1 }, certificateHash: hash,
       previousCertificateHash: { type: ["string", "null"], pattern: /^[a-f0-9]{64}$/ },
       wenbaoChangeRef: { type: "string", minLength: 1, maxLength: 256 }, warehouseReceiptHash: hash,
-      effectiveAt: dateTime, supersededAt: { type: ["string", "null"], format: "date-time" },
+      effectiveAt: dateTime, supersededAt: { type: ["string", "null"], format: "date-time", persistenceFormat: "mysql-timestamp" },
       status: { type: "string", enum: ["CURRENT", "SUPERSEDED", "REVOKED"] },
     },
   });
