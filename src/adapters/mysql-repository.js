@@ -44,41 +44,80 @@ export class MySqlOracleRepository {
     if (!row) return null;
     const storedState = typeof row.state_json === "string" ? JSON.parse(row.state_json) : row.state_json;
     if (evidenceHash(storedState) !== row.state_hash) throw new Error("PRODUCTION_STATE_SNAPSHOT_INVALID");
-    const [deliveryRows] = await connection.execute("SELECT event_id, attempts, delivery_state_attempts, published_at, dead_lettered_at, dead_letter_attempts FROM outbox_events");
+    const [deliveryRows] = await connection.execute("SELECT event_id, attempts, delivery_state_attempts, published_at, dead_lettered_at, dead_letter_attempts, dead_letter_state_attempts FROM outbox_events");
     const deliveryById = new Map(deliveryRows.map((delivery) => [delivery.event_id, delivery]));
     const state = structuredClone(storedState);
     state.components.outbox.events = state.components.outbox.events.map((event) => {
       const delivery = deliveryById.get(event.eventId);
       if (!delivery) return event;
       const timestamp = (value) => value instanceof Date ? value.toISOString() : value;
-      return { ...event, attempts: Number(delivery.attempts), deliveryStateAttempts: Number(delivery.delivery_state_attempts ?? 0), deadLetterAttempts: Number(delivery.dead_letter_attempts ?? 0), publishedAt: timestamp(delivery.published_at) ?? null, deadLetteredAt: timestamp(delivery.dead_lettered_at) ?? null };
+      return { ...event, attempts: Number(delivery.attempts), deliveryStateAttempts: Number(delivery.delivery_state_attempts ?? 0), deadLetterAttempts: Number(delivery.dead_letter_attempts ?? 0), deadLetterStateAttempts: Number(delivery.dead_letter_state_attempts ?? 0), publishedAt: timestamp(delivery.published_at) ?? null, deadLetteredAt: timestamp(delivery.dead_lettered_at) ?? null };
     });
     return Object.freeze({ state, stateHash: evidenceHash(state) });
   }
 
+  async #persistOutboxUpdate(sql, parameters, { verifySql, verifyParameters, accept }) {
+    return this.transaction(async (connection) => {
+      const [result] = await connection.execute(sql, parameters);
+      if (result?.affectedRows === 1) return result;
+      const [rows] = await connection.execute(verifySql, verifyParameters);
+      if (!accept(rows[0])) throw new Error("OUTBOX_DELIVERY_UPDATE_CONFLICT");
+      return Object.freeze({ affectedRows: 0, idempotent: true });
+    });
+  }
+
   async recordOutboxAttempt(eventId, attempts) {
     if (!eventId || !Number.isInteger(attempts) || attempts < 1) throw new Error("OUTBOX_DELIVERY_UPDATE_INVALID");
-    return this.transaction((connection) => connection.execute("UPDATE outbox_events SET attempts=GREATEST(attempts, ?) WHERE event_id=? AND published_at IS NULL AND dead_lettered_at IS NULL", [attempts, eventId]));
+    return this.#persistOutboxUpdate("UPDATE outbox_events SET attempts=GREATEST(attempts, ?) WHERE event_id=? AND published_at IS NULL AND dead_lettered_at IS NULL", [attempts, eventId], {
+      verifySql: "SELECT attempts, published_at, dead_lettered_at FROM outbox_events WHERE event_id=?",
+      verifyParameters: [eventId],
+      accept: (row) => row && row.published_at == null && row.dead_lettered_at == null && Number(row.attempts) >= attempts,
+    });
   }
 
   async recordOutboxDeliveryStateAttempt(eventId, attempts) {
     if (!eventId || !Number.isInteger(attempts) || attempts < 1) throw new Error("OUTBOX_DELIVERY_UPDATE_INVALID");
-    return this.transaction((connection) => connection.execute("UPDATE outbox_events SET delivery_state_attempts=GREATEST(delivery_state_attempts, ?) WHERE event_id=? AND published_at IS NULL AND dead_lettered_at IS NULL", [attempts, eventId]));
+    return this.#persistOutboxUpdate("UPDATE outbox_events SET delivery_state_attempts=GREATEST(delivery_state_attempts, ?) WHERE event_id=? AND published_at IS NULL AND dead_lettered_at IS NULL", [attempts, eventId], {
+      verifySql: "SELECT delivery_state_attempts, published_at, dead_lettered_at FROM outbox_events WHERE event_id=?",
+      verifyParameters: [eventId],
+      accept: (row) => row && row.published_at == null && row.dead_lettered_at == null && Number(row.delivery_state_attempts) >= attempts,
+    });
   }
 
   async recordOutboxDeadLetterAttempt(eventId, attempts) {
     if (!eventId || !Number.isInteger(attempts) || attempts < 1) throw new Error("OUTBOX_DELIVERY_UPDATE_INVALID");
-    return this.transaction((connection) => connection.execute("UPDATE outbox_events SET dead_letter_attempts=GREATEST(dead_letter_attempts, ?) WHERE event_id=? AND published_at IS NULL AND dead_lettered_at IS NULL", [attempts, eventId]));
+    return this.#persistOutboxUpdate("UPDATE outbox_events SET dead_letter_attempts=GREATEST(dead_letter_attempts, ?) WHERE event_id=? AND published_at IS NULL AND dead_lettered_at IS NULL", [attempts, eventId], {
+      verifySql: "SELECT dead_letter_attempts, published_at, dead_lettered_at FROM outbox_events WHERE event_id=?",
+      verifyParameters: [eventId],
+      accept: (row) => row && row.published_at == null && row.dead_lettered_at == null && Number(row.dead_letter_attempts) >= attempts,
+    });
+  }
+
+  async recordOutboxDeadLetterStateAttempt(eventId, attempts) {
+    if (!eventId || !Number.isInteger(attempts) || attempts < 1) throw new Error("OUTBOX_DELIVERY_UPDATE_INVALID");
+    return this.#persistOutboxUpdate("UPDATE outbox_events SET dead_letter_state_attempts=GREATEST(dead_letter_state_attempts, ?) WHERE event_id=? AND published_at IS NULL AND dead_lettered_at IS NULL", [attempts, eventId], {
+      verifySql: "SELECT dead_letter_state_attempts, published_at, dead_lettered_at FROM outbox_events WHERE event_id=?",
+      verifyParameters: [eventId],
+      accept: (row) => row && row.published_at == null && row.dead_lettered_at == null && Number(row.dead_letter_state_attempts) >= attempts,
+    });
   }
 
   async markOutboxPublished(eventId, publishedAt) {
     if (!eventId || !publishedAt) throw new Error("OUTBOX_DELIVERY_UPDATE_INVALID");
-    return this.transaction((connection) => connection.execute("UPDATE outbox_events SET published_at=COALESCE(published_at, ?) WHERE event_id=? AND dead_lettered_at IS NULL", [publishedAt, eventId]));
+    return this.#persistOutboxUpdate("UPDATE outbox_events SET published_at=COALESCE(published_at, ?) WHERE event_id=? AND dead_lettered_at IS NULL", [publishedAt, eventId], {
+      verifySql: "SELECT published_at, dead_lettered_at FROM outbox_events WHERE event_id=?",
+      verifyParameters: [eventId],
+      accept: (row) => row && row.published_at != null && row.dead_lettered_at == null,
+    });
   }
 
   async markOutboxDeadLettered(eventId, deadLetteredAt) {
     if (!eventId || !deadLetteredAt) throw new Error("OUTBOX_DELIVERY_UPDATE_INVALID");
-    return this.transaction((connection) => connection.execute("UPDATE outbox_events SET dead_lettered_at=COALESCE(dead_lettered_at, ?) WHERE event_id=? AND published_at IS NULL", [deadLetteredAt, eventId]));
+    return this.#persistOutboxUpdate("UPDATE outbox_events SET dead_lettered_at=COALESCE(dead_lettered_at, ?) WHERE event_id=? AND published_at IS NULL", [deadLetteredAt, eventId], {
+      verifySql: "SELECT published_at, dead_lettered_at FROM outbox_events WHERE event_id=?",
+      verifyParameters: [eventId],
+      accept: (row) => row && row.published_at == null && row.dead_lettered_at != null,
+    });
   }
   async upsertAsset(connection, record) {
     const [conflicts] = await connection.execute(
@@ -199,7 +238,13 @@ export class MySqlOracleRepository {
         const [supersedeResult] = await connection.execute("UPDATE certificate_versions SET certificate_status='SUPERSEDED', superseded_at=? WHERE asset_id=? AND certificate_hash=? AND certificate_status='CURRENT'", [record.finalizedAt, record.assetId, record.oldCertificateHash]);
         if (supersedeResult?.affectedRows !== 1) throw new Error("CERTIFICATE_SUPERSEDE_CONFLICT");
         await this.appendCertificate(connection, { ...input.request.certificate, status: "CURRENT", supersededAt: null, sourceAuthority: input.request.certificateSourceId });
-        await connection.execute("UPDATE assets SET current_certificate_hash=?, current_certificate_version=?, current_owner_commitment=?, oracle_status='VALID', evidence_version=?, updated_at=? WHERE asset_id=?", [input.request.certificate.certificateHash, input.request.certificate.certificateVersion, input.request.newOwnerCommitment, input.request.evidenceVersion, record.finalizedAt, record.assetId]);
+        const [assetResult] = await connection.execute("UPDATE assets SET current_certificate_hash=?, current_certificate_version=?, current_owner_commitment=?, oracle_status='VALID', evidence_version=?, updated_at=? WHERE asset_id=?", [input.request.certificate.certificateHash, input.request.certificate.certificateVersion, input.request.newOwnerCommitment, input.request.evidenceVersion, record.finalizedAt, record.assetId]);
+        if (assetResult?.affectedRows !== 1) throw new Error("ASSET_PROJECTION_CONFLICT");
+      } else {
+        const oracleStatus = method === "beginSettlement" ? "TRANSFER_PENDING" : "REVIEW_REQUIRED";
+        const updatedAt = method === "beginSettlement" ? record.startedAt : record.cancelledAt ?? record.disputedAt ?? record.timedOutAt;
+        const [assetResult] = await connection.execute("UPDATE assets SET oracle_status=?, evidence_version=?, updated_at=? WHERE asset_id=?", [oracleStatus, input.request.evidenceVersion, updatedAt, record.assetId]);
+        if (assetResult?.affectedRows !== 1) throw new Error("ASSET_PROJECTION_CONFLICT");
       }
       return;
     }
