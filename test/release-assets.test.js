@@ -14,6 +14,9 @@ test("OpenAPI declares no caller-selectable server endpoint", async () => {
   const spec = await readFile(new URL("../docs/openapi.yaml", import.meta.url), "utf8");
   assert.match(spec, /servers: \[\]/);
   assert.doesNotMatch(spec, /marketPrice|yield|collateralRatio/);
+  assert.match(spec, /AuthoritativeSettlementFinalizationRequest:[\s\S]*additionalProperties: false[\s\S]*required: \[snapshotHash, evidenceVersion, assetReference, certificateReference, warehouseReference\]/);
+  assert.match(spec, /\/v1\/rwa\/settlements\/\{settlementId\}\/finalize:[\s\S]*#\/components\/schemas\/AuthoritativeSettlementFinalizationRequest/);
+  assert.doesNotMatch(spec, /warehouseConfirmed|ownerBindingConfirmed|newOwnerCommitment/);
 });
 
 test("SBOM confirms no third-party runtime components", async () => {
