@@ -130,7 +130,7 @@ export class AttestationService {
     }
     const revoked = [];
     for (const attestation of this.#attestations.values()) {
-      if (attestation.envelope.subject.assetId !== assetId || attestation.envelope.subject.purpose !== purpose) continue;
+      if (attestation.envelope.subject.assetId !== assetId || attestation.envelope.subject.purpose !== purpose || this.revocations.isRevoked(attestation.envelope.attestationId)) continue;
       revoked.push(this.revocations.revoke({ attestationId: attestation.envelope.attestationId, reasonHash, revokedAt, authorityId }));
     }
     return Object.freeze(revoked);
