@@ -10,6 +10,7 @@ export class OracleRepositoryPort {
   recordOutboxAttempt() { return abstractMethod("repository.recordOutboxAttempt"); }
   recordOutboxDeliveryStateAttempt() { return abstractMethod("repository.recordOutboxDeliveryStateAttempt"); }
   recordOutboxDeadLetterAttempt() { return abstractMethod("repository.recordOutboxDeadLetterAttempt"); }
+  recordOutboxDeadLetterStateAttempt() { return abstractMethod("repository.recordOutboxDeadLetterStateAttempt"); }
   markOutboxPublished() { return abstractMethod("repository.markOutboxPublished"); }
   markOutboxDeadLettered() { return abstractMethod("repository.markOutboxDeadLettered"); }
 }
