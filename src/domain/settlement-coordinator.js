@@ -11,6 +11,10 @@ function assertFailureReason(reasonHash) {
   if (!SHA256_HEX.test(reasonHash ?? "")) throw new Error("SETTLEMENT_REASON_HASH_INVALID");
 }
 
+function assertActor(actorId) {
+  if (!validBoundedString(actorId, 64)) throw new Error("SETTLEMENT_ACTOR_INVALID");
+}
+
 export class SettlementCoordinator {
   #settlements = new Map();
   #intentHashes = new Map();
@@ -49,7 +53,7 @@ export class SettlementCoordinator {
     const targetBusinessDays = this.settlementProfile?.targetBusinessDays;
     if (!this.businessCalendar || !Number.isInteger(targetBusinessDays) || targetBusinessDays < 1 || !this.settlementProfile?.businessCalendarRef) throw new Error("SETTLEMENT_CALENDAR_PROFILE_REQUIRED");
     const deadline = this.businessCalendar.addBusinessDays(now, targetBusinessDays);
-    if (!validBoundedString(actorId, 64)) throw new Error("SETTLEMENT_SNAPSHOT_INCOMPLETE");
+    assertActor(actorId);
     const normalizedDeadlineAt = deadline.toISOString();
     const intent = Object.freeze({
       schemaVersion: "giraffe-settlement-intent.v1",
@@ -95,6 +99,7 @@ export class SettlementCoordinator {
   }
 
   finalize({ settlementId, certificate, certificateProvenance, registryChangeRef, snapshotHash, warehouseConfirmed, ownerBindingConfirmed, newOwnerCommitment, actorId, evidenceVersion }) {
+    assertActor(actorId);
     const current = this.#settlements.get(settlementId);
     if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
     if (!registryChangeRef || warehouseConfirmed !== true || ownerBindingConfirmed !== true) throw new Error("SETTLEMENT_CONFIRMATION_INCOMPLETE");
@@ -114,7 +119,7 @@ export class SettlementCoordinator {
     const updatedAsset = Object.freeze({ ...currentAsset, currentCertificateHash: certificate.certificateHash, currentCertificateVersion: certificate.certificateVersion, currentOwnerCommitment: newOwnerCommitment, oracleStatus: OracleStatus.VALID, evidenceVersion, updatedAt: now });
     this.recordStore.assertAsset(updatedAsset);
     const assetProvenance = this.recordStore.provenance("REGISTRY", current.assetId);
-    this.recordStore.appendCertificate(certificate, certificateProvenance);
+    this.recordStore.replaceCurrentCertificate(certificate, certificateProvenance, now);
     this.recordStore.putAsset(updatedAsset, assetProvenance);
     this.stateEngine.transition({ subjectId: current.assetId, to: OracleStatus.VALID, reasonHash: certificate.certificateHash, evidenceVersion, occurredAt: now });
     const finalized = Object.freeze({ ...current, status: "FINALIZED", registryChangeRef, newCertificateHash: certificate.certificateHash, finalizedAt: now });
@@ -124,6 +129,7 @@ export class SettlementCoordinator {
   }
 
   cancel({ settlementId, reasonHash, actorId, evidenceVersion }) {
+    assertActor(actorId);
     assertFailureReason(reasonHash);
     const current = this.#settlements.get(settlementId);
     if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
@@ -136,6 +142,7 @@ export class SettlementCoordinator {
   }
 
   dispute({ settlementId, reasonHash, actorId, evidenceVersion }) {
+    assertActor(actorId);
     assertFailureReason(reasonHash);
     const current = this.#settlements.get(settlementId);
     if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
@@ -148,6 +155,7 @@ export class SettlementCoordinator {
   }
 
   timeout({ settlementId, reasonHash, actorId, evidenceVersion }) {
+    assertActor(actorId);
     assertFailureReason(reasonHash);
     const current = this.#settlements.get(settlementId);
     if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
@@ -179,4 +187,5 @@ export class SettlementCoordinator {
     this.#intentHashes = hashes;
   }
 }
+
 
