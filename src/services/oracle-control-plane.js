@@ -90,10 +90,14 @@ export class OracleControlPlane {
     assertAssetFactsOnly({ asset, certificate, warehouse });
     if (!asset?.assetId || certificate?.assetId !== asset.assetId || warehouse?.assetId !== asset.assetId) throw new Error("ASSET_EVIDENCE_ID_MISMATCH");
     if ((asset.currentCertificateHash !== undefined && asset.currentCertificateHash !== certificate.certificateHash) || (asset.currentCertificateVersion !== undefined && asset.currentCertificateVersion !== certificate.certificateVersion) || (asset.warehouseReceiptHash !== undefined && asset.warehouseReceiptHash !== warehouse.warehouseReceiptHash) || (certificate.warehouseReceiptHash !== undefined && certificate.warehouseReceiptHash !== warehouse.warehouseReceiptHash)) throw new Error("ASSET_EVIDENCE_BUNDLE_MISMATCH");
+    if (asset.warehouseId !== warehouse.warehouseId) throw new Error("ASSET_WAREHOUSE_ID_MISMATCH");
     this.runtime.schemaRegistry.validate("asset-record.v1", asset);
     this.runtime.schemaRegistry.validate("certificate-record.v1", certificate);
     this.runtime.schemaRegistry.validate("warehouse-record.v1", warehouse);
     if (certificate.status === "CURRENT" && certificate.supersededAt != null) throw new Error("CERTIFICATE_CURRENT_SUPERSEDED_AT_INVALID");
+    const existingAsset = this.runtime.recordStore.getAsset(asset.assetId);
+    const existingWarehouse = this.runtime.recordStore.getWarehouse(asset.assetId);
+    if ((existingAsset && existingAsset.warehouseId !== asset.warehouseId) || (existingWarehouse && existingWarehouse.warehouseId !== warehouse.warehouseId)) throw new Error("WAREHOUSE_ID_CHANGE_REQUIRES_GOVERNANCE");
     const existingBinding = this.runtime.tokenIndex.byAsset(asset.assetId);
     if (existingBinding && existingBinding.tokenId !== certificate.tokenId) throw new Error("CERTIFICATE_TOKEN_BINDING_MISMATCH");
     if (!this.allowSyntheticEvidence) assertAuthenticatedEvidence(evidenceAuthentication, { records: { asset, certificate, warehouse }, evidenceSources });
