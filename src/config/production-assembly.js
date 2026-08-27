@@ -57,19 +57,20 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
   const signerRotationBroker = assembled.ports.signer;
   if (typeof signerRotationBroker.rotate !== "function" || typeof signerRotationBroker.reconcile !== "function" || typeof signerRotationBroker.activateRuntime !== "function") throw new Error("PRODUCTION_SIGNER_ROTATION_BROKER_INVALID");
   if (typeof assembled.ports.repository.loadStateSnapshot !== "function") throw new Error("PRODUCTION_STATE_RESTORE_UNAVAILABLE");
+  if (["recordOutboxAttempt", "markOutboxPublished", "markOutboxDeadLettered"].some((method) => typeof assembled.ports.repository[method] !== "function")) throw new Error("PRODUCTION_OUTBOX_DELIVERY_STORE_INVALID");
   restoreProductionState(runtime, dualControl, await assembled.ports.repository.loadStateSnapshot());
   const baseControlPlane = new OracleControlPlane({ runtime, authorizer, dualControl, commandJournal: new CommandJournal(), outbox: runtime.outbox, signerRotationBroker, clock });
   const durableControlPlane = new DurableOracleControlPlane({ controlPlane: baseControlPlane, repository: assembled.ports.repository, runtime, dualControl });
   const controlPlane = new AuthoritativeOracleControlPlane({ controlPlane: durableControlPlane, sourcePorts: assembled.ports, sourceDefinitions });
   const adminOperations = new AdminOperations({ runtime, sourceRegistry: runtime.sourceRegistry, authorizer, reviewQueue: runtime.reviewQueue, dualControl, clock });
-  if (typeof assembled.ports.monitoring?.checkReadiness !== "function") throw new Error("PRODUCTION_READINESS_BOUNDARY_INVALID");
+  if (typeof assembled.ports.monitoring?.checkReadiness !== "function" || typeof assembled.ports.monitoring.reportFailure !== "function" || typeof assembled.ports.monitoring.reportEvent !== "function") throw new Error("PRODUCTION_READINESS_BOUNDARY_INVALID");
   const readinessCheck = async () => {
     if (runtime.operationalState.compromised) return Object.freeze({ ok: false });
     const result = await assembled.ports.monitoring.checkReadiness();
     return Object.freeze({ ok: result?.ok === true });
   };
   if (typeof assembled.ports.eventPublisher.publish !== "function" || typeof assembled.ports.eventPublisher.publishDeadLetter !== "function") throw new Error("PRODUCTION_EVENT_PUBLISHER_INVALID");
-  const outboxDispatcher = new OutboxDispatcher({ outbox: runtime.outbox, publisher: assembled.ports.eventPublisher, clock });
+  const outboxDispatcher = new OutboxDispatcher({ outbox: runtime.outbox, publisher: assembled.ports.eventPublisher, deliveryStore: assembled.ports.repository, clock });
   let backgroundWorker = null;
   const startBackgroundWorkers = ({ intervalMs = 1000 } = {}) => {
     if (!Number.isInteger(intervalMs) || intervalMs < 100) throw new Error("PRODUCTION_WORKER_INTERVAL_INVALID");
@@ -82,11 +83,11 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
       try {
         const results = await outboxDispatcher.drain();
         for (const result of results) {
-          if (result.status === "DEAD_LETTER_RETRY") assembled.ports.monitoring?.reportFailure?.("OUTBOX_DEAD_LETTER_FAILED");
-          if (result.status === "DEAD_LETTERED") assembled.ports.monitoring?.reportEvent?.("OUTBOX_EVENT_DEAD_LETTERED");
+          if (result.status === "DEAD_LETTER_RETRY" || result.status === "DELIVERY_STATE_RETRY") assembled.ports.monitoring.reportFailure(result.status === "DEAD_LETTER_RETRY" ? "OUTBOX_DEAD_LETTER_FAILED" : "OUTBOX_DELIVERY_STATE_FAILED");
+          if (result.status === "DEAD_LETTERED") assembled.ports.monitoring.reportEvent("OUTBOX_EVENT_DEAD_LETTERED");
         }
       } catch {
-        assembled.ports.monitoring?.reportFailure?.("OUTBOX_DISPATCH_FAILED");
+        assembled.ports.monitoring.reportFailure("OUTBOX_DISPATCH_FAILED");
       } finally {
         draining = false;
       }

@@ -40,6 +40,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
   const persisted = [];
   const published = [];
   const deadLetters = [];
+  const deliveryUpdates = [];
   let sourceFetches = 0;
   let markPersistStarted;
   const persistStarted = new Promise((resolve) => { markPersistStarted = resolve; });
@@ -48,6 +49,9 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
   const repository = {
     async loadStateSnapshot() { return initialSnapshot; },
     async getCommand(key) { return commands.get(key) ?? null; },
+    async recordOutboxAttempt(eventId, attempts) { deliveryUpdates.push({ type: "attempt", eventId, attempts }); },
+    async markOutboxPublished(eventId, publishedAt) { deliveryUpdates.push({ type: "published", eventId, publishedAt }); },
+    async markOutboxDeadLettered(eventId, deadLetteredAt) { deliveryUpdates.push({ type: "dead-lettered", eventId, deadLetteredAt }); },
     async persistMutation(value) {
       markPersistStarted();
       if (persistenceGate) await persistenceGate;
@@ -66,7 +70,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
       }
       if (kind === "admin-authenticator") return { async authenticate() { return { actorId: "production-operator", roles: ["ORACLE_OPERATOR"] }; } };
       if (kind === "event-publisher") return { async publish(event) { published.push(event); }, async publishDeadLetter(event) { deadLetters.push(event); } };
-      if (kind === "monitoring") return { async checkReadiness() { return { ok: true }; } };
+      if (kind === "monitoring") return { async checkReadiness() { return { ok: true }; }, reportFailure() {}, reportEvent() {} };
       return { kind, sourceById };
     },
   };
@@ -76,11 +80,11 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
     clock: () => NOW,
   });
   await assembly.authenticateAdmin({ headers: {} });
-  return { assembly, persisted, published, deadLetters, persistStarted, getSourceFetches: () => sourceFetches };
+  return { assembly, persisted, published, deadLetters, deliveryUpdates, persistStarted, getSourceFetches: () => sourceFetches };
 }
 
 test("production assembly fetches three authenticated sources and persists the authoritative mutation", async () => {
-  const { assembly, persisted, published, getSourceFetches } = await productionFixture();
+  const { assembly, persisted, published, deliveryUpdates, getSourceFetches } = await productionFixture();
   const command = { actorId: "production-operator", idempotencyKey: "production-verify-001", evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" }, evidenceVersion: 1 };
   const result = await assembly.controlPlane.verifyAsset(command);
   assert.equal(result.result.status, "VALID");
@@ -93,6 +97,7 @@ test("production assembly fetches three authenticated sources and persists the a
   assert.equal(getSourceFetches(), 3);
   assert.deepEqual(await assembly.outboxDispatcher.drain(), [{ eventId: assembly.runtime.outbox.list()[0].eventId, status: "PUBLISHED" }]);
   assert.equal(published.length, 1);
+  assert.deepEqual(deliveryUpdates.map(({ type }) => type), ["attempt", "published"]);
   assert.deepEqual(await assembly.readinessCheck(), { ok: true });
 });
 

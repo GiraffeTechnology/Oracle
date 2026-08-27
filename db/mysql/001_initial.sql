@@ -154,8 +154,9 @@ CREATE TABLE outbox_events (
   payload_hash CHAR(64) NOT NULL,
   created_at TIMESTAMP(6) NOT NULL,
   published_at TIMESTAMP(6) NULL,
+  dead_lettered_at TIMESTAMP(6) NULL,
   attempts INT UNSIGNED NOT NULL DEFAULT 0,
-  INDEX idx_outbox_pending (published_at, created_at)
+  INDEX idx_outbox_pending (published_at, dead_lettered_at, created_at)
 ) ENGINE=InnoDB;
 
 CREATE TABLE command_journal (
@@ -175,3 +176,4 @@ CREATE TABLE production_state_snapshots (
   updated_at TIMESTAMP(6) NOT NULL,
   CONSTRAINT chk_single_production_snapshot CHECK (snapshot_id = 1)
 ) ENGINE=InnoDB;
+

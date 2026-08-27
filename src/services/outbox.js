@@ -15,6 +15,13 @@ export class Outbox {
   pending(limit = 100) {
     return [...this.#events.values()].filter((event) => !event.publishedAt && !event.deadLetteredAt && (!this.requireDurable || event.durable === true)).sort((a, b) => a.createdAt.localeCompare(b.createdAt)).slice(0, limit);
   }
+  pendingActive(maxAttempts, limit = 100) {
+    return this.pending(Number.MAX_SAFE_INTEGER).filter((event) => event.attempts < maxAttempts).slice(0, limit);
+  }
+
+  pendingDeadLetter(maxAttempts, limit = 100) {
+    return this.pending(Number.MAX_SAFE_INTEGER).filter((event) => event.attempts >= maxAttempts).slice(0, limit);
+  }
 
   list() {
     return [...this.#events.values()];

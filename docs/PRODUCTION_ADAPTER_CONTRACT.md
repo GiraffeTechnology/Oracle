@@ -54,7 +54,9 @@ accept caller-selected network endpoints or credentials.
 - Production assembly installs the resolved publisher in the outbox dispatcher, and production startup starts
   its single non-overlapping drain worker. Failed publishes remain pending for retry; the dispatcher never
   turns an unacknowledged publish into a successful delivery.
-- The publisher must also implement idempotent `publishDeadLetter(event)`. After the fixed retry limit, the
+- The publisher must also implement idempotent `publishDeadLetter(event)`.
+- Attempt, publish and dead-letter acknowledgements are persisted through the repository before the in-memory event is advanced. Startup validates the snapshot hash, then overlays these independently committed delivery positions so acknowledged events do not re-enter the active queue.
+- Active delivery and dead-letter transfer use independent bounded selections; an unavailable dead-letter destination cannot consume the active delivery limit or starve newer events. After the fixed retry limit, the
   dispatcher forwards the complete non-sensitive event to that durable channel and emits a monitoring event;
   a failed dead-letter publish remains pending and raises a stable monitoring failure.
 - Delivery is at-least-once; consumers must use `eventId` for idempotency.

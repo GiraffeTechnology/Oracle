@@ -42,9 +42,34 @@ export class MySqlOracleRepository {
     const [rows] = await connection.execute("SELECT state_json, state_hash FROM production_state_snapshots WHERE snapshot_id = 1");
     const row = rows[0];
     if (!row) return null;
-    return Object.freeze({ state: typeof row.state_json === "string" ? JSON.parse(row.state_json) : row.state_json, stateHash: row.state_hash });
+    const storedState = typeof row.state_json === "string" ? JSON.parse(row.state_json) : row.state_json;
+    if (evidenceHash(storedState) !== row.state_hash) throw new Error("PRODUCTION_STATE_SNAPSHOT_INVALID");
+    const [deliveryRows] = await connection.execute("SELECT event_id, attempts, published_at, dead_lettered_at FROM outbox_events");
+    const deliveryById = new Map(deliveryRows.map((delivery) => [delivery.event_id, delivery]));
+    const state = structuredClone(storedState);
+    state.components.outbox.events = state.components.outbox.events.map((event) => {
+      const delivery = deliveryById.get(event.eventId);
+      if (!delivery) return event;
+      const timestamp = (value) => value instanceof Date ? value.toISOString() : value;
+      return { ...event, attempts: Number(delivery.attempts), publishedAt: timestamp(delivery.published_at) ?? null, deadLetteredAt: timestamp(delivery.dead_lettered_at) ?? null };
+    });
+    return Object.freeze({ state, stateHash: evidenceHash(state) });
   }
 
+  async recordOutboxAttempt(eventId, attempts) {
+    if (!eventId || !Number.isInteger(attempts) || attempts < 1) throw new Error("OUTBOX_DELIVERY_UPDATE_INVALID");
+    return this.transaction((connection) => connection.execute("UPDATE outbox_events SET attempts=GREATEST(attempts, ?) WHERE event_id=? AND published_at IS NULL AND dead_lettered_at IS NULL", [attempts, eventId]));
+  }
+
+  async markOutboxPublished(eventId, publishedAt) {
+    if (!eventId || !publishedAt) throw new Error("OUTBOX_DELIVERY_UPDATE_INVALID");
+    return this.transaction((connection) => connection.execute("UPDATE outbox_events SET published_at=COALESCE(published_at, ?) WHERE event_id=? AND dead_lettered_at IS NULL", [publishedAt, eventId]));
+  }
+
+  async markOutboxDeadLettered(eventId, deadLetteredAt) {
+    if (!eventId || !deadLetteredAt) throw new Error("OUTBOX_DELIVERY_UPDATE_INVALID");
+    return this.transaction((connection) => connection.execute("UPDATE outbox_events SET dead_lettered_at=COALESCE(dead_lettered_at, ?) WHERE event_id=? AND published_at IS NULL", [deadLetteredAt, eventId]));
+  }
   async upsertAsset(connection, record) {
     const [conflicts] = await connection.execute(
       `SELECT asset_id FROM assets

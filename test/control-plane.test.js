@@ -396,3 +396,31 @@ test("fixed source transport accepts references but no endpoint", async () => {
   await assert.rejects(() => adapter.fetchByFixedReference("https://example.invalid"), /REFERENCE_INVALID/);
 });
 
+test("dead-letter failures do not starve active outbox delivery", async () => {
+  const outbox = new Outbox();
+  const poison = outbox.enqueue({ eventType: "poison", subjectId: "asset-poison", payloadHash: HASH_A, createdAt: "2026-08-24T00:00:00.000Z" });
+  for (let attempt = 0; attempt < 5; attempt += 1) outbox.recordAttempt(poison.eventId);
+  const active = outbox.enqueue({ eventType: "active", subjectId: "asset-active", payloadHash: HASH_B, createdAt: "2026-08-24T00:00:01.000Z" });
+  const published = [];
+  const dispatcher = new OutboxDispatcher({ outbox, publisher: { async publish(event) { published.push(event.eventId); }, async publishDeadLetter() { throw new Error("dead letter unavailable"); } }, clock: () => NOW, maxAttempts: 5 });
+  const result = await dispatcher.drain(1);
+  assert.deepEqual(published, [active.eventId]);
+  assert.deepEqual(result.map(({ status }) => status), ["PUBLISHED", "DEAD_LETTER_RETRY"]);
+});
+
+test("MySQL snapshot restore overlays independently committed outbox delivery state", async () => {
+  const event = { eventId: "00000000-0000-4000-8000-000000000001", eventType: "test", subjectId: "asset", payloadHash: HASH_A, createdAt: NOW.toISOString(), attempts: 0, publishedAt: null, deadLetteredAt: null, durable: true };
+  const storedState = { schemaVersion: "giraffe-production-state.v1", components: { outbox: { events: [event] } }, dualControl: { actions: [] } };
+  const pool = {
+    async getConnection() { throw new Error("not used"); },
+    async execute(sql) {
+      if (sql.includes("production_state_snapshots")) return [[{ state_json: JSON.stringify(storedState), state_hash: evidenceHash(storedState) }]];
+      if (sql.includes("outbox_events")) return [[{ event_id: event.eventId, attempts: 5, published_at: null, dead_lettered_at: "2026-08-24T00:01:00.000Z" }]];
+      throw new Error("unexpected query");
+    },
+  };
+  const restored = await new MySqlOracleRepository({ pool }).loadStateSnapshot();
+  assert.equal(restored.state.components.outbox.events[0].attempts, 5);
+  assert.equal(restored.state.components.outbox.events[0].deadLetteredAt, "2026-08-24T00:01:00.000Z");
+  assert.equal(restored.stateHash, evidenceHash(restored.state));
+});

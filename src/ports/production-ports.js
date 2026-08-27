@@ -7,6 +7,9 @@ export class OracleRepositoryPort {
   getAsset() { return abstractMethod("repository.getAsset"); }
   appendCertificate() { return abstractMethod("repository.appendCertificate"); }
   appendAuditEvent() { return abstractMethod("repository.appendAuditEvent"); }
+  recordOutboxAttempt() { return abstractMethod("repository.recordOutboxAttempt"); }
+  markOutboxPublished() { return abstractMethod("repository.markOutboxPublished"); }
+  markOutboxDeadLettered() { return abstractMethod("repository.markOutboxDeadLettered"); }
 }
 
 export class ProtectedSignerPort {
@@ -21,6 +24,7 @@ export class SourceTransportPort {
 
 export class EventPublisherPort {
   publish() { return abstractMethod("events.publish"); }
+  publishDeadLetter() { return abstractMethod("events.publishDeadLetter"); }
 }
 
 export function assertProductionPorts(ports) {
@@ -30,4 +34,5 @@ export function assertProductionPorts(ports) {
   }
   return true;
 }
+
 
