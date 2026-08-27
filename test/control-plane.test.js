@@ -211,7 +211,9 @@ test("attestation service rejects duplicate nonces", () => {
 
 test("attestation issuance requires the exact registered token subject", () => {
   const { control, runtime } = controlFixture();
-  control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-bound", ...evidenceBundle("asset-bound"), evidenceVersion: 1 });
+  const evidence = evidenceBundle("asset-bound");
+  evidence.certificate = { ...evidence.certificate, tokenId: "7" };
+  control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-bound", ...evidence, evidenceVersion: 1 });
   control.bindToken({ actorId: "oracle-a", idempotencyKey: "bind-bound", binding: { assetId: "asset-bound", chainId: "test-chain", contract: "contract-bound", tokenId: "7" } });
   const base = { subject: { assetId: "asset-bound", chainId: "test-chain", contract: "contract-bound", tokenId: "7", purpose: "transfer-eligibility" }, factType: "TRANSFER_STATUS", factValue: "VALID", sourceAuthority: "synthetic-registry", sourceRecordHash: evidenceHash(runtime.recordStore.getAsset("asset-bound")), validForSeconds: 60, nonce: "bound-nonce" };
   assert.throws(() => control.issueAttestation({ actorId: "oracle-a", idempotencyKey: "issue-wrong-token", request: { ...base, subject: { ...base.subject, tokenId: "8" } } }), /ATTESTATION_TOKEN_BINDING_MISMATCH/);
@@ -805,4 +807,22 @@ test("MySQL source disable rejects an absent relational projection and accepts v
   const inactive = await run([{ active: 0 }]);
   assert.equal((await inactive.operation).persisted, true);
   assert.deepEqual(inactive.events, ["begin", "commit", "release"]);
+});
+test("token binding must match the current certificate token identifier", () => {
+  const { control, runtime } = controlFixture();
+  control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-token-certificate", ...evidenceBundle("asset-token-certificate"), evidenceVersion: 1 });
+  assert.throws(() => control.bindToken({ actorId: "oracle-a", idempotencyKey: "bind-token-certificate", binding: { assetId: "asset-token-certificate", chainId: "560048", contract: "test-only", tokenId: "2" } }), /TOKEN_BINDING_CERTIFICATE_MISMATCH/);
+  assert.equal(runtime.tokenIndex.byAsset("asset-token-certificate"), null);
+});
+
+test("settlement transitions update the in-memory asset status projection", () => {
+  const { control, runtime } = controlFixture();
+  control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-status-projection", ...evidenceBundle("asset-status-projection"), evidenceVersion: 1 });
+  control.bindToken({ actorId: "oracle-a", idempotencyKey: "bind-status-projection", binding: { assetId: "asset-status-projection", chainId: "test-chain", contract: "contract-status-projection", tokenId: "1" } });
+  control.beginSettlement({ actorId: "oracle-a", idempotencyKey: "begin-status-projection", request: { settlementId: "settlement-status-projection", assetId: "asset-status-projection", token: { chainId: "test-chain", contract: "contract-status-projection", tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", externalExecutionRef: "external", oldCertificateHash: HASH_B, warehouseReceiptHash: HASH_C, evidenceVersion: 2 } });
+  assert.equal(runtime.recordStore.getAsset("asset-status-projection").oracleStatus, "TRANSFER_PENDING");
+  assert.equal(runtime.recordStore.getAsset("asset-status-projection").evidenceVersion, 2);
+  control.cancelSettlement({ actorId: "oracle-a", idempotencyKey: "cancel-status-projection", request: { settlementId: "settlement-status-projection", reasonHash: HASH_A, evidenceVersion: 3 } });
+  assert.equal(runtime.recordStore.getAsset("asset-status-projection").oracleStatus, "REVIEW_REQUIRED");
+  assert.equal(runtime.recordStore.getAsset("asset-status-projection").evidenceVersion, 3);
 });
