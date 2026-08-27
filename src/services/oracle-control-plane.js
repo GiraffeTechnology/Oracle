@@ -94,6 +94,8 @@ export class OracleControlPlane {
     this.runtime.schemaRegistry.validate("certificate-record.v1", certificate);
     this.runtime.schemaRegistry.validate("warehouse-record.v1", warehouse);
     if (certificate.status === "CURRENT" && certificate.supersededAt != null) throw new Error("CERTIFICATE_CURRENT_SUPERSEDED_AT_INVALID");
+    const existingBinding = this.runtime.tokenIndex.byAsset(asset.assetId);
+    if (existingBinding && existingBinding.tokenId !== certificate.tokenId) throw new Error("CERTIFICATE_TOKEN_BINDING_MISMATCH");
     if (!this.allowSyntheticEvidence) assertAuthenticatedEvidence(evidenceAuthentication, { records: { asset, certificate, warehouse }, evidenceSources });
     if (asset.oracleStatus !== OracleStatus.VALID || asset.transferEligibility !== OracleStatus.VALID || certificate.status !== "CURRENT" || warehouse.warehouseStatus !== "IN_CUSTODY" || asset.encumbranceStatus !== "CLEAR" || (warehouse.encumbranceStatus !== undefined && warehouse.encumbranceStatus !== "CLEAR")) throw new Error("ASSET_EVIDENCE_NOT_VALID");
     return this.commandJournal.execute(idempotencyKey, { type: "asset.verify", asset, certificate, warehouse, evidenceSources, evidenceVersion }, () => {
