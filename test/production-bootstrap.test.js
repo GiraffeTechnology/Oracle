@@ -42,6 +42,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
   const deadLetters = [];
   const deliveryUpdates = [];
   const alerts = [];
+  const alertState = { reject: rejectAlerts === true };
   let sourceFetches = 0;
   let markPersistStarted;
   const persistStarted = new Promise((resolve) => { markPersistStarted = resolve; });
@@ -51,6 +52,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
     async loadStateSnapshot() { return initialSnapshot; },
     async getCommand(key) { return commands.get(key) ?? null; },
     async recordOutboxAttempt(eventId, attempts) { deliveryUpdates.push({ type: "attempt", eventId, attempts }); },
+    async recordOutboxDeliveryStateAttempt(eventId, attempts) { deliveryUpdates.push({ type: "delivery-state-attempt", eventId, attempts }); },
     async recordOutboxDeadLetterAttempt(eventId, attempts) { deliveryUpdates.push({ type: "dead-letter-attempt", eventId, attempts }); },
     async markOutboxPublished(eventId, publishedAt) { deliveryUpdates.push({ type: "published", eventId, publishedAt }); },
     async markOutboxDeadLettered(eventId, deadLetteredAt) { deliveryUpdates.push({ type: "dead-lettered", eventId, deadLetteredAt }); },
@@ -73,7 +75,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
       if (kind === "admin-authenticator") return { async authenticate() { return { actorId: "production-operator", roles: ["ORACLE_OPERATOR"] }; } };
       if (kind === "event-publisher") return { async publish(event) { published.push(event); }, async publishDeadLetter(event) { deadLetters.push(event); } };
       if (kind === "monitoring") return { async checkReadiness() { return { ok: true }; } };
-      if (kind === "alerting") return { async reportFailure(code) { alerts.push({ type: "failure", code }); if (rejectAlerts) throw new Error("alert unavailable"); }, async reportEvent(code) { alerts.push({ type: "event", code }); if (rejectAlerts) throw new Error("alert unavailable"); } };
+      if (kind === "alerting") return { async reportFailure(code) { alerts.push({ type: "failure", code }); if (alertState.reject) throw new Error("alert unavailable"); }, async reportEvent(code) { alerts.push({ type: "event", code }); if (alertState.reject) throw new Error("alert unavailable"); } };
       return { kind, sourceById };
     },
   };
@@ -83,7 +85,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
     clock: () => NOW,
   });
   await assembly.authenticateAdmin({ headers: {} });
-  return { assembly, persisted, published, deadLetters, deliveryUpdates, alerts, persistStarted, getSourceFetches: () => sourceFetches };
+  return { assembly, persisted, published, deadLetters, deliveryUpdates, alerts, persistStarted, getSourceFetches: () => sourceFetches, setRejectAlerts(value) { alertState.reject = value === true; } };
 }
 
 test("production assembly fetches three authenticated sources and persists the authoritative mutation", async () => {
@@ -115,6 +117,23 @@ test("async alert rejection is awaited and makes production readiness fail close
   assert.deepEqual(await assembly.readinessCheck(), { ok: false });
 });
 
+test("a later successful alert callback restores readiness", async () => {
+  const { assembly, setRejectAlerts } = await productionFixture({ rejectAlerts: true });
+  const first = assembly.runtime.outbox.enqueue({ eventType: "test", subjectId: "asset-alert-fail", payloadHash: HASH_A, createdAt: NOW.toISOString() });
+  assembly.runtime.outbox.markDurable(first.eventId);
+  for (let attempt = 0; attempt < 5; attempt += 1) assembly.runtime.outbox.recordAttempt(first.eventId);
+  const worker = assembly.startBackgroundWorkers({ intervalMs: 100 });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(assembly.runtime.operationalState.alertingFailed, true);
+  setRejectAlerts(false);
+  const second = assembly.runtime.outbox.enqueue({ eventType: "test", subjectId: "asset-alert-recover", payloadHash: HASH_B, createdAt: new Date(NOW.getTime() + 1).toISOString() });
+  assembly.runtime.outbox.markDurable(second.eventId);
+  for (let attempt = 0; attempt < 5; attempt += 1) assembly.runtime.outbox.recordAttempt(second.eventId);
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  worker.stop();
+  assert.equal(assembly.runtime.operationalState.alertingFailed, false);
+  assert.deepEqual(await assembly.readinessCheck(), { ok: true });
+});
 test("production rejects caller records and becomes unavailable after durability failure", async () => {
   const { assembly } = await productionFixture({ failPersistence: true });
   await assert.rejects(() => assembly.controlPlane.verifyAsset({ actorId: "production-operator", idempotencyKey: "production-verify-fail", evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" }, evidenceVersion: 1 }), /MYSQL_DURABILITY_FAILURE/);
@@ -276,6 +295,13 @@ test("signer policy receives and enforces attestation context before signing", (
   assert.throws(() => service.issue({ ...base, validForSeconds: 61, nonce: "context-ttl" }), /SIGNER_POLICY_TTL_REJECTED/);
 });
 
+test("attestation signer-set identifiers are bounded before signing or activation", () => {
+  const keys = generateKeyPairSync("ed25519");
+  assert.throws(() => new AttestationService({ signerSetId: "s".repeat(65), privateKey: keys.privateKey, publicKey: keys.publicKey, revocations: new RevocationRegistry() }), /ATTESTATION_DEPENDENCY_MISSING/);
+  const service = new AttestationService({ signerSetId: "old", privateKey: keys.privateKey, publicKey: keys.publicKey, revocations: new RevocationRegistry() });
+  const nextPolicy = new SignerSetPolicy({ signerSetId: "n".repeat(65), threshold: 1, signers: ["next"] });
+  assert.throws(() => service.activateSignerBackend({ signerSetId: "n".repeat(65), signBytes() {}, verifyBytes() {}, signerPolicy: nextPolicy }, "old"), /SIGNER_SET_ACTIVATION_INVALID/);
+});
 test("protected signer callbacks receive only a 32-byte canonical envelope digest", () => {
   const keys = generateKeyPairSync("ed25519");
   let signedLength = null;
