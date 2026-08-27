@@ -5,6 +5,11 @@ function signingDigest(envelope) {
   return createHash("sha256").update(canonicalJson(envelope), "utf8").digest();
 }
 
+const SHA256_HEX = /^[a-f0-9]{64}$/i;
+function boundedString(value, maximum) {
+  return typeof value === "string" && value.length > 0 && value.length <= maximum;
+}
+
 export class AttestationService {
   #issuedNonces = new Set();
   #attestations = new Map();
@@ -15,7 +20,7 @@ export class AttestationService {
   constructor({ signerSetId, privateKey = null, publicKey = null, signBytes = null, verifyBytes = null, verifyHistoricalBytes = null, revocations, signerPolicy = null, environment = "test", clock = () => new Date() }) {
     const keyPairMode = privateKey && publicKey && !signBytes && !verifyBytes;
     const callbackMode = !privateKey && !publicKey && typeof signBytes === "function" && typeof verifyBytes === "function";
-    if (!signerSetId || !revocations || (!keyPairMode && !callbackMode)) throw new Error("ATTESTATION_DEPENDENCY_MISSING");
+    if (!boundedString(signerSetId, 128) || !revocations || (!keyPairMode && !callbackMode)) throw new Error("ATTESTATION_DEPENDENCY_MISSING");
     this.signerSetId = signerSetId;
     this.#signBytes = callbackMode ? signBytes : (bytes) => sign(null, bytes, privateKey);
     const initialVerify = callbackMode ? verifyBytes : (bytes, signature) => verify(null, bytes, publicKey, signature);
@@ -66,8 +71,13 @@ export class AttestationService {
 
   issue({ subject, factType, factValue, sourceAuthority, sourceRecordHash, validForSeconds, nonce, revocationRef = null }) {
     this.signerPolicy?.assertActive();
-    const requiredSubject = ["assetId", "chainId", "contract", "tokenId", "purpose"];
-    if (!subject || requiredSubject.some((field) => !subject[field]) || !sourceAuthority || !sourceRecordHash || !nonce) {
+    const subjectValid = subject
+      && boundedString(subject.assetId, 128)
+      && boundedString(subject.chainId, 64)
+      && boundedString(subject.contract, 255)
+      && boundedString(subject.tokenId, 255)
+      && boundedString(subject.purpose, 128);
+    if (!subjectValid || !boundedString(factType, 64) || factValue === undefined || !boundedString(sourceAuthority, 64) || !SHA256_HEX.test(sourceRecordHash ?? "") || !boundedString(nonce, 128) || (revocationRef !== null && !boundedString(revocationRef, 256))) {
       throw new Error("ATTESTATION_REQUEST_INVALID");
     }
     if (!Number.isInteger(validForSeconds) || validForSeconds < 1 || validForSeconds > 86400) {
@@ -98,10 +108,12 @@ export class AttestationService {
     const signatureBytes = this.#signBytes(signingDigest(envelope));
     if (signatureBytes && typeof signatureBytes.then === "function") throw new Error("SIGNER_BACKEND_ASYNC_UNSUPPORTED");
     if (!Buffer.isBuffer(signatureBytes) && !(signatureBytes instanceof Uint8Array)) throw new Error("SIGNER_BACKEND_RESULT_INVALID");
+    const encodedSignature = Buffer.from(signatureBytes).toString("base64url");
+    if (encodedSignature.length > 1024) throw new Error("SIGNER_BACKEND_RESULT_INVALID");
     const attestation = Object.freeze({
       envelope,
       envelopeHash: evidenceHash(envelope),
-      signature: Buffer.from(signatureBytes).toString("base64url"),
+      signature: encodedSignature,
     });
     this.#issuedNonces.add(nonce);
     this.#attestations.set(envelope.attestationId, attestation);
@@ -161,4 +173,5 @@ export class AttestationService {
     this.#issuedNonces = nonceSet;
   }
 }
+
 
