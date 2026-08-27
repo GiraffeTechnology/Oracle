@@ -105,6 +105,11 @@ test("registered evidence schemas enforce types patterns enums formats and nulla
   for (const malformed of ["2024-01-01", "2024-01-01T00:00:00", "2024-02-30T00:00:00Z"]) {
     assert.throws(() => runtime.schemaRegistry.validate("warehouse-record.v1", { ...valid.warehouse, observedAt: malformed }), /PAYLOAD_FIELD_FORMAT_INVALID/);
   }
+  for (const outside of ["1969-12-31T23:59:59Z", "2040-01-01T00:00:00Z"]) {
+    assert.throws(() => runtime.schemaRegistry.validate("asset-record.v1", { ...valid.asset, updatedAt: outside }), /PAYLOAD_FIELD_PERSISTENCE_RANGE_INVALID/);
+    assert.throws(() => runtime.schemaRegistry.validate("certificate-record.v1", { ...valid.certificate, effectiveAt: outside }), /PAYLOAD_FIELD_PERSISTENCE_RANGE_INVALID/);
+    assert.throws(() => runtime.schemaRegistry.validate("warehouse-record.v1", { ...valid.warehouse, observedAt: outside }), /PAYLOAD_FIELD_PERSISTENCE_RANGE_INVALID/);
+  }
 });
 
 test("asset verification rejects authoritative records whose prerequisites are not valid", () => {
@@ -718,4 +723,33 @@ test("failed durable attempt counters rotate both active and dead-letter lanes i
   assert.equal((await deadDispatcher.drain(1))[0].status, "DEAD_LETTER_STATE_RETRY");
   assert.equal((await deadDispatcher.drain(1))[0].status, "DEAD_LETTER_STATE_RETRY");
   assert.deepEqual(deadAttempts, [deadFirst.eventId, deadSecond.eventId]);
+});
+test("out-of-range MySQL timestamps are rejected before asset runtime mutation", () => {
+  const { runtime, control } = controlFixture();
+  const bundle = evidenceBundle("asset-time-range");
+  bundle.asset.updatedAt = "2040-01-01T00:00:00Z";
+  bundle.certificate.effectiveAt = "2040-01-01T00:00:00Z";
+  bundle.warehouse.observedAt = "2040-01-01T00:00:00Z";
+  assert.throws(() => control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "time-range", ...bundle, evidenceVersion: 1 }), /PAYLOAD_FIELD_PERSISTENCE_RANGE_INVALID/);
+  assert.equal(runtime.recordStore.getAsset("asset-time-range"), null);
+  assert.equal(runtime.stateEngine.current("asset-time-range"), "NOT_VERIFIED");
+});
+
+test("MySQL persists implicit settlement revocations in the command transaction", async () => {
+  const statements = [];
+  const connection = {
+    async beginTransaction() {}, async commit() {}, async rollback() {}, release() {},
+    async execute(sql, parameters = []) {
+      statements.push({ sql, parameters });
+      if (sql.startsWith("UPDATE assets SET oracle_status=")) return [{ affectedRows: 1 }, []];
+      return [[], []];
+    },
+  };
+  const repository = new MySqlOracleRepository({ pool: { async getConnection() { return connection; } } });
+  const revokedAt = NOW.toISOString();
+  const revocation = { attestationId: "00000000-0000-4000-8000-000000000099", reasonHash: HASH_A, authorityId: "oracle-a", revokedAt };
+  const record = { settlementId: "settlement-revoke-db", assetId: "asset-revoke-db", token: { chainId: "560048", contract: "test-only", tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", snapshotHash: HASH_A, externalExecutionRef: "execution", oldCertificateHash: HASH_B, status: "PENDING", deadlineAt: "2026-08-30T00:00:00.000Z", startedAt: revokedAt };
+  await repository.persistMutation({ method: "beginSettlement", idempotencyKey: "settlement-revoke-db", commandHash: HASH_C, input: { request: { evidenceVersion: 2 } }, result: record, auditEvents: [], outboxEvents: [], revocations: [revocation], stateSnapshot: { state: { testOnly: true }, stateHash: HASH_B } });
+  const insertion = statements.find(({ sql }) => sql.startsWith("INSERT INTO revocations"));
+  assert.deepEqual(insertion.parameters, [revocation.attestationId, HASH_A, "oracle-a", revokedAt]);
 });
