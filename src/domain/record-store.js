@@ -45,7 +45,7 @@ export class RecordStore {
     if (claimedBy && claimedBy !== record.assetId) throw new Error("CERTIFICATE_HASH_ALREADY_CLAIMED");
     const history = this.#certificates.get(record.assetId) ?? [];
     const current = history.at(-1);
-    if (!current && record.certificateVersion !== 1) throw new Error("CERTIFICATE_INITIAL_VERSION_INVALID");
+    if (!current && (record.certificateVersion !== 1 || record.previousCertificateHash != null)) throw new Error("CERTIFICATE_INITIAL_VERSION_INVALID");
     if (current) {
       if (record.certificateVersion !== current.certificateVersion + 1) throw new Error("CERTIFICATE_VERSION_INVALID");
       if (record.previousCertificateHash !== current.certificateHash) throw new Error("CERTIFICATE_PREVIOUS_HASH_INVALID");
@@ -133,5 +133,4 @@ export class RecordStore {
     for (const warehouse of state.warehouse ?? []) this.putWarehouse(warehouse, provenance.get(this.#provenanceKey("WAREHOUSE", warehouse.assetId)) ?? null);
   }
 }
-
 
