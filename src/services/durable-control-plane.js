@@ -3,6 +3,12 @@ import { captureProductionState } from "./production-state.js";
 
 const WRITE_METHODS = Object.freeze(["verifyAsset", "bindToken", "issueAttestation", "requestRevocation", "approveAction", "requestSourceDisable", "executeSourceDisable", "requestSignerRotation", "executeSignerRotation", "reconcileSignerRotation", "exportAudit", "executeRevocation", "beginSettlement", "finalizeSettlement", "cancelSettlement", "disputeSettlement", "timeoutSettlement"]);
 
+function durableInput(method, input) {
+  if (method !== "exportAudit") return input;
+  const { adminOperations: _capability, ...serializable } = input;
+  return serializable;
+}
+
 export class DurableOracleControlPlane {
   constructor({ controlPlane, repository, runtime, dualControl }) {
     if (!controlPlane || typeof repository?.getCommand !== "function" || typeof repository.persistMutation !== "function" || !runtime?.operationalState || !dualControl) throw new Error("DURABLE_CONTROL_PLANE_DEPENDENCY_MISSING");
@@ -10,6 +16,7 @@ export class DurableOracleControlPlane {
     this.repository = repository;
     this.runtime = runtime;
     this.dualControl = dualControl;
+    this.inFlight = new Map();
   }
 
   async execute(method, args) {
@@ -19,13 +26,33 @@ export class DurableOracleControlPlane {
   async executeResolved(method, commandInput, resolveOperationInput) {
     if (this.runtime.operationalState.compromised) throw new Error("DURABLE_STATE_COMPROMISED");
     if (typeof commandInput?.idempotencyKey !== "string" || !commandInput.idempotencyKey || typeof resolveOperationInput !== "function") throw new Error("IDEMPOTENCY_KEY_REQUIRED");
-    const durableCommandHash = evidenceHash({ method, input: commandInput });
+    const durableCommandHash = evidenceHash({ method, input: durableInput(method, commandInput) });
+    if (method === "exportAudit") {
+      if (typeof commandInput.adminOperations?.authorizeExport !== "function") throw new Error("AUDIT_EXPORT_AUTHORIZATION_UNAVAILABLE");
+      commandInput.adminOperations.authorizeExport(commandInput.actorId, commandInput.purpose);
+    }
     const prior = await this.repository.getCommand(commandInput.idempotencyKey);
     if (prior) {
       if (prior.commandHash !== durableCommandHash) throw new Error("COMMAND_IDEMPOTENCY_CONFLICT");
       if (prior.status !== "COMPLETED") throw new Error("COMMAND_RECOVERY_REQUIRED");
       return Object.freeze({ commandHash: durableCommandHash, result: prior.result, replayed: true });
     }
+    const active = this.inFlight.get(commandInput.idempotencyKey);
+    if (active) {
+      if (active.commandHash !== durableCommandHash) throw new Error("COMMAND_IDEMPOTENCY_CONFLICT");
+      const committed = await active.promise;
+      return Object.freeze({ ...committed, replayed: true });
+    }
+    const promise = this.#executeAndPersist(method, commandInput, durableCommandHash, resolveOperationInput);
+    this.inFlight.set(commandInput.idempotencyKey, { commandHash: durableCommandHash, promise });
+    try {
+      return await promise;
+    } finally {
+      if (this.inFlight.get(commandInput.idempotencyKey)?.promise === promise) this.inFlight.delete(commandInput.idempotencyKey);
+    }
+  }
+
+  async #executeAndPersist(method, commandInput, durableCommandHash, resolveOperationInput) {
     const operationInput = await resolveOperationInput();
     const beforeAudit = this.runtime.auditJournal.list().length;
     const beforeOutbox = new Set(this.runtime.outbox.list().map(({ eventId }) => eventId));
@@ -36,7 +63,7 @@ export class DurableOracleControlPlane {
         method,
         idempotencyKey: commandInput.idempotencyKey,
         commandHash: durableCommandHash,
-        input: operationInput,
+        input: durableInput(method, operationInput),
         result: result?.result ?? result,
         auditEvents: this.runtime.auditJournal.list().slice(beforeAudit),
         outboxEvents: this.runtime.outbox.list().filter(({ eventId }) => !beforeOutbox.has(eventId)),

@@ -34,11 +34,13 @@ function createRuntimeComponents({ sourceRegistry, attestationService, settlemen
 
 export function createProductionRuntime({ sources, signer, businessCalendar, settlementProfile, clock = () => new Date() }) {
   if (!Array.isArray(sources) || sources.length !== 3) throw new Error("PRODUCTION_SOURCES_INVALID");
-  if (!signer || typeof signer.signBytes !== "function" || typeof signer.verifyBytes !== "function" || typeof signer.signerSetId !== "string" || !signer.signerSetId) throw new Error("PRODUCTION_SIGNER_RUNTIME_INVALID");
+  if (!signer || typeof signer.signBytes !== "function" || typeof signer.verifyBytes !== "function" || typeof signer.verifyHistoricalBytes !== "function" || typeof signer.signerSetId !== "string" || !signer.signerSetId) throw new Error("PRODUCTION_SIGNER_RUNTIME_INVALID");
+  if (!signer.signerPolicy || signer.signerPolicy.record?.signerSetId !== signer.signerSetId || typeof signer.signerPolicy.assertActive !== "function") throw new Error("PRODUCTION_SIGNER_POLICY_INVALID");
+  signer.signerPolicy.assertActive();
   if (!businessCalendar || !settlementProfile) throw new Error("PRODUCTION_SETTLEMENT_PROFILE_MISSING");
   const sourceRegistry = new SourceRegistry(sources);
   const revocations = new RevocationRegistry();
-  const attestations = new AttestationService({ signerSetId: signer.signerSetId, signBytes: signer.signBytes, verifyBytes: signer.verifyBytes, signerPolicy: signer.signerPolicy ?? null, revocations, clock });
+  const attestations = new AttestationService({ signerSetId: signer.signerSetId, signBytes: signer.signBytes, verifyBytes: signer.verifyBytes, verifyHistoricalBytes: signer.verifyHistoricalBytes, signerPolicy: signer.signerPolicy, revocations, clock });
   return createRuntimeComponents({ sourceRegistry, attestationService: attestations, settlementProfile, businessCalendar, clock });
 }
 

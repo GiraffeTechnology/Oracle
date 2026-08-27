@@ -9,6 +9,10 @@ import { loadPinnedDeploymentModule } from "../src/config/production-bootstrap.j
 import { loadL2DeploymentProfile } from "../src/config/deployment-profile.js";
 import { loadProtocolProfile } from "../src/protocol/protocol-profile.js";
 import { evidenceHash } from "../src/domain/canonical-json.js";
+import { SignerSetPolicy } from "../src/domain/signer-set-policy.js";
+import { RevocationRegistry } from "../src/domain/revocation-registry.js";
+import { AttestationService } from "../src/domain/attestation-service.js";
+import { DurableOracleControlPlane } from "../src/services/durable-control-plane.js";
 
 const NOW = new Date("2026-08-27T00:00:00.000Z");
 const HASH_A = "a".repeat(64);
@@ -23,19 +27,23 @@ function records(assetId) {
   };
 }
 
-async function productionFixture({ failPersistence = false, initialSnapshot = null } = {}) {
+async function productionFixture({ failPersistence = false, initialSnapshot = null, persistenceGate = null, omitSignerPolicy = false } = {}) {
   const [l2Profile, l3Profile] = await Promise.all([loadL2DeploymentProfile("config/l2.production.json"), loadProtocolProfile("config/l3.protocol.wd-0.1.1.json")]);
   const evidence = records("asset-production");
   const sourceById = new Map(l2Profile.sources.map((source) => [source.sourceId, source]));
   const recordBySource = { "authoritative-registry": evidence.asset, "authoritative-certificate": evidence.certificate, "authoritative-warehouse": evidence.warehouse };
   const persisted = [];
   let sourceFetches = 0;
+  let markPersistStarted;
+  const persistStarted = new Promise((resolve) => { markPersistStarted = resolve; });
   const commands = new Map();
   const { privateKey, publicKey } = generateKeyPairSync("ed25519");
   const repository = {
     async loadStateSnapshot() { return initialSnapshot; },
     async getCommand(key) { return commands.get(key) ?? null; },
     async persistMutation(value) {
+      markPersistStarted();
+      if (persistenceGate) await persistenceGate;
       if (failPersistence) throw new Error("db unavailable");
       persisted.push(value);
       commands.set(value.idempotencyKey, { commandHash: value.commandHash, status: "COMPLETED", result: value.result });
@@ -44,7 +52,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
   const resolver = {
     async resolve(reference, kind) {
       if (kind === "repository") return repository;
-      if (kind === "signer") return { signerSetId: "production-test-signers", signBytes: (bytes) => sign(null, bytes, privateKey), verifyBytes: (bytes, signature) => verify(null, bytes, publicKey, signature) };
+      if (kind === "signer") return { signerSetId: "production-test-signers", ...(omitSignerPolicy ? {} : { signerPolicy: new SignerSetPolicy({ signerSetId: "production-test-signers", threshold: 1, signers: ["production-test-signer"] }) }), signBytes: (bytes) => sign(null, bytes, privateKey), verifyBytes: (bytes, signature) => verify(null, bytes, publicKey, signature), verifyHistoricalBytes: (signerSetId, bytes, signature) => signerSetId === "production-test-signers" && verify(null, bytes, publicKey, signature) };
       if (kind === "source") {
         const source = l2Profile.sources.find(({ transportRef }) => transportRef === reference);
         return { async fetchByFixedReference() { sourceFetches += 1; const record = recordBySource[source.sourceId]; return { authenticated: true, sourceId: source.sourceId, schemaVersion: source.schemaVersions[0], record, recordHash: evidenceHash(record) }; } };
@@ -59,7 +67,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
     clock: () => NOW,
   });
   await assembly.authenticateAdmin({ headers: {} });
-  return { assembly, persisted, getSourceFetches: () => sourceFetches };
+  return { assembly, persisted, persistStarted, getSourceFetches: () => sourceFetches };
 }
 
 test("production assembly fetches three authenticated sources and persists the authoritative mutation", async () => {
@@ -103,4 +111,66 @@ test("deployment module loader requires an absolute regular file and exact SHA-2
   assert.equal((await loadPinnedDeploymentModule({ modulePath, expectedSha256: sha256 })).moduleSha256, sha256);
   await assert.rejects(() => loadPinnedDeploymentModule({ modulePath, expectedSha256: HASH_A }), /HASH_MISMATCH/);
   await assert.rejects(() => loadPinnedDeploymentModule({ modulePath: "deployment.mjs", expectedSha256: sha256 }), /PIN_REQUIRED/);
+});
+
+test("production bootstrap requires a matching active signer policy", async () => {
+  await assert.rejects(() => productionFixture({ omitSignerPolicy: true }), /PRODUCTION_SIGNER_POLICY_INVALID/);
+});
+
+test("overlapping durable commands do not resolve before the shared commit", async () => {
+  let releasePersistence;
+  const persistenceGate = new Promise((resolve) => { releasePersistence = resolve; });
+  const { assembly, persisted, persistStarted } = await productionFixture({ persistenceGate });
+  const command = { actorId: "production-operator", idempotencyKey: "production-overlap", evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" }, evidenceVersion: 1 };
+  const first = assembly.controlPlane.verifyAsset(command);
+  await persistStarted;
+  let secondResolved = false;
+  const second = assembly.controlPlane.verifyAsset(command).then((value) => { secondResolved = true; return value; });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(secondResolved, false);
+  releasePersistence();
+  const [firstResult, secondResult] = await Promise.all([first, second]);
+  assert.equal(firstResult.result.status, "VALID");
+  assert.equal(secondResult.replayed, true);
+  assert.equal(persisted.length, 1);
+});
+
+test("overlapping durable commands all reject when the shared commit fails", async () => {
+  let releasePersistence;
+  const persistenceGate = new Promise((resolve) => { releasePersistence = resolve; });
+  const { assembly, persistStarted } = await productionFixture({ persistenceGate, failPersistence: true });
+  const command = { actorId: "production-operator", idempotencyKey: "production-overlap-fail", evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" }, evidenceVersion: 1 };
+  const first = assembly.controlPlane.verifyAsset(command);
+  await persistStarted;
+  const second = assembly.controlPlane.verifyAsset(command);
+  releasePersistence();
+  const settled = await Promise.allSettled([first, second]);
+  assert.deepEqual(settled.map(({ status }) => status), ["rejected", "rejected"]);
+  assert.equal(settled.every(({ reason }) => reason.message === "MYSQL_DURABILITY_FAILURE"), true);
+});
+
+test("durable audit replay rechecks current export authorization", async () => {
+  const command = { actorId: "former-auditor", idempotencyKey: "durable-export", purpose: "regulatory-audit", adminOperations: { authorizeExport() { throw new Error("PERMISSION_DENIED:audit:export"); } } };
+  const { adminOperations: _capability, ...serializable } = command;
+  const commandHash = evidenceHash({ method: "exportAudit", input: serializable });
+  const durable = new DurableOracleControlPlane({
+    controlPlane: { exportAudit() { throw new Error("SHOULD_NOT_EXECUTE"); } },
+    repository: { async getCommand() { return { commandHash, status: "COMPLETED", result: { exportId: "prior" } }; }, async persistMutation() {} },
+    runtime: { operationalState: { compromised: false }, auditJournal: { list() { return []; } }, outbox: { list() { return []; } } },
+    dualControl: {},
+  });
+  await assert.rejects(() => durable.exportAudit(command), /PERMISSION_DENIED:audit:export/);
+});
+
+test("restart imports hash-protected attestations issued by a retired signer", () => {
+  const oldKeys = generateKeyPairSync("ed25519");
+  const newKeys = generateKeyPairSync("ed25519");
+  const oldPolicy = new SignerSetPolicy({ signerSetId: "old-signers", threshold: 1, signers: ["old"] });
+  const newPolicy = new SignerSetPolicy({ signerSetId: "new-signers", threshold: 1, signers: ["new"] });
+  const original = new AttestationService({ signerSetId: "old-signers", privateKey: oldKeys.privateKey, publicKey: oldKeys.publicKey, signerPolicy: oldPolicy, revocations: new RevocationRegistry(), clock: () => NOW });
+  const historical = original.issue({ subject: { assetId: "asset-history", chainId: "560048", contract: "test-only", tokenId: "1", purpose: "OWNERSHIP" }, factType: "STATUS", factValue: "VALID", sourceAuthority: "authoritative-registry", sourceRecordHash: HASH_A, validForSeconds: 3600, nonce: "historical-nonce" });
+  original.activateSignerBackend({ signerSetId: "new-signers", signBytes: (bytes) => sign(null, bytes, newKeys.privateKey), verifyBytes: (bytes, signature) => verify(null, bytes, newKeys.publicKey, signature), signerPolicy: newPolicy }, "old-signers");
+  const restored = new AttestationService({ signerSetId: "new-signers", privateKey: newKeys.privateKey, publicKey: newKeys.publicKey, verifyHistoricalBytes: (signerSetId, bytes, signature) => signerSetId === "old-signers" ? verify(null, bytes, oldKeys.publicKey, signature) : signerSetId === "new-signers" && verify(null, bytes, newKeys.publicKey, signature), signerPolicy: newPolicy, revocations: new RevocationRegistry(), clock: () => NOW });
+  restored.importState(original.exportState());
+  assert.deepEqual(restored.get(historical.envelope.attestationId), historical);
 });

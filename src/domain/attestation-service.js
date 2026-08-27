@@ -10,14 +10,19 @@ export class AttestationService {
   #attestations = new Map();
   #signBytes;
   #verifyBytes;
+  #verifyHistoricalBytes;
 
-  constructor({ signerSetId, privateKey = null, publicKey = null, signBytes = null, verifyBytes = null, revocations, signerPolicy = null, clock = () => new Date() }) {
+  constructor({ signerSetId, privateKey = null, publicKey = null, signBytes = null, verifyBytes = null, verifyHistoricalBytes = null, revocations, signerPolicy = null, clock = () => new Date() }) {
     const keyPairMode = privateKey && publicKey && !signBytes && !verifyBytes;
     const callbackMode = !privateKey && !publicKey && typeof signBytes === "function" && typeof verifyBytes === "function";
     if (!signerSetId || !revocations || (!keyPairMode && !callbackMode)) throw new Error("ATTESTATION_DEPENDENCY_MISSING");
     this.signerSetId = signerSetId;
     this.#signBytes = callbackMode ? signBytes : (bytes) => sign(null, bytes, privateKey);
-    this.#verifyBytes = callbackMode ? verifyBytes : (bytes, signature) => verify(null, bytes, publicKey, signature);
+    const initialVerify = callbackMode ? verifyBytes : (bytes, signature) => verify(null, bytes, publicKey, signature);
+    this.#verifyBytes = initialVerify;
+    this.#verifyHistoricalBytes = typeof verifyHistoricalBytes === "function"
+      ? verifyHistoricalBytes
+      : (candidateSignerSetId, bytes, signature) => candidateSignerSetId === signerSetId && initialVerify(bytes, signature);
     this.revocations = revocations;
     if (signerPolicy && signerPolicy.record.signerSetId !== signerSetId) throw new Error("SIGNER_POLICY_SET_MISMATCH");
     this.signerPolicy = signerPolicy;
@@ -47,8 +52,12 @@ export class AttestationService {
       throw new Error("SIGNER_BACKEND_SELF_TEST_FAILED");
     }
     if (valid !== true || tamperedValid !== false) throw new Error("SIGNER_BACKEND_SELF_TEST_FAILED");
+    const priorHistoricalVerifier = this.#verifyHistoricalBytes;
     this.#signBytes = signBytes;
     this.#verifyBytes = verifyBytes;
+    this.#verifyHistoricalBytes = (candidateSignerSetId, bytes, signature) => candidateSignerSetId === nextSignerSetId
+      ? verifyBytes(bytes, signature)
+      : priorHistoricalVerifier(candidateSignerSetId, bytes, signature);
     this.signerPolicy = signerPolicy;
     this.signerSetId = nextSignerSetId;
     return Object.freeze({ signerSetId: nextSignerSetId, privateMaterialIncluded: false });
@@ -136,11 +145,14 @@ export class AttestationService {
   importState(state) {
     if (this.#attestations.size || this.#issuedNonces.size || state?.signerSetId !== this.signerSetId || !Array.isArray(state?.attestations) || !Array.isArray(state?.issuedNonces)) throw new Error("ATTESTATION_STATE_IMPORT_REJECTED");
     const nonceSet = new Set(state.issuedNonces);
+    const seenIds = new Set();
     for (const attestation of state.attestations) {
       const { envelope, envelopeHash, signature } = attestation ?? {};
-      if (!envelope || evidenceHash(envelope) !== envelopeHash || !nonceSet.has(envelope.nonce) || this.#verifyBytes(signingBytes(envelope), Buffer.from(signature, "base64url")) !== true) throw new Error("ATTESTATION_STATE_IMPORT_INVALID");
+      if (!envelope || typeof envelope.attestationId !== "string" || !envelope.attestationId || seenIds.has(envelope.attestationId) || typeof envelope.signerSetId !== "string" || !envelope.signerSetId || evidenceHash(envelope) !== envelopeHash || !nonceSet.has(envelope.nonce) || typeof signature !== "string" || !/^[A-Za-z0-9_-]+$/.test(signature) || Buffer.from(signature, "base64url").length === 0 || this.#verifyHistoricalBytes(envelope.signerSetId, signingBytes(envelope), Buffer.from(signature, "base64url")) !== true) throw new Error("ATTESTATION_STATE_IMPORT_INVALID");
+      seenIds.add(envelope.attestationId);
       this.#attestations.set(envelope.attestationId, Object.freeze({ envelope: Object.freeze({ ...envelope, subject: Object.freeze({ ...envelope.subject }) }), envelopeHash, signature }));
     }
+    if (seenIds.size !== nonceSet.size) throw new Error("ATTESTATION_STATE_IMPORT_INVALID");
     this.#issuedNonces = nonceSet;
   }
 }

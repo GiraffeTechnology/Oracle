@@ -26,6 +26,9 @@ accept caller-selected network endpoints or credentials.
 - Runtime `signBytes` and `verifyBytes` callbacks are synchronous-only. The deployment adapter must expose a
   synchronous local protected-broker boundary; Promise/thenable results are rejected fail-closed and must not
   be coerced into signature bytes or truthy verification results.
+- Startup also requires a synchronous `verifyHistoricalBytes(signerSetId, bytes, signature)` boundary backed
+  by the protected public signer-set history. Recovery verifies every stored attestation with the signer set
+  named in its envelope; it never tests historical records only against the currently active key.
 - Every activation must atomically install a matching `ACTIVE` destination `SignerSetPolicy`; omission,
   mismatch, retirement or revocation fails before the active backend is changed.
 - After activation, an attestation produced by the old backend must fail local verification and a newly
