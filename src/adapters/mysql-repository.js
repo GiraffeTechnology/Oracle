@@ -264,6 +264,14 @@ export class MySqlOracleRepository {
         await this.appendCertificate(connection, { ...input.request.certificate, status: "CURRENT", supersededAt: null, sourceAuthority: certificateSourceId });
         const [assetResult] = await connection.execute("UPDATE assets SET current_certificate_hash=?, current_certificate_version=?, current_owner_commitment=?, oracle_status='VALID', evidence_version=?, updated_at=? WHERE asset_id=?", [input.request.certificate.certificateHash, input.request.certificate.certificateVersion, newOwnerCommitment, input.request.evidenceVersion, record.finalizedAt, record.assetId]);
         if (assetResult?.affectedRows !== 1) throw new Error("ASSET_PROJECTION_CONFLICT");
+        if (input.request.warehouse) {
+          const warehouseSourceId = input.request.evidenceSources?.warehouse;
+          if (!warehouseSourceId) throw new Error("SETTLEMENT_PERSISTENCE_EVIDENCE_INVALID");
+          await connection.execute(
+            "INSERT INTO warehouse_records (asset_id, warehouse_id, warehouse_receipt_hash, warehouse_status, holder_commitment, encumbrance_status, observed_at, evidence_version, updated_at, source_authority) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE warehouse_status=VALUES(warehouse_status), holder_commitment=VALUES(holder_commitment), encumbrance_status=VALUES(encumbrance_status), observed_at=VALUES(observed_at), evidence_version=VALUES(evidence_version), updated_at=VALUES(updated_at), source_authority=VALUES(source_authority)",
+            [input.request.warehouse.assetId, input.request.warehouse.warehouseId, input.request.warehouse.warehouseReceiptHash, input.request.warehouse.warehouseStatus, input.request.warehouse.holderCommitment, input.request.warehouse.encumbranceStatus ?? input.request.asset?.encumbranceStatus, input.request.warehouse.observedAt, input.request.evidenceVersion, record.finalizedAt, warehouseSourceId],
+          );
+        }
       } else {
         const oracleStatus = method === "beginSettlement" ? "TRANSFER_PENDING" : "REVIEW_REQUIRED";
         const updatedAt = method === "beginSettlement" ? record.startedAt : record.cancelledAt ?? record.disputedAt ?? record.timedOutAt;
