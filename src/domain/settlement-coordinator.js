@@ -108,6 +108,8 @@ export class SettlementCoordinator {
   finalize({ settlementId, certificate, certificateProvenance, warehouse, warehouseProvenance, registryChangeRef, snapshotHash, warehouseConfirmed, ownerBindingConfirmed, newOwnerCommitment, actorId, evidenceVersion }) {
     assertActor(actorId);
     const current = this.#settlements.get(settlementId);
+    const currentAsset = current ? this.recordStore.getAsset(current.assetId) : null;
+    const currentWarehouse = current ? this.recordStore.getWarehouse(current.assetId) : null;
     if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
     if (!registryChangeRef || warehouseConfirmed !== true || ownerBindingConfirmed !== true) throw new Error("SETTLEMENT_CONFIRMATION_INCOMPLETE");
     if (certificate?.wenbaoChangeRef !== registryChangeRef || certificate?.warehouseReceiptHash !== current.warehouseReceiptHash) {
@@ -119,7 +121,7 @@ export class SettlementCoordinator {
     if (!SHA256_HEX.test(newOwnerCommitment ?? "")) throw new Error("SETTLEMENT_OWNER_COMMITMENT_INVALID");
     if (!certificateProvenance?.sourceId || certificateProvenance.schemaVersion !== "certificate-record.v1") throw new Error("SETTLEMENT_CERTIFICATE_PROVENANCE_REQUIRED");
     if (warehouse !== undefined) {
-      if (warehouse.assetId !== current.assetId || warehouse.warehouseReceiptHash !== current.warehouseReceiptHash || warehouse.holderCommitment !== newOwnerCommitment || warehouse.warehouseStatus !== "IN_CUSTODY") throw new Error("SETTLEMENT_WAREHOUSE_EVIDENCE_MISMATCH");
+      if (!currentWarehouse || !currentAsset || warehouse.assetId !== current.assetId || warehouse.warehouseReceiptHash !== current.warehouseReceiptHash || warehouse.warehouseId !== currentWarehouse.warehouseId || warehouse.warehouseId !== currentAsset.warehouseId || warehouse.holderCommitment !== newOwnerCommitment || warehouse.warehouseStatus !== "IN_CUSTODY") throw new Error("SETTLEMENT_WAREHOUSE_EVIDENCE_MISMATCH");
       if (!warehouseProvenance?.sourceId || warehouseProvenance.schemaVersion !== "warehouse-record.v1") throw new Error("SETTLEMENT_WAREHOUSE_PROVENANCE_REQUIRED");
       this.recordStore.assertWarehouse(warehouse);
     }
@@ -127,8 +129,7 @@ export class SettlementCoordinator {
     this.stateEngine.assertTransition({ subjectId: current.assetId, to: OracleStatus.VALID, evidenceVersion });
     this.recordStore.assertCertificate(certificate);
     const now = this.clock().toISOString();
-    const currentAsset = this.recordStore.getAsset(current.assetId);
-    const updatedAsset = Object.freeze({ ...currentAsset, currentCertificateHash: certificate.certificateHash, currentCertificateVersion: certificate.certificateVersion, currentOwnerCommitment: newOwnerCommitment, oracleStatus: OracleStatus.VALID, evidenceVersion, updatedAt: now });
+   const updatedAsset = Object.freeze({ ...currentAsset, currentCertificateHash: certificate.certificateHash, currentCertificateVersion: certificate.certificateVersion, currentOwnerCommitment: newOwnerCommitment, oracleStatus: OracleStatus.VALID, evidenceVersion, updatedAt: now });
     this.recordStore.assertAsset(updatedAsset);
     const assetProvenance = this.recordStore.provenance("REGISTRY", current.assetId);
     this.recordStore.replaceCurrentCertificate(certificate, certificateProvenance, now);
