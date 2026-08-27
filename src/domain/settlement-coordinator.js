@@ -41,7 +41,7 @@ export class SettlementCoordinator {
     if (!this.recordStore.getAsset(assetId) || !certificate || !warehouse) {
       throw new Error("SETTLEMENT_EVIDENCE_INCOMPLETE");
     }
-    if (!validBoundedString(settlementId, 128) || !validBoundedString(assetId, 128) || !validBoundedString(token?.chainId, 64) || !validBoundedString(token?.contract, 255) || !validBoundedString(token?.tokenId, 255) || !validBoundedString(sellerWallet, 128) || !validBoundedString(buyerWallet, 128) || !validBoundedString(externalExecutionRef, 256)) {
+    if (!validBoundedString(settlementId, 128) || !validBoundedString(assetId, 128) || !validBoundedString(token?.chainId, 64) || !validBoundedString(token?.contract, 128) || !validBoundedString(token?.tokenId, 128) || !validBoundedString(sellerWallet, 128) || !validBoundedString(buyerWallet, 128) || !validBoundedString(externalExecutionRef, 256)) {
       throw new Error("SETTLEMENT_SNAPSHOT_INCOMPLETE");
     }
     const binding = this.tokenIndex?.byToken(token.chainId, token.contract, token.tokenId);
@@ -187,5 +187,4 @@ export class SettlementCoordinator {
     this.#intentHashes = hashes;
   }
 }
-
 
