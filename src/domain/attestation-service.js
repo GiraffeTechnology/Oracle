@@ -74,8 +74,8 @@ export class AttestationService {
     const subjectValid = subject
       && boundedString(subject.assetId, 128)
       && boundedString(subject.chainId, 64)
-      && boundedString(subject.contract, 255)
-      && boundedString(subject.tokenId, 255)
+      && boundedString(subject.contract, 128)
+      && boundedString(subject.tokenId, 128)
       && boundedString(subject.purpose, 128);
     if (!boundedString(this.signerSetId, 64) || !subjectValid || !boundedString(factType, 64) || factValue === undefined || !boundedString(sourceAuthority, 64) || !SHA256_HEX.test(sourceRecordHash ?? "") || !boundedString(nonce, 128) || (revocationRef !== null && !boundedString(revocationRef, 256))) {
       throw new Error("ATTESTATION_REQUEST_INVALID");
