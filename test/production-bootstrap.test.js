@@ -32,7 +32,7 @@ function records(assetId) {
   };
 }
 
-async function productionFixture({ failPersistence = false, initialSnapshot = null, persistenceGate = null, omitSignerPolicy = false, rejectAlerts = false } = {}) {
+async function productionFixture({ failPersistence = false, initialSnapshot = null, persistenceGate = null, omitSignerPolicy = false, rejectAlerts = false, rejectAlertCodes = [], rejectDeadLetterSubjects = [] } = {}) {
   const [l2Profile, l3Profile] = await Promise.all([loadL2DeploymentProfile("config/l2.production.json"), loadProtocolProfile("config/l3.protocol.wd-0.1.1.json")]);
   const evidence = records("asset-production");
   const sourceById = new Map(l2Profile.sources.map((source) => [source.sourceId, source]));
@@ -42,7 +42,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
   const deadLetters = [];
   const deliveryUpdates = [];
   const alerts = [];
-  const alertState = { reject: rejectAlerts === true };
+  const alertState = { reject: rejectAlerts === true, rejectCodes: new Set(rejectAlertCodes) };
   let sourceFetches = 0;
   let markPersistStarted;
   const persistStarted = new Promise((resolve) => { markPersistStarted = resolve; });
@@ -54,6 +54,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
     async recordOutboxAttempt(eventId, attempts) { deliveryUpdates.push({ type: "attempt", eventId, attempts }); },
     async recordOutboxDeliveryStateAttempt(eventId, attempts) { deliveryUpdates.push({ type: "delivery-state-attempt", eventId, attempts }); },
     async recordOutboxDeadLetterAttempt(eventId, attempts) { deliveryUpdates.push({ type: "dead-letter-attempt", eventId, attempts }); },
+    async recordOutboxDeadLetterStateAttempt(eventId, attempts) { deliveryUpdates.push({ type: "dead-letter-state-attempt", eventId, attempts }); },
     async markOutboxPublished(eventId, publishedAt) { deliveryUpdates.push({ type: "published", eventId, publishedAt }); },
     async markOutboxDeadLettered(eventId, deadLetteredAt) { deliveryUpdates.push({ type: "dead-lettered", eventId, deadLetteredAt }); },
     async persistMutation(value) {
@@ -73,9 +74,9 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
         return { async fetchByFixedReference() { sourceFetches += 1; const record = recordBySource[source.sourceId]; return { authenticated: true, sourceId: source.sourceId, schemaVersion: source.schemaVersions[0], record, recordHash: evidenceHash(record) }; } };
       }
       if (kind === "admin-authenticator") return { async authenticate() { return { actorId: "production-operator", roles: ["ORACLE_OPERATOR"] }; } };
-      if (kind === "event-publisher") return { async publish(event) { published.push(event); }, async publishDeadLetter(event) { deadLetters.push(event); } };
+      if (kind === "event-publisher") return { async publish(event) { published.push(event); }, async publishDeadLetter(event) { if (rejectDeadLetterSubjects.includes(event.subjectId)) throw new Error("dead-letter unavailable"); deadLetters.push(event); } };
       if (kind === "monitoring") return { async checkReadiness() { return { ok: true }; } };
-      if (kind === "alerting") return { async reportFailure(code) { alerts.push({ type: "failure", code }); if (alertState.reject) throw new Error("alert unavailable"); }, async reportEvent(code) { alerts.push({ type: "event", code }); if (alertState.reject) throw new Error("alert unavailable"); } };
+      if (kind === "alerting") return { async reportFailure(code) { alerts.push({ type: "failure", code }); if (alertState.reject || alertState.rejectCodes.has(code)) throw new Error("alert unavailable"); }, async reportEvent(code) { alerts.push({ type: "event", code }); if (alertState.reject || alertState.rejectCodes.has(code)) throw new Error("alert unavailable"); } };
       return { kind, sourceById };
     },
   };
@@ -85,7 +86,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
     clock: () => NOW,
   });
   await assembly.authenticateAdmin({ headers: {} });
-  return { assembly, persisted, published, deadLetters, deliveryUpdates, alerts, persistStarted, getSourceFetches: () => sourceFetches, setRejectAlerts(value) { alertState.reject = value === true; } };
+  return { assembly, persisted, published, deadLetters, deliveryUpdates, alerts, persistStarted, getSourceFetches: () => sourceFetches, setRejectAlerts(value) { alertState.reject = value === true; }, setRejectAlertCodes(codes) { alertState.rejectCodes = new Set(codes); } };
 }
 
 test("production assembly fetches three authenticated sources and persists the authoritative mutation", async () => {
@@ -333,3 +334,28 @@ test("restart imports hash-protected attestations issued by a retired signer", (
 });
 
 
+
+test("mixed alert results retain each failed alert boundary until that same boundary recovers", async () => {
+  const { assembly } = await productionFixture({ rejectAlertCodes: ["OUTBOX_DEAD_LETTER_FAILED"], rejectDeadLetterSubjects: ["asset-alert-failure"] });
+  for (const [subjectId, hash, createdAt] of [
+    ["asset-alert-failure", HASH_A, NOW.toISOString()],
+    ["asset-alert-success", HASH_B, new Date(NOW.getTime() + 1).toISOString()],
+  ]) {
+    const event = assembly.runtime.outbox.enqueue({ eventType: "test", subjectId, payloadHash: hash, createdAt });
+    assembly.runtime.outbox.markDurable(event.eventId);
+    for (let attempt = 0; attempt < 5; attempt += 1) assembly.runtime.outbox.recordAttempt(event.eventId);
+  }
+  const worker = assembly.startBackgroundWorkers({ intervalMs: 100 });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  worker.stop();
+  assert.equal(assembly.runtime.operationalState.alertingFailed, true);
+  assert.deepEqual(await assembly.readinessCheck(), { ok: false });
+});
+
+test("production readiness fails closed while signer reconciliation is required", async () => {
+  const { assembly } = await productionFixture();
+  assembly.runtime.operationalState.signerRecoveryRequired = true;
+  assert.deepEqual(await assembly.readinessCheck(), { ok: false });
+  assembly.runtime.operationalState.signerRecoveryRequired = false;
+  assert.deepEqual(await assembly.readinessCheck(), { ok: true });
+});
