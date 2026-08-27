@@ -67,9 +67,11 @@ export class DurableOracleControlPlane {
     const operationInput = await resolveOperationInput();
     const beforeAudit = this.runtime.auditJournal.list().length;
     const beforeOutbox = new Set(this.runtime.outbox.list().map(({ eventId }) => eventId));
+    const beforeRevocations = new Set(this.runtime.revocations.exportState().items.map(({ attestationId }) => attestationId));
     const result = await this.controlPlane[method](operationInput);
     if (result?.replayed === true) return result;
     const outboxEvents = this.runtime.outbox.list().filter(({ eventId }) => !beforeOutbox.has(eventId));
+    const revocations = this.runtime.revocations.exportState().items.filter(({ attestationId }) => !beforeRevocations.has(attestationId));
     try {
       await this.repository.persistMutation({
         method,
@@ -79,6 +81,7 @@ export class DurableOracleControlPlane {
         result: result?.result ?? result,
         auditEvents: this.runtime.auditJournal.list().slice(beforeAudit),
         outboxEvents,
+        revocations,
         stateSnapshot: captureProductionState(this.runtime, this.dualControl),
       });
       for (const { eventId } of outboxEvents) this.runtime.outbox.markDurable(eventId);
