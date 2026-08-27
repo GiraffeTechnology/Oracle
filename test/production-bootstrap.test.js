@@ -32,7 +32,7 @@ function records(assetId) {
   };
 }
 
-async function productionFixture({ failPersistence = false, initialSnapshot = null, persistenceGate = null, omitSignerPolicy = false } = {}) {
+async function productionFixture({ failPersistence = false, initialSnapshot = null, persistenceGate = null, omitSignerPolicy = false, rejectAlerts = false } = {}) {
   const [l2Profile, l3Profile] = await Promise.all([loadL2DeploymentProfile("config/l2.production.json"), loadProtocolProfile("config/l3.protocol.wd-0.1.1.json")]);
   const evidence = records("asset-production");
   const sourceById = new Map(l2Profile.sources.map((source) => [source.sourceId, source]));
@@ -41,6 +41,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
   const published = [];
   const deadLetters = [];
   const deliveryUpdates = [];
+  const alerts = [];
   let sourceFetches = 0;
   let markPersistStarted;
   const persistStarted = new Promise((resolve) => { markPersistStarted = resolve; });
@@ -50,6 +51,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
     async loadStateSnapshot() { return initialSnapshot; },
     async getCommand(key) { return commands.get(key) ?? null; },
     async recordOutboxAttempt(eventId, attempts) { deliveryUpdates.push({ type: "attempt", eventId, attempts }); },
+    async recordOutboxDeadLetterAttempt(eventId, attempts) { deliveryUpdates.push({ type: "dead-letter-attempt", eventId, attempts }); },
     async markOutboxPublished(eventId, publishedAt) { deliveryUpdates.push({ type: "published", eventId, publishedAt }); },
     async markOutboxDeadLettered(eventId, deadLetteredAt) { deliveryUpdates.push({ type: "dead-lettered", eventId, deadLetteredAt }); },
     async persistMutation(value) {
@@ -70,7 +72,8 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
       }
       if (kind === "admin-authenticator") return { async authenticate() { return { actorId: "production-operator", roles: ["ORACLE_OPERATOR"] }; } };
       if (kind === "event-publisher") return { async publish(event) { published.push(event); }, async publishDeadLetter(event) { deadLetters.push(event); } };
-      if (kind === "monitoring") return { async checkReadiness() { return { ok: true }; }, reportFailure() {}, reportEvent() {} };
+      if (kind === "monitoring") return { async checkReadiness() { return { ok: true }; } };
+      if (kind === "alerting") return { async reportFailure(code) { alerts.push({ type: "failure", code }); if (rejectAlerts) throw new Error("alert unavailable"); }, async reportEvent(code) { alerts.push({ type: "event", code }); if (rejectAlerts) throw new Error("alert unavailable"); } };
       return { kind, sourceById };
     },
   };
@@ -80,7 +83,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
     clock: () => NOW,
   });
   await assembly.authenticateAdmin({ headers: {} });
-  return { assembly, persisted, published, deadLetters, deliveryUpdates, persistStarted, getSourceFetches: () => sourceFetches };
+  return { assembly, persisted, published, deadLetters, deliveryUpdates, alerts, persistStarted, getSourceFetches: () => sourceFetches };
 }
 
 test("production assembly fetches three authenticated sources and persists the authoritative mutation", async () => {
@@ -97,8 +100,19 @@ test("production assembly fetches three authenticated sources and persists the a
   assert.equal(getSourceFetches(), 3);
   assert.deepEqual(await assembly.outboxDispatcher.drain(), [{ eventId: assembly.runtime.outbox.list()[0].eventId, status: "PUBLISHED" }]);
   assert.equal(published.length, 1);
-  assert.deepEqual(deliveryUpdates.map(({ type }) => type), ["attempt", "published"]);
+  assert.deepEqual(deliveryUpdates.map(({ type }) => type), ["published"]);
   assert.deepEqual(await assembly.readinessCheck(), { ok: true });
+});
+
+test("async alert rejection is awaited and makes production readiness fail closed", async () => {
+  const { assembly } = await productionFixture({ rejectAlerts: true });
+  const event = assembly.runtime.outbox.enqueue({ eventType: "test", subjectId: "asset-alert", payloadHash: HASH_A, createdAt: NOW.toISOString() });
+  assembly.runtime.outbox.markDurable(event.eventId);
+  for (let attempt = 0; attempt < 5; attempt += 1) assembly.runtime.outbox.recordAttempt(event.eventId);
+  assembly.startBackgroundWorkers({ intervalMs: 100 });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(assembly.runtime.operationalState.alertingFailed, true);
+  assert.deepEqual(await assembly.readinessCheck(), { ok: false });
 });
 
 test("production rejects caller records and becomes unavailable after durability failure", async () => {
@@ -291,4 +305,5 @@ test("restart imports hash-protected attestations issued by a retired signer", (
   restored.importState(original.exportState());
   assert.deepEqual(restored.get(historical.envelope.attestationId), historical);
 });
+
 

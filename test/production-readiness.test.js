@@ -137,7 +137,7 @@ test("metrics expose numeric counters and gauges only", () => {
 
 test("production ports fail closed when any dependency is absent", () => {
   assert.throws(() => assertProductionPorts({}), /PRODUCTION_PORT_MISSING:repository/);
-  assert.equal(assertProductionPorts({ repository: {}, signer: {}, registrySource: {}, certificateSource: {}, warehouseSource: {}, eventPublisher: {} }), true);
+  assert.equal(assertProductionPorts({ repository: {}, signer: {}, registrySource: {}, certificateSource: {}, warehouseSource: {}, eventPublisher: {}, monitoring: {}, alerting: {} }), true);
 });
 
 test("backup manifest detects tampering", () => {
@@ -151,3 +151,4 @@ test("retention policy calculates versioned expiry dates", () => {
   assert.equal(policy.expiresAt("evidence", NOW).toISOString(), "2026-09-23T00:00:00.000Z");
   assert.throws(() => policy.expiresAt("unknown", NOW), /RETENTION_KIND_INVALID/);
 });
+

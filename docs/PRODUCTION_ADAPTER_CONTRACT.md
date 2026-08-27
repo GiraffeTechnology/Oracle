@@ -56,9 +56,8 @@ accept caller-selected network endpoints or credentials.
   turns an unacknowledged publish into a successful delivery.
 - The publisher must also implement idempotent `publishDeadLetter(event)`.
 - Attempt, publish and dead-letter acknowledgements are persisted through the repository before the in-memory event is advanced. Startup validates the snapshot hash, then overlays these independently committed delivery positions so acknowledged events do not re-enter the active queue.
-- Active delivery and dead-letter transfer use independent bounded selections; an unavailable dead-letter destination cannot consume the active delivery limit or starve newer events. After the fixed retry limit, the
-  dispatcher forwards the complete non-sensitive event to that durable channel and emits a monitoring event;
-  a failed dead-letter publish remains pending and raises a stable monitoring failure.
+- Active delivery and dead-letter transfer use independent bounded selections. A delivery attempt is counted only after the publisher is actually invoked and rejects. Dead-letter retry counts are independently persisted and exhausted events are selected by the lowest retry count, then creation time, so an unavailable destination cannot starve later events. After the fixed active retry limit, the dispatcher forwards the complete non-sensitive event to that durable channel.
+- Operational failures and dead-letter transitions are reported through the independently resolved `operations.alertingRef`; the health adapter is used only for readiness. Alert callbacks are awaited, rejection is contained, and readiness fails closed until the alerting boundary is restored.
 - Delivery is at-least-once; consumers must use `eventId` for idempotency.
 - Payloads contain hashes and non-sensitive status only.
 

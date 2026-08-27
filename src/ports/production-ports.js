@@ -8,6 +8,7 @@ export class OracleRepositoryPort {
   appendCertificate() { return abstractMethod("repository.appendCertificate"); }
   appendAuditEvent() { return abstractMethod("repository.appendAuditEvent"); }
   recordOutboxAttempt() { return abstractMethod("repository.recordOutboxAttempt"); }
+  recordOutboxDeadLetterAttempt() { return abstractMethod("repository.recordOutboxDeadLetterAttempt"); }
   markOutboxPublished() { return abstractMethod("repository.markOutboxPublished"); }
   markOutboxDeadLettered() { return abstractMethod("repository.markOutboxDeadLettered"); }
 }
@@ -28,7 +29,7 @@ export class EventPublisherPort {
 }
 
 export function assertProductionPorts(ports) {
-  const required = ["repository", "signer", "registrySource", "certificateSource", "warehouseSource", "eventPublisher"];
+  const required = ["repository", "signer", "registrySource", "certificateSource", "warehouseSource", "eventPublisher", "monitoring", "alerting"];
   for (const name of required) {
     if (!ports?.[name]) throw new Error(`PRODUCTION_PORT_MISSING:${name}`);
   }

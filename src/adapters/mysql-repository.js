@@ -44,14 +44,14 @@ export class MySqlOracleRepository {
     if (!row) return null;
     const storedState = typeof row.state_json === "string" ? JSON.parse(row.state_json) : row.state_json;
     if (evidenceHash(storedState) !== row.state_hash) throw new Error("PRODUCTION_STATE_SNAPSHOT_INVALID");
-    const [deliveryRows] = await connection.execute("SELECT event_id, attempts, published_at, dead_lettered_at FROM outbox_events");
+    const [deliveryRows] = await connection.execute("SELECT event_id, attempts, published_at, dead_lettered_at, dead_letter_attempts FROM outbox_events");
     const deliveryById = new Map(deliveryRows.map((delivery) => [delivery.event_id, delivery]));
     const state = structuredClone(storedState);
     state.components.outbox.events = state.components.outbox.events.map((event) => {
       const delivery = deliveryById.get(event.eventId);
       if (!delivery) return event;
       const timestamp = (value) => value instanceof Date ? value.toISOString() : value;
-      return { ...event, attempts: Number(delivery.attempts), publishedAt: timestamp(delivery.published_at) ?? null, deadLetteredAt: timestamp(delivery.dead_lettered_at) ?? null };
+      return { ...event, attempts: Number(delivery.attempts), deadLetterAttempts: Number(delivery.dead_letter_attempts ?? 0), publishedAt: timestamp(delivery.published_at) ?? null, deadLetteredAt: timestamp(delivery.dead_lettered_at) ?? null };
     });
     return Object.freeze({ state, stateHash: evidenceHash(state) });
   }
@@ -59,6 +59,11 @@ export class MySqlOracleRepository {
   async recordOutboxAttempt(eventId, attempts) {
     if (!eventId || !Number.isInteger(attempts) || attempts < 1) throw new Error("OUTBOX_DELIVERY_UPDATE_INVALID");
     return this.transaction((connection) => connection.execute("UPDATE outbox_events SET attempts=GREATEST(attempts, ?) WHERE event_id=? AND published_at IS NULL AND dead_lettered_at IS NULL", [attempts, eventId]));
+  }
+
+  async recordOutboxDeadLetterAttempt(eventId, attempts) {
+    if (!eventId || !Number.isInteger(attempts) || attempts < 1) throw new Error("OUTBOX_DELIVERY_UPDATE_INVALID");
+    return this.transaction((connection) => connection.execute("UPDATE outbox_events SET dead_letter_attempts=GREATEST(dead_letter_attempts, ?) WHERE event_id=? AND published_at IS NULL AND dead_lettered_at IS NULL", [attempts, eventId]));
   }
 
   async markOutboxPublished(eventId, publishedAt) {

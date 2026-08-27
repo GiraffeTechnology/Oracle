@@ -155,6 +155,7 @@ CREATE TABLE outbox_events (
   created_at TIMESTAMP(6) NOT NULL,
   published_at TIMESTAMP(6) NULL,
   dead_lettered_at TIMESTAMP(6) NULL,
+  dead_letter_attempts INT UNSIGNED NOT NULL DEFAULT 0,
   attempts INT UNSIGNED NOT NULL DEFAULT 0,
   INDEX idx_outbox_pending (published_at, dead_lettered_at, created_at)
 ) ENGINE=InnoDB;
