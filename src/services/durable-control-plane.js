@@ -27,7 +27,7 @@ export class DurableOracleControlPlane {
   async executeResolved(method, commandInput, resolveOperationInput) {
     if (this.runtime.operationalState.compromised) throw new Error("DURABLE_STATE_COMPROMISED");
     if (this.runtime.operationalState.signerRecoveryRequired && method !== "reconcileSignerRotation") throw new Error("SIGNER_ROTATION_RECOVERY_REQUIRED");
-    if (typeof commandInput?.idempotencyKey !== "string" || !commandInput.idempotencyKey || typeof resolveOperationInput !== "function") throw new Error("IDEMPOTENCY_KEY_REQUIRED");
+    if (typeof commandInput?.idempotencyKey !== "string" || commandInput.idempotencyKey.length < 1 || commandInput.idempotencyKey.length > 128 || typeof resolveOperationInput !== "function") throw new Error("IDEMPOTENCY_KEY_REQUIRED");
     const durableCommandHash = evidenceHash({ method, input: durableInput(method, commandInput) });
     if (typeof this.controlPlane.authorizeCommand !== "function") throw new Error("COMMAND_AUTHORIZATION_UNAVAILABLE");
     this.controlPlane.authorizeCommand(method, commandInput);
@@ -96,4 +96,3 @@ for (const method of WRITE_METHODS) {
     return this.execute(method, args);
   };
 }
-
