@@ -83,6 +83,23 @@ test("authoritative re-verification supersedes the previous current certificate"
   assert.deepEqual(history.map(({ status }) => status), ["SUPERSEDED", "CURRENT"]);
   assert.equal(history[0].supersededAt, second.certificate.effectiveAt);
 });
+test("asset re-verification is rejected while its settlement is pending", () => {
+  const { runtime, control } = controlFixture();
+  const first = evidenceBundle("asset-pending-reverify");
+  control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "pending-reverify-initial", ...first, evidenceVersion: 1 });
+  control.bindToken({ actorId: "oracle-a", idempotencyKey: "pending-reverify-bind", binding: { assetId: first.asset.assetId, chainId: "560048", contract: "test-only", tokenId: "1" } });
+  const pending = control.beginSettlement({ actorId: "oracle-a", idempotencyKey: "pending-reverify-begin", request: { settlementId: "settlement-pending-reverify", assetId: first.asset.assetId, token: { chainId: "560048", contract: "test-only", tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", externalExecutionRef: "test-only", oldCertificateHash: HASH_B, warehouseReceiptHash: HASH_C, evidenceVersion: 2 } }).result;
+  const replacement = evidenceBundle(first.asset.assetId);
+  replacement.asset.currentCertificateHash = HASH_A;
+  replacement.asset.currentCertificateVersion = 2;
+  replacement.certificate = { ...replacement.certificate, certificateHash: HASH_A, certificateVersion: 2, previousCertificateHash: HASH_B, wenbaoChangeRef: "change-pending-reverify" };
+  assert.throws(() => control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "pending-reverify-refused", ...replacement, evidenceVersion: 3 }), /ASSET_REVERIFICATION_SETTLEMENT_PENDING/);
+  assert.equal(runtime.settlements.get(pending.settlementId).status, "PENDING");
+  assert.equal(runtime.stateEngine.current(first.asset.assetId), "TRANSFER_PENDING");
+  assert.equal(runtime.recordStore.certificateHistory(first.asset.assetId).length, 1);
+  const cancelled = control.cancelSettlement({ actorId: "oracle-a", idempotencyKey: "pending-reverify-cancel", request: { settlementId: pending.settlementId, reasonHash: HASH_A, evidenceVersion: 3 } }).result;
+  assert.equal(cancelled.status, "CANCELLED");
+});
 test("asset verification replays before mutable source-state checks", () => {
   const { runtime, control } = controlFixture();
   const evidence = evidenceBundle("asset-source-replay");
