@@ -442,7 +442,7 @@ test("MySQL finalization supersedes the old certificate before inserting the rep
   const repository = new MySqlOracleRepository({ pool: { async getConnection() { return connection; } } });
   const certificate = { assetId: "asset-db", tokenId: "1", certificateVersion: 2, certificateHash: HASH_C, previousCertificateHash: HASH_B, wenbaoChangeRef: "change-db", warehouseReceiptHash: HASH_A, effectiveAt: NOW.toISOString(), status: "CURRENT" };
   const record = { settlementId: "settlement-final", assetId: "asset-db", token: { chainId: "560048", contract: "test-only", tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", snapshotHash: HASH_A, externalExecutionRef: "execution", oldCertificateHash: HASH_B, newCertificateHash: HASH_C, registryChangeRef: "change-db", status: "FINALIZED", deadlineAt: "2026-08-27T00:00:00.000Z", startedAt: NOW.toISOString(), finalizedAt: NOW.toISOString() };
-  await repository.persistMutation({ method: "finalizeSettlement", idempotencyKey: "db-finalize", commandHash: HASH_A, input: { request: { certificate, asset: { currentOwnerCommitment: HASH_C }, evidenceSources: { certificate: "certificate-authority" }, evidenceVersion: 3 } }, result: record, auditEvents: [], outboxEvents: [], stateSnapshot: { state: { testOnly: true }, stateHash: HASH_B } });
+  await repository.persistMutation({ method: "finalizeSettlement", idempotencyKey: "db-finalize", commandHash: HASH_A, input: { request: { certificate, asset: { currentOwnerCommitment: HASH_C, encumbranceStatus: "CLEAR" }, warehouse: { assetId: "asset-db", warehouseId: "warehouse-db", warehouseReceiptHash: HASH_A, warehouseStatus: "IN_CUSTODY", holderCommitment: HASH_C, encumbranceStatus: "CLEAR", observedAt: NOW.toISOString() }, evidenceSources: { certificate: "certificate-authority", warehouse: "warehouse-authority" }, evidenceVersion: 3 } }, result: record, auditEvents: [], outboxEvents: [], stateSnapshot: { state: { testOnly: true }, stateHash: HASH_B } });
   const supersede = statements.findIndex(({ sql }) => sql.includes("UPDATE certificate_versions SET certificate_status='SUPERSEDED'"));
   const replacement = statements.findIndex(({ sql }) => sql.includes("INSERT INTO certificate_versions"));
   assert.equal(supersede >= 0, true);
@@ -450,6 +450,9 @@ test("MySQL finalization supersedes the old certificate before inserting the rep
   assert.deepEqual(statements[supersede].parameters, [NOW.toISOString(), "asset-db", HASH_B]);
   assert.equal(statements[replacement].parameters.at(-1), "certificate-authority");
   assert.equal(statements.find(({ sql }) => sql.startsWith("UPDATE assets SET current_certificate_hash=")).parameters[2], HASH_C);
+  const warehouseProjection = statements.find(({ sql }) => sql.startsWith("INSERT INTO warehouse_records"));
+  assert.equal(warehouseProjection.parameters[4], HASH_C);
+  assert.equal(warehouseProjection.parameters.at(-1), "warehouse-authority");
 });
 
 test("MySQL finalization rolls back when the current certificate cannot be superseded", async () => {
