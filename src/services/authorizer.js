@@ -11,13 +11,14 @@ export class Authorizer {
   #actors = new Map();
 
   registerActor(actorId, roles) {
-    if (!actorId || !Array.isArray(roles) || roles.some((role) => !ROLE_PERMISSIONS[role])) {
+    if (typeof actorId !== "string" || actorId.length < 1 || actorId.length > 64 || !Array.isArray(roles) || roles.some((role) => !ROLE_PERMISSIONS[role])) {
       throw new Error("ACTOR_REGISTRATION_INVALID");
     }
     this.#actors.set(actorId, Object.freeze([...new Set(roles)]));
   }
 
   require(actorId, permission) {
+    if (typeof actorId !== "string" || actorId.length < 1 || actorId.length > 64) throw new Error("ACTOR_ID_INVALID");
     const roles = this.#actors.get(actorId);
     if (!roles) throw new Error("ACTOR_NOT_REGISTERED");
     if (!roles.some((role) => ROLE_PERMISSIONS[role].has(permission))) {
