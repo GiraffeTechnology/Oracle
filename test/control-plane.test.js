@@ -753,3 +753,56 @@ test("MySQL persists implicit settlement revocations in the command transaction"
   const insertion = statements.find(({ sql }) => sql.startsWith("INSERT INTO revocations"));
   assert.deepEqual(insertion.parameters, [revocation.attestationId, HASH_A, "oracle-a", revokedAt]);
 });
+test("certificate supersededAt is range-bounded and forbidden on CURRENT evidence before mutation", () => {
+  const { runtime, control } = controlFixture();
+  const outOfRange = evidenceBundle("asset-superseded-range");
+  outOfRange.certificate.supersededAt = "2040-01-01T00:00:00Z";
+  assert.throws(() => runtime.schemaRegistry.validate("certificate-record.v1", outOfRange.certificate), /PAYLOAD_FIELD_PERSISTENCE_RANGE_INVALID:supersededAt/);
+  const current = evidenceBundle("asset-current-superseded");
+  current.certificate.supersededAt = NOW.toISOString();
+  assert.throws(() => control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "current-superseded", ...current, evidenceVersion: 1 }), /CERTIFICATE_CURRENT_SUPERSEDED_AT_INVALID/);
+  assert.equal(runtime.recordStore.getAsset("asset-current-superseded"), null);
+});
+
+test("MySQL asset re-verification updates mutable classification and warehouse projections", async () => {
+  let upsert = null;
+  const connection = {
+    async execute(sql, parameters = []) {
+      if (sql.startsWith("SELECT asset_id")) return [[], []];
+      if (sql.includes("INSERT INTO assets")) upsert = { sql, parameters };
+      return [{ affectedRows: 1 }, []];
+    },
+  };
+  const repository = new MySqlOracleRepository({ pool: { getConnection() {} } });
+  await repository.upsertAsset(connection, { assetId: "asset-mutable", assetFingerprintHash: HASH_A, wenbaoRegistryRef: "registry", classificationCode: "CERAMIC", transferEligibility: "VALID", warehouseId: "warehouse-new", warehouseReceiptHash: HASH_B, currentCertificateHash: HASH_C, currentCertificateVersion: 2, currentOwnerCommitment: HASH_A, encumbranceStatus: "CLEAR", oracleStatus: "VALID", evidenceVersion: 2, createdAt: NOW.toISOString(), updatedAt: NOW.toISOString(), sourceAuthority: "registry" });
+  assert.match(upsert.sql, /classification_code = VALUES\(classification_code\)/);
+  assert.match(upsert.sql, /warehouse_id = VALUES\(warehouse_id\)/);
+  assert.equal(upsert.parameters[3], "CERAMIC");
+  assert.equal(upsert.parameters[5], "warehouse-new");
+});
+
+test("MySQL source disable rejects an absent relational projection and accepts verified inactive state", async () => {
+  const run = async (verificationRows) => {
+    const events = [];
+    const connection = {
+      async beginTransaction() { events.push("begin"); },
+      async commit() { events.push("commit"); },
+      async rollback() { events.push("rollback"); },
+      release() { events.push("release"); },
+      async execute(sql) {
+        if (sql.startsWith("UPDATE source_authorities")) return [{ affectedRows: 0 }, []];
+        if (sql.startsWith("SELECT active FROM source_authorities")) return [verificationRows, []];
+        return [[], []];
+      },
+    };
+    const repository = new MySqlOracleRepository({ pool: { async getConnection() { return connection; } } });
+    const operation = repository.persistMutation({ method: "executeSourceDisable", idempotencyKey: "disable-source", commandHash: HASH_A, input: { sourceId: "registry" }, result: { active: false }, auditEvents: [], outboxEvents: [], stateSnapshot: { state: { testOnly: true }, stateHash: HASH_B } });
+    return { operation, events };
+  };
+  const missing = await run([]);
+  await assert.rejects(missing.operation, /SOURCE_PROJECTION_CONFLICT/);
+  assert.deepEqual(missing.events, ["begin", "rollback", "release"]);
+  const inactive = await run([{ active: 0 }]);
+  assert.equal((await inactive.operation).persisted, true);
+  assert.deepEqual(inactive.events, ["begin", "commit", "release"]);
+});
