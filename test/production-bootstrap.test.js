@@ -359,3 +359,23 @@ test("production readiness fails closed while signer reconciliation is required"
   assembly.runtime.operationalState.signerRecoveryRequired = false;
   assert.deepEqual(await assembly.readinessCheck(), { ok: true });
 });
+test("durable commands capture every newly created implicit revocation", async () => {
+  const runtime = createSyntheticRuntime({ clock: () => NOW });
+  const dualControl = new DualControlQueue();
+  const persisted = [];
+  const attestationId = "00000000-0000-4000-8000-000000000123";
+  const controlPlane = {
+    authorizeCommand() {},
+    beginSettlement() {
+      runtime.revocations.revoke({ attestationId, reasonHash: HASH_A, authorityId: "production-operator", revokedAt: NOW.toISOString() });
+      return Object.freeze({ settlementId: "settlement-implicit-revocation", status: "PENDING" });
+    },
+  };
+  const repository = {
+    async getCommand() { return null; },
+    async persistMutation(record) { persisted.push(record); },
+  };
+  const durable = new DurableOracleControlPlane({ controlPlane, repository, runtime, dualControl });
+  await durable.beginSettlement({ actorId: "production-operator", idempotencyKey: "implicit-revocation", request: {} });
+  assert.deepEqual(persisted[0].revocations, [{ attestationId, reasonHash: HASH_A, revokedAt: NOW.toISOString(), authorityId: "production-operator" }]);
+});
