@@ -826,3 +826,18 @@ test("settlement transitions update the in-memory asset status projection", () =
   assert.equal(runtime.recordStore.getAsset("asset-status-projection").oracleStatus, "REVIEW_REQUIRED");
   assert.equal(runtime.recordStore.getAsset("asset-status-projection").evidenceVersion, 3);
 });
+test("re-verification cannot change the token identifier of an existing binding", () => {
+  const { control, runtime } = controlFixture();
+  const initial = evidenceBundle("asset-reverify-token");
+  control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-reverify-token-1", ...initial, evidenceVersion: 1 });
+  control.bindToken({ actorId: "oracle-a", idempotencyKey: "bind-reverify-token", binding: { assetId: "asset-reverify-token", chainId: "560048", contract: "test-only", tokenId: "1" } });
+  runtime.stateEngine.transition({ subjectId: "asset-reverify-token", to: "TRANSFER_PENDING", reasonHash: HASH_A, evidenceVersion: 2, occurredAt: NOW.toISOString() });
+  runtime.stateEngine.transition({ subjectId: "asset-reverify-token", to: "REVIEW_REQUIRED", reasonHash: HASH_B, evidenceVersion: 3, occurredAt: NOW.toISOString() });
+  const replacement = evidenceBundle("asset-reverify-token");
+  replacement.asset.currentCertificateHash = HASH_A;
+  replacement.asset.currentCertificateVersion = 2;
+  replacement.certificate = { ...replacement.certificate, tokenId: "2", certificateHash: HASH_A, certificateVersion: 2, previousCertificateHash: HASH_B, wenbaoChangeRef: "change-token" };
+  assert.throws(() => control.verifyAsset({ actorId: "oracle-a", idempotencyKey: "verify-reverify-token-2", ...replacement, evidenceVersion: 4 }), /CERTIFICATE_TOKEN_BINDING_MISMATCH/);
+  assert.equal(runtime.recordStore.currentCertificate("asset-reverify-token").tokenId, "1");
+  assert.equal(runtime.tokenIndex.byAsset("asset-reverify-token").tokenId, "1");
+});
