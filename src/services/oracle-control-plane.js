@@ -98,6 +98,7 @@ export class OracleControlPlane {
     if (existingBinding && existingBinding.tokenId !== certificate.tokenId) throw new Error("CERTIFICATE_TOKEN_BINDING_MISMATCH");
     if (!this.allowSyntheticEvidence) assertAuthenticatedEvidence(evidenceAuthentication, { records: { asset, certificate, warehouse }, evidenceSources });
     if (asset.oracleStatus !== OracleStatus.VALID || asset.transferEligibility !== OracleStatus.VALID || certificate.status !== "CURRENT" || warehouse.warehouseStatus !== "IN_CUSTODY" || asset.encumbranceStatus !== "CLEAR" || (warehouse.encumbranceStatus !== undefined && warehouse.encumbranceStatus !== "CLEAR")) throw new Error("ASSET_EVIDENCE_NOT_VALID");
+    if (this.runtime.settlements.byAsset(asset.assetId)?.status === "PENDING") throw new Error("ASSET_REVERIFICATION_SETTLEMENT_PENDING");
     return this.commandJournal.execute(idempotencyKey, { type: "asset.verify", asset, certificate, warehouse, evidenceSources, evidenceVersion }, () => {
       const provenance = Object.freeze({
         REGISTRY: resolveEvidenceSource(this.runtime, "REGISTRY", evidenceSources.asset),
