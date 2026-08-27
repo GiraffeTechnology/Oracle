@@ -58,7 +58,7 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
   const signerRotationBroker = assembled.ports.signer;
   if (typeof signerRotationBroker.rotate !== "function" || typeof signerRotationBroker.reconcile !== "function" || typeof signerRotationBroker.activateRuntime !== "function") throw new Error("PRODUCTION_SIGNER_ROTATION_BROKER_INVALID");
   if (typeof assembled.ports.repository.loadStateSnapshot !== "function") throw new Error("PRODUCTION_STATE_RESTORE_UNAVAILABLE");
-  if (["recordOutboxAttempt", "recordOutboxDeadLetterAttempt", "markOutboxPublished", "markOutboxDeadLettered"].some((method) => typeof assembled.ports.repository[method] !== "function")) throw new Error("PRODUCTION_OUTBOX_DELIVERY_STORE_INVALID");
+  if (["recordOutboxAttempt", "recordOutboxDeliveryStateAttempt", "recordOutboxDeadLetterAttempt", "markOutboxPublished", "markOutboxDeadLettered"].some((method) => typeof assembled.ports.repository[method] !== "function")) throw new Error("PRODUCTION_OUTBOX_DELIVERY_STORE_INVALID");
   restoreProductionState(runtime, dualControl, await assembled.ports.repository.loadStateSnapshot());
   const baseControlPlane = new OracleControlPlane({ runtime, authorizer, dualControl, commandJournal: new CommandJournal(), outbox: runtime.outbox, signerRotationBroker, clock });
   const durableControlPlane = new DurableOracleControlPlane({ controlPlane: baseControlPlane, repository: assembled.ports.repository, runtime, dualControl });
@@ -82,6 +82,7 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
     const reportAlert = async (method, code) => {
       try {
         await assembled.ports.alerting[method](code);
+        runtime.operationalState.alertingFailed = false;
       } catch {
         runtime.operationalState.alertingFailed = true;
       }
