@@ -209,6 +209,25 @@ test("admin HTTP writes reject a missing idempotency key", async () => {
   }
 });
 
+test("path settlement routes reject a caller-owned settlementId in the body", async () => {
+  const config = loadConfig({ GIRAFFE_ORACLE_ENV: "test", GIRAFFE_ORACLE_EXTERNAL_WRITES: "true", GIRAFFE_ORACLE_TEST_WRITE_ACK: "synthetic-only" });
+  let calls = 0;
+  const controlPlane = { async finalizeSettlement() { calls += 1; return {}; } };
+  const server = createApp({ config, sourceRegistry: new SourceRegistry(), controlPlane, authenticateAdmin: async () => "oracle-test" });
+  await new Promise((resolve) => server.listen(0, "localhost", resolve));
+  try {
+    const response = await fetch("http://localhost:" + server.address().port + "/v1/rwa/settlements/settlement-path/finalize", {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "path-id-refused", "x-requested-with": "GiraffeOracleAdmin" },
+      body: JSON.stringify({ settlementId: "settlement-body" }),
+    });
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).errorCode, "SETTLEMENT_BODY_ID_REFUSED");
+    assert.equal(calls, 0);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
 test("public settlement projection omits counterparties and execution reference", () => {
   const projected = publicSettlement({ settlementId: "s-001", assetId: "a-001", sellerWallet: "seller-secret", buyerWallet: "buyer-secret", externalExecutionRef: "market-secret", status: "PENDING", snapshotHash: "a".repeat(64) });
   assert.deepEqual(projected, { settlementId: "s-001", assetId: "a-001", status: "PENDING", snapshotHash: "a".repeat(64) });
