@@ -80,7 +80,7 @@
       "id": "I10",
       "requirementIds": ["ORACLE-011", "NFR-001"],
       "artifacts": ["src/admin-ui.js", "src/services/authorizer.js", "src/services/dual-control.js", "src/domain/audit-journal.js", "src/services/audit-export.js"],
-      "tests": ["admin dashboard is read-only and protected against framing", "dual control rejects self approval and scope changes", "audit journal forms a verifiable append-only hash chain", "admin cannot directly set VALID", "audit export detects tampering and injection"],
+      "tests": ["admin dashboard exposes authenticated operations and is protected against framing", "dual control rejects self approval and scope changes", "audit journal forms a verifiable append-only hash chain", "admin cannot directly set VALID", "audit export detects tampering and injection"],
       "externalEvidence": []
     },
     {
