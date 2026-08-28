@@ -9,6 +9,8 @@ controlled storage and its SHA-256 has been recomputed. Templates, shortened sta
 self-attestation, or edited timestamps are not evidence. Confidential reports, credentials,
 private keys, personal data, endpoints, and server addresses must not be committed.
 
+`src/services/i12-evidence.js` is the authoritative field contract. `test/i12-evidence.test.js` verifies that the blocked template exposes the same performance fields and all five independent reviewer roles while remaining ineligible for acceptance.
+
 Required acceptance filenames are listed in `config/iteration-acceptance.json`.
 
 `stage-gate-evidence.blocked.example.json` additionally documents the P1-P8,
