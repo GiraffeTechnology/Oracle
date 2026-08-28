@@ -22,11 +22,20 @@
       "type": "performance-capacity",
       "candidateCommit": "<40-character-commit-sha>",
       "artifactSha256": "<sha256-of-controlled-raw-report>",
-      "loadProfileRef": "<controlled-reference>",
+      "loadProfileRef": "oracle-nfr004-mixed-synthetic-v1",
       "requestsCompleted": 0,
-      "p95Milliseconds": 0,
-      "queueBacklogMaximum": -1,
-      "faultInjectionPassed": false
+      "unexpectedFailureRatePercent": 100,
+      "application5xx": 1,
+      "processRestarts": 1,
+      "steadyP95Milliseconds": 0,
+      "burstP95Milliseconds": 0,
+      "steadyBacklogMaximum": -1,
+      "burstBacklogMaximum": -1,
+      "backlogDrainSeconds": 61,
+      "cpuFiveMinuteAveragePercent": 100,
+      "memoryPeakPercent": 100,
+      "faultInjectionPassed": false,
+      "faultMatrixPassed": 0
     },
     "72h-stability": {
       "type": "72h-stability",
@@ -92,7 +101,9 @@
       "reviews": [
         { "role": "security", "accepted": false, "reviewerRef": "", "evidenceSha256": "<review-sha256>" },
         { "role": "privacy", "accepted": false, "reviewerRef": "", "evidenceSha256": "<review-sha256>" },
-        { "role": "legal", "accepted": false, "reviewerRef": "", "evidenceSha256": "<review-sha256>" }
+        { "role": "legal", "accepted": false, "reviewerRef": "", "evidenceSha256": "<review-sha256>" },
+        { "role": "contract", "accepted": false, "reviewerRef": "", "evidenceSha256": "<review-sha256>" },
+        { "role": "operations", "accepted": false, "reviewerRef": "", "evidenceSha256": "<review-sha256>" }
       ],
       "unacceptedP0": 1
     }
