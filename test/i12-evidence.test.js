@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { validateI12Evidence } from "../src/services/i12-evidence.js";
+import { I12_INDEPENDENT_REVIEW_ROLES, I12_PERFORMANCE_FIELDS, validateI12Evidence } from "../src/services/i12-evidence.js";
 const HASH = "a".repeat(64);
 const COMMIT = "b".repeat(40);
 test("I12 evidence validator rejects shortened stability claims", () => {
@@ -54,32 +54,53 @@ test("blocked I12 template stays synchronized with the authoritative validator c
   const performance = template.records["performance-capacity"];
   assert.deepEqual(
     Object.keys(performance).sort(),
-    [
-      "application5xx",
-      "artifactSha256",
-      "backlogDrainSeconds",
-      "burstBacklogMaximum",
-      "burstP95Milliseconds",
-      "candidateCommit",
-      "cpuFiveMinuteAveragePercent",
-      "faultInjectionPassed",
-      "faultMatrixPassed",
-      "loadProfileRef",
-      "memoryPeakPercent",
-      "processRestarts",
-      "requestsCompleted",
-      "steadyBacklogMaximum",
-      "steadyP95Milliseconds",
-      "type",
-      "unexpectedFailureRatePercent",
-    ].sort(),
+    ["type", "candidateCommit", "artifactSha256", ...I12_PERFORMANCE_FIELDS].sort(),
   );
   assert.equal(performance.loadProfileRef, "oracle-nfr004-mixed-synthetic-v1");
   assert.deepEqual(
     template.records["independent-reviews"].reviews.map(({ role }) => role),
-    ["security", "privacy", "legal", "contract", "operations"],
+    I12_INDEPENDENT_REVIEW_ROLES,
   );
   for (const [type, record] of Object.entries(template.records)) {
     assert.throws(() => validateI12Evidence(type, { schemaVersion: template.schemaVersion, status: template.status, ...record }), new RegExp(`I12_EVIDENCE_INVALID:${type}`));
+  }
+
+  const evidence = { schemaVersion: 1, status: "PASS", artifactSha256: HASH, candidateCommit: COMMIT };
+  const validPerformanceValues = {
+    loadProfileRef: "oracle-nfr004-mixed-synthetic-v1",
+    requestsCompleted: 240000,
+    unexpectedFailureRatePercent: 0,
+    application5xx: 0,
+    processRestarts: 0,
+    steadyP95Milliseconds: 100,
+    burstP95Milliseconds: 200,
+    steadyBacklogMaximum: 10,
+    burstBacklogMaximum: 20,
+    backlogDrainSeconds: 10,
+    cpuFiveMinuteAveragePercent: 40,
+    memoryPeakPercent: 50,
+    faultInjectionPassed: true,
+    faultMatrixPassed: 12,
+  };
+  const validPerformance = {
+    ...evidence,
+    type: "performance-capacity",
+    ...Object.fromEntries(I12_PERFORMANCE_FIELDS.map((field) => [field, validPerformanceValues[field]])),
+  };
+  assert.equal(validateI12Evidence("performance-capacity", validPerformance), true);
+  for (const field of I12_PERFORMANCE_FIELDS) {
+    const missing = { ...validPerformance };
+    delete missing[field];
+    assert.throws(() => validateI12Evidence("performance-capacity", missing), new RegExp(`I12_PERFORMANCE_INSUFFICIENT:${field}`));
+  }
+
+  const validReviews = I12_INDEPENDENT_REVIEW_ROLES.map((role) => ({ role, accepted: true, reviewerRef: `${role}-reviewer`, evidenceSha256: HASH }));
+  const validIndependentReviews = { ...evidence, type: "independent-reviews", reviews: validReviews, unacceptedP0: 0 };
+  assert.equal(validateI12Evidence("independent-reviews", validIndependentReviews), true);
+  for (const role of I12_INDEPENDENT_REVIEW_ROLES) {
+    assert.throws(
+      () => validateI12Evidence("independent-reviews", { ...validIndependentReviews, reviews: validReviews.filter((review) => review.role !== role) }),
+      new RegExp(`I12_REVIEW_INSUFFICIENT:${role}`),
+    );
   }
 });
