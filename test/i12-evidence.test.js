@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { validateI12Evidence } from "../src/services/i12-evidence.js";
 const HASH = "a".repeat(64);
@@ -46,4 +47,39 @@ test("I12 signer rotation evidence requires finite timing controls", () => {
   assert.equal(validateI12Evidence("signer-rotation", base), true);
   assert.throws(() => validateI12Evidence("signer-rotation", { ...base, timelockSeconds: Number.NaN }), /I12_SIGNER_ROTATION_INSUFFICIENT/);
   assert.throws(() => validateI12Evidence("signer-rotation", { ...base, rollbackWindowSeconds: undefined }), /I12_SIGNER_ROTATION_INSUFFICIENT/);
+});
+test("blocked I12 template stays synchronized with the authoritative validator contract", () => {
+  const template = JSON.parse(readFileSync(new URL("../evidence/templates/i12-evidence.blocked.example.json", import.meta.url), "utf8"));
+  assert.equal(template.status, "BLOCKED");
+  const performance = template.records["performance-capacity"];
+  assert.deepEqual(
+    Object.keys(performance).sort(),
+    [
+      "application5xx",
+      "artifactSha256",
+      "backlogDrainSeconds",
+      "burstBacklogMaximum",
+      "burstP95Milliseconds",
+      "candidateCommit",
+      "cpuFiveMinuteAveragePercent",
+      "faultInjectionPassed",
+      "faultMatrixPassed",
+      "loadProfileRef",
+      "memoryPeakPercent",
+      "processRestarts",
+      "requestsCompleted",
+      "steadyBacklogMaximum",
+      "steadyP95Milliseconds",
+      "type",
+      "unexpectedFailureRatePercent",
+    ].sort(),
+  );
+  assert.equal(performance.loadProfileRef, "oracle-nfr004-mixed-synthetic-v1");
+  assert.deepEqual(
+    template.records["independent-reviews"].reviews.map(({ role }) => role),
+    ["security", "privacy", "legal", "contract", "operations"],
+  );
+  for (const [type, record] of Object.entries(template.records)) {
+    assert.throws(() => validateI12Evidence(type, { schemaVersion: template.schemaVersion, status: template.status, ...record }), new RegExp(`I12_EVIDENCE_INVALID:${type}`));
+  }
 });
