@@ -1,0 +1,34 @@
+Giraffe ERC V9 格式与测试记录
+
+日期：2026-08-29
+
+官方基线：
+- ethereum/ERCs config/eipw.toml SHA-256 = 575E0CF5F4F93C924616E3E4AB0BA49B5910B0D78E95C333FAD043548A7A2357
+- eipw release metadata latest tag = v0.11.0
+
+本地确定性格式门禁：PASS
+- frontmatter 字段与顺序匹配官方配置；
+- title <= 44，description <= 140 且不含冒号/standard-like 词；
+- requires 精确为升序 Final 依赖 165, 721；
+- 二级章节及顺序与官方配置一致；
+- 正文提案链接均为相对链接；
+- Copyright 逐字匹配；
+- 代码 fence 平衡；
+- 作者、讨论和编号只保留预期占位符，无其他候选占位符。
+
+官方工具：
+- eipw 0.11.0 由 crates.io 锁定源码在隔离 Rust 1.98.0 GNU 工具链编译；
+- eipw crate SHA-256 = FF8A2B1157E1ADABC80786657CE6AD780BD44892584493FCF033459CA21376EE；Cargo.lock SHA-256 = 725340D2F9924088A88B804F6FFB57157C0B520F718D11168C8B476D4FD1D88A；本次二进制 SHA-256 = E19A2119A572BC850A8502BD946E9EB4E73965A088CC28AFC899480C8BCD31C0；
+- 对临时副本机械替换合法测试编号、测试 GitHub 用户名和测试 discussion URL；
+- 使用官方 config/eipw.toml 运行：PASS，0 diagnostics；
+- authoritative candidate SHA-256 在运行前后均为 7300AC2003A4374FE30EF77134418C1E9F6A187F3AB00FF33FCECA3606FA81EB；
+- 临时副本已删除，测试编号/作者/URL未写回工作源。
+
+协议与公开资产：
+- 工作参考实现：39/39 PASS；
+- 公开 assets 副本：39/39 PASS；
+- Solidity candidate blocks compile / ABI parity：PASS；
+- public contract/test 与工作参考字节一致；
+- CC0、精确依赖版本、no-wallet/no-RPC/no-Hoodi/no-internal-material：PASS。
+
+正式用户名和真实 discussion URL 填入后，在目标 ethereum/ERCs fork 仍须运行当时最新版官方 eipw。该后续命令属于发布授权后的目标仓库执行，不是当前缺失的第三项用户输入。

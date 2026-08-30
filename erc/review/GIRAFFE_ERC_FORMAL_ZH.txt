@@ -1,0 +1,115 @@
+Giraffe ERC 提交前候选 V9 中文审阅稿
+
+标题：基于证明验证的延迟资产交割
+作者：Giraffe Technology Holding Limited（@REPLACE_WITH_GITHUB_USERNAME，待权利人填写真实 GitHub 用户名）
+状态：Working Draft；尚无正式 ERC 编号；中文稿仅供审阅，英文 ERC 正文为规范性提交文本。
+
+一、摘要
+
+本提案定义 ERC-721 的延迟交割接口。Token 先进入 PENDING；只有当合约验证另一条联盟链、许可链或其他远端账本的已最终确定状态，并证明其中包含与本地交割逐字段一致的资产记录后，才能完成本地转移。证明验证、证据承诺更新、ERC-721 holder 变更和交割关闭必须在同一交易中全部成功，否则全部回滚。
+
+证明提交者只是无需信任的转发者。任何 Oracle、Relayer 或 certificateAuthority 都不能凭自身签名替代远端最终状态证明。
+
+本协议只能证明某组字节存在于实现 Profile 接受的远端最终状态，不能证明现实资产存在、保管人陈述真实、资产记录合法有效或产生任何现实法律权利。
+
+中性示例包括：登记系统在 Token 过户后换发权属记录、许可账本为受让方换发许可记录、保管账本在所代表持有关系变更时替换仓储记录。示例只说明技术协调，不产生法律或监管结论。
+
+二、核心新颖性
+
+本提案不把 1:1 映射、证书版本迭代、Merkle proof、轻客户端或跨链消息本身宣称为新颖。
+
+拟议贡献是以下不可拆分的 ERC-721 交割不变量：
+
+1. 本地转移先进入可查询的 PENDING 并锁定普通 ERC-721 转移；
+2. 任何账户均可提交证明，但 msg.sender 不产生授权；
+3. 远端共识最终性和状态根必须依已声明 Profile 验证；
+4. membership proof 必须证明远端记录绑定本地链 ID、Token 合约、tokenId、settlementId、from、to、snapshotHash、前后承诺、证据引用、下一版本、effectiveAt 和资产锚点；
+5. 每 Token 的远端高度必须严格递增，证明不得重复消费；
+6. 证明消费、承诺更新、本地 holder 转移及状态关闭必须原子执行。
+
+三、通用性
+
+规范不得写死 Hoodi、任何生产链、任何联盟链产品、T+3 或特定机构。Hoodi 仅用于参考实现的 test-only 验收。实现 Profile 负责定义：
+
+- 远端账本身份、genesis/consensus domain；
+- 最终性证明或轻客户端规则；
+- validator set 及轮换；
+- state-root 与 membership proof 算法；
+- 记录、快照与承诺的规范化和 domain separation；
+- 安全假设、升级边界和恢复机制。
+
+四、接口兼容
+
+IVersionedCertificate 的 ERC-165 interfaceId 保持 0xebaa86a0。
+IDeferredCertificateSettlement 的 ERC-165 interfaceId 保持 0x2773d4c9。
+
+finalizeSettlement 的最后一个 bytes 参数只改名为 proofData，参数类型未改变，因此 selector 不变。旧 Working Draft 中 authorityData 的 Authority 签名语义已废止；只有 selector 相同不足以声明 V8 行为兼容。
+
+certificateAuthority(tokenId) 继续要求非零，且允许与 holder 相同，但它只作为证书签发者等元数据存在，不能授权 finalize 或 cancel。
+
+合规分为两级：certificate-conforming 实现只需实现并声明 0xebaa86a0，且不得虚报 settlement 接口；settlement-conforming 实现必须同时实现并声明 0xebaa86a0 与 0x2773d4c9，并满足证明、取消和原子性全部要求。
+
+初始证书版本必须为 1、previousCertificateHash 必须为零，并必须发出 CertificateInitialized。后续版本只能连续追加，不得覆盖、删除、跳号或形成环。
+
+五、状态与行为
+
+beginSettlement 必须校验 Token 存在、调用者具有 ERC-721 权限、settlementId 与 snapshotHash 非零、接收者有效、deadline 在未来、同 Token 不存在另一 Pending，并在写入前复检资产锚点。Pending 期间 transferFrom 与两个 safeTransferFrom 必须失败。
+
+finalizeSettlement 可由任何账户调用，但必须在 deadline 前完成全部证明验证。成功时追加下一承诺、写入远端高度并消费 proof、把 Token 从记录的 from 转给 to、将状态设为 FINALIZED、清除 pending 标识并发出统一事件。任一条件失败必须整体回滚。
+
+记录中的 from 可用空 proofData 取消 Pending。其他账户或非空取消数据必须拒绝。取消不得更改 holder 或证书状态。这样可在远端证明永远不可得时解除锁定。
+
+settlement(unknownSettlementId) 必须回退；无 Pending 时 pendingSettlementOf 必须返回零值。NONE 只作为内部零状态，不能成为未知 ID 查询成功时可观察到的记录。
+
+六、参考证明 Profile
+
+参考实现固定一个远端 ledgerId、按地址升序的 validator 集合及阈值。阈值验证者对包含 ledgerId、remoteHeight、remoteBlockHash、remoteStateRoot 和 validatorSetHash 的 domain-separated checkpoint 签名。Merkle leaf 是完整绑定字段的 remote settlement record。
+
+规范域类型名分别为 RemoteFinality 与 RemoteSettlement。
+
+proofData 编码为：
+
+abi.encode(
+  uint64 remoteHeight,
+  bytes32 remoteBlockHash,
+  bytes32 remoteStateRoot,
+  uint256 leafIndex,
+  bytes32[] merkleSiblings,
+  bytes[] finalitySignatures
+)
+
+该固定委员会 Profile 只是可复现参考实现。生产 Profile 推荐使用远端账本原生轻客户端、最终性和 validator-set 迁移规则。
+
+七、查重结论
+
+- ERC-2018：延迟清算由 clearing agent 执行，不验证远端最终状态 membership。
+- ERC-6997：定义 ERC-721 验证阶段，不规定远端共识最终性或完整 settlement 绑定。
+- ERC-6358：同步多链全局 Token 操作，不是以远端资产记录证明门控单次本地 ERC-721 交割。
+- ERC-6956：采用 Oracle 对 proof-of-control 作 attest；本提案明确不能以 Oracle 签名替代状态证明。
+- ERC-8320/8325/8326：分别涉及 claim、asset anchor 和 document bundle，可组合但不定义本提案的 proof-gated atomic settlement。
+- IBC ICS-02/23 和 Hyperledger Cacti/Weaver：已覆盖轻客户端、finality、membership 和通用互操作。因此本提案不主张这些基础原语，只主张面向 ERC-721 延迟交割的完整字段绑定和原子状态转换组合。
+- W3C Verifiable Credentials 与 Ethereum Attestation Service 等证明系统能够表达签发者声明和撤销状态，但其本身不要求把远端最终状态 membership proof 与 Pending ERC-721 交割的全部字段绑定，也不要求证书替代与 holder 变更在同一交易中原子完成。
+
+未发现完全相同的 ERC 接口和强制不变量组合，但“未发现”不等于专利新颖性或 Ethereum 社区接受保证。
+
+八、安全与信任边界
+
+去掉 Oracle 信任不等于完全无信任。安全性仍依赖远端共识、验证者阈值或轻客户端、validator-set 轮换、密码算法、规范化、verifier 代码及升级权限。远端共识串谋仍可最终确定虚假记录；错误 verifier 仍可能接受伪证明。
+
+实现必须处理 validator equivocation、签名重复与可锻性、远端分叉、旧高度回放、跨链/跨合约重放、证明尺寸与 gas DoS、编码歧义、哈希碰撞、升级和恢复。
+
+本提案不是法律、金融或资产类别审查协议，不替代任何使用者在其适用地区承担的判断与责任。
+
+九、Privacy
+
+参与方、时间、承诺、远端高度和 proofData 均可能公开。低熵承诺可被字典攻击，跨链字段可能被关联。Profile 应采用 domain-separated commitment，不公开个人或保密明文，只提交验证必需的证明材料。删除链下数据不会删除历史 calldata、事件或承诺。
+
+十、测试状态
+
+本地参考套件 V9：39/39 PASS。覆盖逐字段篡改、错误 ledger/validator set、错误 Merkle 根、阈值不足、非验证者、重复签名、远端高度回退、锚点停用、holder 取消、deadline、历史链、零 Authority、非 callback 合约收款方、未知 settlement 及 interfaceId。
+
+Hoodi 链上结果必须以受控 signer、SIN 广播和 receipt 证据为准；未取得 receipt 前不得写成 PASS。
+
+十一、提交边界
+
+作者名义：Giraffe Technology Holding Limited（GitHub 用户名待权利人最终确认）。正式分配编号前仅称 Working Draft。未经用户明确授权，不发布 Ethereum Magicians、不创建或提交 ethereum/ERCs PR，也不把测试结果表述为 Ethereum 背书、主网上线或现实法律效力。

@@ -1,0 +1,24 @@
+Giraffe ERC V9 technical validation
+Date: 2026-08-29
+Status: PREP_READY
+
+Authoritative candidate SHA-256: 7300AC2003A4374FE30EF77134418C1E9F6A187F3AB00FF33FCECA3606FA81EB
+Reference Solidity SHA-256: C09CE29455F7077E4F270CAF2142474EB7981A1900573C3EE1CA566577C6DFE4
+Protocol tests SHA-256: 821DD151F600D3229D3275740FBC38B4DC9F36284BAE6D1D1A00A5C4998E64CE
+
+Node.js v24.19.0
+Hardhat 2.29.0
+ethers 6.17.0
+solc 0.8.26+commit.8a97fa7a.Emscripten.clang
+
+Working reference suite: 39 passing, 0 failing
+Packaged public assets suite: 39 passing, 0 failing
+Submission static gate: PASS
+Candidate Solidity compile and ABI parity: PASS
+Final deterministic preflight: PREP_READY
+Official eipw 0.11.0 synthetic-substitution lint: PASS, 0 diagnostics
+
+IVersionedCertificate interface ID: 0xebaa86a0
+IDeferredCertificateSettlement interface ID: 0x2773d4c9
+
+No discussion was published. No PR was created or submitted. The only remaining user inputs are the final authorized GitHub username and explicit publication authorization including IPR/CC0 confirmation.
