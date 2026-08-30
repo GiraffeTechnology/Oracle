@@ -3,7 +3,7 @@
   "status": "PREP_READY",
   "proposalTitle": "Proof-Verified Deferred Asset Settlement",
   "candidateSha256": "af2d40ed7d993a9f50baa614d6554012fe92c51ac627482f52f738b4b3c7b55a",
-  "referenceSha256": "97c5e420a1842c8b476db96fc56c49072845c93bb67ce36241c246cdeac7dd06",
+  "referenceSha256": "dada5a9c62c5d231e00124a7e8d3e0b9b0bd9428ab602382b272751b90545e04",
   "testsSha256": "821dd151f600d3229d3275740fbc38b4dc9f36284bae6d1d1a00a5c4998e64ce",
   "interfaceIds": {
     "IVersionedCertificate": "0xebaa86a0",
@@ -21,7 +21,8 @@
     "n5N6M1ToM4": "SOURCE_NOT_FOUND_NO_SEMANTICS_FABRICATED",
     "priorArt": "CURRENT_OFFICIAL_SOURCE_SNAPSHOTS_REVIEWED",
     "iprCc0Engineering": "READY_FOR_RIGHTSHOLDER_CONFIRMATION",
-    "referenceImplementationFormatting": "prettier-plugin-solidity; runtime bytecode identical after stripping metadata"
+    "referenceImplementationFormatting": "prettier-plugin-solidity; runtime bytecode identical after stripping metadata",
+    "proofPathAdversarialReview": "COMPLETED / no exploitable defect; two architectural limits documented in the reference header"
   },
   "userPrinciples": {
     "authorityMustBeNonzero": true,

@@ -1,6 +1,28 @@
 // SPDX-License-Identifier: CC0-1.0
 pragma solidity ^0.8.20;
 
+// Reference proof profile - trust assumptions and non-goals.
+//
+// This file demonstrates the settlement invariant. It is not a production
+// light client. An implementer copying it inherits the following limits,
+// which the specification assigns to the implementation profile:
+//
+// 1. Validator equivocation is not detected. lastRemoteHeight is tracked per
+//    token and usedProofs keys on (checkpoint, leaf), so a quorum that signs
+//    two different state roots at the same remote height can finalize
+//    different tokens from different forks without the contract noticing.
+// 2. The validator set is immutable. isFinalityValidator, validatorSetHash
+//    and finalityThreshold are fixed at construction, so a compromised
+//    validator key remains valid for the life of the contract. The only
+//    recovery path is holder cancellation after the settlement deadline.
+// 3. siblings and signatures are unbounded. Oversized input costs the
+//    submitter gas only; the strictly increasing signer rule caps the number
+//    of accepted signatures at the validator set size.
+//
+// Production profiles SHOULD use the remote ledger's native light client and
+// validator-set transition rules, and MUST disclose the verifier and any
+// upgrade authority as part of the security boundary.
+
 interface IERC165 {
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
