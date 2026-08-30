@@ -1,35 +1,37 @@
 {
   "schemaVersion": 1,
   "status": "PREP_READY",
-  "proposalTitle": "Proof-Verified Deferred Asset Settlement",
-  "candidateSha256": "539e74fd0560268e2b4aba79557c62dc1f9ed11a225afdc5cc0a54e495ad2ee2",
-  "referenceSha256": "0ab04a933b22a621d53588871aff4eee02c5fc4443f48e37bd5a78729d7342e4",
-  "testsSha256": "0ef49ee75e7d8829b499419b6240e8b47a61b006956bf3a5348a1afccbf0156b",
+  "proposalTitle": "Asynchronous Register Projection for NFTs",
+  "supersedes": "Proof-Verified Deferred Asset Settlement (V1-V9); rewritten around the register-projection axiom, see review/ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md",
+  "candidateSha256": "4d98e7ac9e42e79b50f62e394c2d15694462805ac43fc9645a80c2d4d8ea9568",
+  "referenceSha256": "5bbbc8ef5d99666313ca8abd50824bbec3ab9223b7e1b3629f40fa6f5f4ba1a7",
+  "testsSha256": "28b22aad29433c349e8172fad5e9d7334835681d170b16d6a34a46a0da59b7c1",
   "interfaceIds": {
-    "IVersionedCertificate": "0xebaa86a0",
-    "IDeferredCertificateSettlement": "0x2773d4c9"
+    "IRegisterProjection": "0x3e925bdc",
+    "IProjectionSettlement": "0xbe360d3d"
   },
   "verification": {
-    "workingReferenceTests": "41/41 PASS",
-    "publicAssetTests": "41/41 PASS",
+    "publicAssetTests": "22/22 PASS",
+    "npmTestEntrypoint": "PASS from a clean copy of assets/eip-xxxx",
+    "solidityCompileWarnings": "0 (asserted by the suite)",
     "submissionGate": "PASS",
-    "candidateSolidityAbiParity": "PASS",
-    "finalPreflight": "PASS",
-    "officialEipw0110Synthetic": "PASS / 0 diagnostics (re-run by external audit on the current candidate)",
-    "feedbackA1ToE5": "CLOSED_OR_EXPLICITLY_SUPERSEDED",
-    "n1ToN4": "SOURCE_VERIFIED_AND_CLOSED",
-    "n5N6M1ToM4": "SOURCE_NOT_FOUND_NO_SEMANTICS_FABRICATED",
+    "officialEipw0110Synthetic": "PASS / 0 diagnostics / exit code 0, re-run on the current candidate",
+    "eipwNegativeControl": "PASS / breaking the CC0 sentence reproduces markdown-copyright, exit code 65",
     "priorArt": "CURRENT_OFFICIAL_SOURCE_SNAPSHOTS_REVIEWED",
     "iprCc0Engineering": "READY_FOR_RIGHTSHOLDER_CONFIRMATION",
-    "referenceImplementationFormatting": "prettier-plugin-solidity; runtime bytecode identical after stripping metadata",
     "proofPathAdversarialReview": "COMPLETED / no exploitable defect; two architectural limits documented in the reference header",
-    "noveltyIndependentAssessment": "COMPLETED / nearest neighbour ERC-7965 now cited; narrow but defensible",
-    "interoperabilityRationale": "ADDED / third-party venues, automatic trading halt, divergence-aware synchronization",
-    "reviewerPerspectiveBlocker": "FIXED / holder cancellation gated on deadline; 2 regression tests added"
+    "noveltyIndependentAssessment": "COMPLETED / nearest neighbour ERC-7965; novelty now rests on the projection invariants, not the proof",
+    "reviewerPerspectiveBlocker": "FIXED / holder cancellation gated on deadline; regression tests retained through the rewrite",
+    "entitlementSemantics": "ADR-006 perishable/deferrable taxonomy promoted to normative text",
+    "registerProjectionAxiom": "ADR-007 adopted; transfer blocking removed, strict monotonicity and commitment uniqueness added as invariants"
   },
+  "openDesignQuestions": [
+    "whether the deferred-entitlement registry belongs in this ERC or in consuming entitlement contracts",
+    "whether a register/profile identity accessor should be added for discoverability"
+  ],
   "userPrinciples": {
-    "authorityMustBeNonzero": true,
-    "authorityMayEqualHolder": true,
+    "tradingMustNotBeBlockedDuringAGap": true,
+    "everyPastInstantResolvesToExactlyOneConfirmedHolder": true,
     "independentEndorsementVerification": "out-of-band by consumers"
   },
   "remainingUserInputs": [

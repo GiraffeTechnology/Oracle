@@ -1,7 +1,7 @@
 ---
 eip: XXXX
-title: Proof-Verified Deferred Asset Settlement
-description: Atomically settles ERC-721 transfers from finalized remote-ledger state proofs
+title: Asynchronous Register Projection for NFTs
+description: Projects an asynchronous off-chain register onto ERC-721 so any past instant resolves to one confirmed holder
 author: Michael Yip (@GiraffeTechnology)
 discussions-to: https://ethereum-magicians.org/t/REPLACE_WITH_DISCUSSION_SLUG
 status: Draft
@@ -13,23 +13,25 @@ requires: 165, 721
 
 ## Abstract
 
-This ERC defines discoverable interfaces for an [ERC-721](./eip-721.md) token to enter a pending transfer and to finalize only when a verifier proves that a finalized state of another ledger contains the exact corresponding asset-settlement record. The record is bound to the local chain, token contract, token identifier, settlement identifier, participants, initiation snapshot, prior and next commitments, version, effective time, and asset anchor. Verification and the local holder transition occur in one transaction or revert together.
+An off-chain register that records who holds an asset updates asynchronously. No on-chain design can remove that lag. Each register change does, however, have a unique identity: the instant it takes effect and a commitment to its content.
 
-Proof submitters are untrusted. No oracle account is authorized to substitute settlement facts. The proposal does not prove that a remote record is factually or legally correct; it proves inclusion in the finalized state accepted under a declared remote-ledger verification profile.
+This ERC uses that identity to build a verifiable, totally ordered projection of such a register onto an [ERC-721](./eip-721.md) token. Entries are append-only, their effective times strictly increase, and their commitments are unique within a token, so **any past instant resolves to exactly one confirmed holder** even while the chain lags the register.
+
+The token continues to trade throughout. `ownerOf` is the tradeable position; the projection is the confirmed record. Entitlements resolve against the projection, so a holder change that the register has not yet confirmed cannot silently redirect a right.
+
+A change is admitted to the projection only on proof that the corresponding record exists in a finalized state of the remote register. Proof submitters are untrusted.
 
 ## Motivation
 
-Applications that map a public-chain token to a permissioned or consortium ledger often rely on an oracle to report that the remote update completed. Even if the oracle signs every local field, the contract proves only what that oracle asserted. A compromised or privileged oracle can therefore substitute a remote result without demonstrating that the result exists in the finalized remote state.
+Applications that mirror an off-chain register on chain face a gap they cannot close. Registration completes when the registrar completes it. Meanwhile the token trades.
 
-General cross-chain proof systems verify remote state, while deferred-token standards coordinate delayed execution. This ERC standardizes the narrower combined invariant for ERC-721: a pending transfer can finalize only from a finalized remote-state membership proof whose leaf commits to the exact local settlement, and the proof acceptance, commitment update, holder transfer, and settlement closure are atomic.
+Existing approaches take one of two unsatisfactory paths. They trust an oracle to assert that registration finished, in which case the contract proves only what the oracle said. Or they freeze the token until registration finishes, which stops a market to solve a bookkeeping problem and destroys any entitlement whose record instant falls inside the freeze.
 
-The parties that must react to this state are not the issuer. Marketplaces, wallets, indexers, and collateral systems have no agreement with whoever maintains the remote record, yet they are the ones that must stop listing, quoting, or accepting a token while its remote counterpart is being reassigned. Today they read `ownerOf` together with a transferability check and conclude that the token is current and freely transferable, because nothing distinguishes a final holder from a provisional holder awaiting an external update. An issuer can lock transfers inside its own contract, but it cannot tell an unrelated venue why the token is locked or when the lock will lift. A discoverable interface can.
+Neither is necessary. The register's own change identity is enough. If every admitted change carries a strictly later effective time and a commitment unique to that token, the on-chain history is a total order, and a question of the form *who did the register record at this instant* has exactly one answer for every instant in the past.
 
-This ERC therefore does not assert that the local token and the remote record agree. It makes their divergence explicit and machine readable. While a settlement is pending, the token reports that its holder is provisional and every ordinary transfer reverts, so trading halts automatically for the duration of the external process, such as a physical handover or a registry reassignment. When the remote record has been updated and proven, the commitment and the holder advance in the same transaction, so the moment of re-convergence is a single event that any observer can verify without trusting the submitter.
+That single property is what third parties need and cannot get today. A marketplace, a wallet, an indexer or a collateral system has no relationship with the registrar, yet must know whether the current holder is confirmed or merely provisional. A governance or distribution contract must know who was confirmed at a record instant that may have passed while the register was still catching up. `ownerOf` cannot answer either question, and an issuer that locks its own token cannot tell an unrelated venue why.
 
-Illustrative uses include a title registry that reissues a title record after a token transfer, a licensing ledger that records a replacement permit for the transferee, and a custodian ledger that supersedes a warehouse record when the represented holding changes hands. These examples describe technical coordination only; they do not make the token, proof, or remote record legally effective.
-
-Certificate history remains useful evidence metadata but is not the principal contribution. One-to-one asset mapping is an implementation choice rather than the novelty claim.
+Illustrative uses include a title registry that reissues a record after a transfer, a licensing ledger that records a replacement permit, and a custodian ledger that supersedes a holding record. These describe technical coordination only; they do not make the token, the proof or the remote record legally effective.
 
 ## Specification
 
@@ -37,35 +39,34 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** ar
 
 ### Definitions
 
-A **remote ledger** is the consortium, permissioned, or other ledger whose identity and finalized state are verified by an implementation profile.
+A **remote register** is the external ledger that records holders of the represented asset. Its updates are asynchronous with respect to this chain.
 
-A **remote-ledger identity** is an immutable or governance-pinned identifier that distinguishes the intended ledger, including any genesis or consensus domain required by the verification profile.
+A **register entry** is one admitted change, identified by its effective time and its record commitment.
 
-A **verification profile** defines the remote finality proof, validator or light-client rules, state-root commitment, membership-proof algorithm, validator-set evolution, canonical encoding, hash functions, and security assumptions. It MUST be deterministic and domain separated.
+A **record commitment** is a nonzero `bytes32` commitment to the register's content at that entry. An implementation profile MUST define its algorithm, canonicalization and domain separation.
 
-A **proof submitter** is any account that relays proof bytes. Its identity MUST NOT confer proof validity.
+A **confirmed holder** at an instant is the `holder` of the entry whose effective interval contains that instant. It is distinct from `ownerOf`, which is the tradeable position.
 
-A **settlement snapshot** is a nonzero commitment captured at initiation. The implementation profile MUST define its preimage, canonicalization, and domain separation.
+A **projection gap** is an interval in which a change is known to be in progress and not yet admitted. A pending settlement marks such a gap.
 
-A **remote settlement record** is the canonically encoded remote state value that binds the exact local settlement fields listed under Proof-verified finalization.
+A **verification profile** defines the remote-finality proof, light-client or validator rules, state-root commitment, membership-proof algorithm, validator-set evolution, canonical encoding and hash functions. It MUST be deterministic and domain separated.
 
-A **certificate commitment** is a nonzero `bytes32` commitment to an external record. The ABI name `certificateHash` does not prescribe a hash algorithm. Its profile MUST define canonicalization and domain separation.
+A **settlement period** is the implementation-defined interval within which a change is expected to be admitted. This ERC does not prescribe its length.
 
-An **authority reference** is a non-sensitive `bytes32` evidence or record reference. Despite the retained ABI name, it does not authorize finalization.
+### Projection invariants
 
-A **certificate authority** is nonzero metadata returned by `certificateAuthority(tokenId)`. It MAY identify an issuer and MAY equal the holder. It MUST NOT be accepted as a substitute for the remote-state proof required by this ERC.
+These four rules are what make an instant resolve uniquely. An implementation that relaxes any of them does not conform.
 
-A **settlement deadline** is the last local timestamp at which finalization may succeed. The remote process may complete at T+n; this ERC does not prescribe n.
+1. The first entry MUST have version `1` and a zero `previousCommitment`, and MUST emit `RegisterInitialized`.
+2. Each admitted change MUST append version `n + 1`, link the prior commitment, set the prior entry's `supersededAt`, leave the new entry's `supersededAt` zero, and emit `RegisterSuperseded`.
+3. `effectiveAt` MUST be **strictly greater** than that of the preceding entry. Equal effective times are forbidden, because an instant shared by two entries would have two answers.
+4. A record commitment MUST be unique within a token's own chain of entries. A repeated commitment is forbidden, because two entries that cannot be told apart cannot be resolved.
 
-### Certificate history
+Entries MUST NOT be overwritten, deleted, reordered or skipped. Queries for a nonexistent token or version MUST revert.
 
-The initial version MUST be `1`, its `previousCertificateHash` MUST be zero, and its creation MUST emit `CertificateInitialized`. Each supersession MUST append exactly version `n + 1`, link the prior commitment, set the prior record's `supersededAt`, leave the new record's `supersededAt` zero, and emit `CertificateSuperseded`. Historical records MUST NOT be overwritten, deleted, reordered, skipped, or made cyclic.
+`entryAsOf` MUST return the entry whose effective interval contains the queried instant, and MUST revert for an instant preceding the first entry. `holderAsOf` MUST return that entry's `holder`.
 
-`effectiveAt` is the remote record's declared effective time and need not equal `block.timestamp`. It MUST NOT decrease across versions. Queries for nonexistent tokens or versions MUST revert.
-
-`certificateAuthority(tokenId)` MUST return a nonzero address for an existing conforming token. This address is informational under the settlement protocol; consumers decide out of band whether and how to trust it.
-
-### Certificate interface
+### Register interface
 
 ```solidity
 // SPDX-License-Identifier: CC0-1.0
@@ -75,97 +76,86 @@ interface IERC165 {
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
 
-interface IVersionedCertificate is IERC165 {
-    struct CertificateRecord {
-        bytes32 certificateHash;
-        bytes32 previousCertificateHash;
-        bytes32 authorityReference;
+interface IRegisterProjection is IERC165 {
+    struct RegisterEntry {
+        bytes32 recordCommitment;
+        bytes32 previousCommitment;
+        bytes32 registryReference;
+        address holder;
         uint64 version;
         uint64 effectiveAt;
         uint64 supersededAt;
     }
 
-    event CertificateInitialized(
+    event RegisterInitialized(
         uint256 indexed tokenId,
-        bytes32 indexed certificateHash,
-        bytes32 indexed authorityReference,
+        bytes32 indexed recordCommitment,
+        address indexed holder,
         uint64 version,
         uint64 effectiveAt
     );
 
-    event CertificateSuperseded(
+    event RegisterSuperseded(
         uint256 indexed tokenId,
         uint64 indexed version,
-        bytes32 indexed certificateHash,
-        bytes32 previousCertificateHash,
-        bytes32 authorityReference,
+        bytes32 indexed recordCommitment,
+        bytes32 previousCommitment,
+        address holder,
         uint64 effectiveAt
     );
 
-    function currentCertificate(uint256 tokenId)
-        external view returns (CertificateRecord memory record);
-    function certificateAt(uint256 tokenId, uint64 version)
-        external view returns (CertificateRecord memory record);
-    function certificateAuthority(uint256 tokenId)
-        external view returns (address authority);
+    function currentEntry(uint256 tokenId)
+        external view returns (RegisterEntry memory entry);
+
+    function entryAt(uint256 tokenId, uint64 version)
+        external view returns (RegisterEntry memory entry);
+
+    function entryAsOf(uint256 tokenId, uint64 instant)
+        external view returns (RegisterEntry memory entry);
+
+    function holderAsOf(uint256 tokenId, uint64 instant)
+        external view returns (address holder);
+
+    function entryCount(uint256 tokenId)
+        external view returns (uint64 count);
 }
 ```
 
-The [ERC-165](./eip-165.md) interface identifier is `0xebaa86a0`.
+The [ERC-165](./eip-165.md) identifier for `IRegisterProjection` is `0x3e925bdc`.
 
-### Conformance levels
+### Trading is not blocked
 
-A **certificate-conforming** contract MUST implement `IVersionedCertificate`, MUST advertise `0xebaa86a0` through ERC-165, and MUST satisfy the certificate-history requirements. It MUST NOT advertise `0x2773d4c9` unless it also implements the settlement interface and its proof-verified behavior.
+Ordinary ERC-721 transfers MUST NOT be blocked while a projection gap is open. The token continues to trade and `ownerOf` moves immediately.
 
-A **settlement-conforming** contract MUST be certificate-conforming, MUST implement `IDeferredCertificateSettlement`, MUST advertise both interface identifiers, and MUST satisfy all settlement, proof-profile, cancellation, and atomicity requirements in this ERC. Interface discovery therefore identifies the supported conformance level without forcing certificate-only deployments to implement deferred settlement.
+An implementation MUST NOT infer the confirmed holder from `ownerOf`, and MUST NOT update the projection on an ordinary transfer. The projection changes only through proof-verified admission.
 
-### Settlement initiation and transfer lock
+### Entitlements during a projection gap
 
-`beginSettlement` MUST require an existing token, a nonzero unused `settlementId`, a nonzero snapshot, an authorized ERC-721 caller, a recipient different from the current holder, a future deadline, and no pending settlement for the token. It MUST record the current holder as `from`, clear token approval, set status to `PENDING`, and emit `SettlementStarted`.
+An entitlement determined by registration time MUST be resolved against the projection at the record instant its own terms specify, not against `ownerOf`. This ERC does not decide how any entitlement determines its holder; it guarantees only that the question is answerable.
 
-While pending, `transferFrom` and both `safeTransferFrom` overloads MUST revert. Approval changes MUST NOT bypass this lock.
+When a record instant falls inside a projection gap, the confirmed holder for that instant is not yet known. Two cases follow, and they differ:
 
-### Proof-verified finalization
+**An exercise that cannot be performed later with equivalent effect**, such as voting in a ballot that closes, MUST be treated as unavailable to both the outgoing and the incoming party for that instant. When the rightful party cannot be determined, allowing either to act may be wrong, and abstention is the only outcome that cannot be wrong. Such an exercise is extinguished permanently. Later resolution of the projection settles attribution; it MUST NOT revive an exercise opportunity that has passed.
 
-Any account MAY call `finalizeSettlement`. The implementation MUST NOT assign proof validity from `msg.sender`, a relayer allowlist, or a certificate-authority signature.
+**An exercise that can be performed later with equivalent effect**, such as a distribution, MUST NOT be treated as extinguished. It is deferred. Once the projection admits the entry covering that instant, the entitlement is claimable by the confirmed holder for that instant, and MUST be credited to that party even if it no longer holds the token.
 
-Before finalization, the verifier MUST establish all of the following:
+A deferred entitlement MUST be recorded against the token, the entitlement identifier and the record instant, and MUST NOT bind a beneficiary address at the time it is deferred, because that address is not yet determinable. It binds when the projection resolves.
 
-1. the proof belongs to the pinned remote-ledger identity and accepted verification profile;
-2. the proven state root has remote consensus finality under that profile;
-3. a valid membership proof connects the remote settlement record to that state root;
-4. the remote record binds the local `block.chainid`, token contract, `tokenId`, `settlementId`, `from`, `to`, `snapshotHash`, previous commitment, new commitment, authority reference, next version, `effectiveAt`, and asset anchor;
-5. the remote height is strictly greater than the last height consumed for that token; and
-6. the proof or equivalent finalized record has not already been consumed.
+If a gap closes by cancellation rather than admission, the preceding entry remains in force, so entitlements inside the gap resolve to the holder confirmed before it opened.
 
-The implementation MUST recheck any required local asset-anchor binding and active state at finalization. It MUST reject an expired settlement, a malformed proof, a proof from another ledger or validator set, a non-final state, a non-member record, a mismatched field, insufficient or duplicate finality attestations, and stale or replayed proof material.
+### Settlement and proof-verified admission
 
-On success, the implementation MUST in one transaction consume the proof, record the new remote height, append the next commitment, transfer the ERC-721 token from `from` to `to`, set status to `FINALIZED`, clear the pending identifier, and emit `CertificateSuperseded`, `Transfer`, and `SettlementFinalized`. Any failure MUST revert all effects.
+`beginSettlement` MUST require an existing token, a nonzero unused `settlementId`, a nonzero snapshot, an authorized ERC-721 caller, a recipient different from the current confirmed holder, and a future deadline whose distance from the current block timestamp MUST NOT exceed an implementation-defined maximum. It MUST emit `SettlementStarted`.
 
-Implementations MAY delegate verification to a separate light-client or verifier contract. That verifier and its upgrade or validator-set rules are part of the security boundary and MUST be disclosed by the profile.
+A token MAY have at most one open gap. Beginning a settlement while one is open MUST supersede the earlier one, emit `SettlementSuperseded`, and leave the projection unchanged. A profile MAY forbid supersession where its register cannot absorb it.
 
-### Proof encoding profile
+Any account MAY call `finalizeSettlement`. The implementation MUST NOT derive proof validity from `msg.sender`, from a relayer allowlist, or from any account's signature.
 
-The core interface treats `proofData` as opaque. Each implementation profile MUST publish a canonical schema. The CC0 reference profile uses:
+Before admission the verifier MUST establish that the proof belongs to the pinned remote register and accepted profile; that the proven state root has remote finality under that profile; that a membership proof connects the remote record to that root; that the remote record binds `block.chainid`, the token contract, `tokenId`, `settlementId`, the confirmed holder it asserts, the snapshot, the previous and next commitments, the next version and the effective time; that the remote height strictly exceeds the last height consumed for that token; and that the proof has not already been consumed.
 
-Its domain-separated checkpoint and leaf type names are `RemoteFinality` and `RemoteSettlement`.
+On success the implementation MUST, in one transaction, consume the proof, record the new remote height, append the entry under the invariants above, close the gap, and emit `RegisterSuperseded` and `SettlementFinalized`. Any failure MUST revert every effect.
 
-```solidity
-abi.encode(
-    uint64 remoteHeight,
-    bytes32 remoteBlockHash,
-    bytes32 remoteStateRoot,
-    uint256 leafIndex,
-    bytes32[] merkleSiblings,
-    bytes[] finalitySignatures
-)
-```
-
-The reference profile pins an immutable remote-ledger identifier and sorted validator set. A quorum signs a domain-separated checkpoint containing the ledger identity, remote height, remote block hash, remote state root, and validator-set hash. The Merkle leaf is the domain-separated remote settlement record. This profile demonstrates the invariant; production profiles SHOULD use the remote ledger's native light-client and validator-set transition rules where available.
-
-### Cancellation
-
-The recorded `from` address MAY cancel a pending settlement using empty `proofData`, but only after the settlement deadline has passed. Cancellation before the deadline MUST revert. The interval up to the deadline therefore belongs to the proof: a finalized remote record proven within it MUST take precedence over unilateral abandonment by the initiating holder. Without this rule a holder could observe that the remote process has completed and cancel before anyone submits the proof, leaving the remote ledger and the token permanently divergent with no on-chain path to reconverge. Cancellation MUST NOT change holder or certificate state. Nonempty cancellation data and cancellation by other accounts MUST revert. Profiles MAY impose an additional delay beyond the deadline, but MUST define a bounded recovery path that does not depend on the unavailable remote proof.
+The recorded initiator MAY cancel an open gap using empty `proofData`, but only after the deadline has passed. Cancellation before the deadline MUST revert, so that a record already finalized remotely cannot be stranded by unilateral abandonment. Cancellation MUST NOT change the projection.
 
 ### Settlement interface
 
@@ -177,94 +167,112 @@ interface IERC165 {
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
 
-interface IDeferredCertificateSettlement is IERC165 {
-    enum SettlementStatus { NONE, PENDING, FINALIZED, CANCELLED }
+interface IProjectionSettlement is IERC165 {
+    enum GapStatus { NONE, OPEN, ADMITTED, CANCELLED, SUPERSEDED }
 
-    struct SettlementRecord {
+    struct Settlement {
         uint256 tokenId;
-        address from;
-        address to;
+        address initiator;
+        address expectedHolder;
         bytes32 snapshotHash;
-        uint64 initiatedAt;
+        uint64 openedAt;
         uint64 deadline;
-        SettlementStatus status;
+        GapStatus status;
     }
 
-    event SettlementStarted(bytes32 indexed settlementId, uint256 indexed tokenId, address indexed from, address to, bytes32 snapshotHash, uint64 deadline);
-    event SettlementFinalized(bytes32 indexed settlementId, uint256 indexed tokenId, bytes32 indexed certificateHash, uint64 certificateVersion, uint64 effectiveAt);
+    event SettlementStarted(bytes32 indexed settlementId, uint256 indexed tokenId, address indexed initiator, address expectedHolder, bytes32 snapshotHash, uint64 deadline);
+    event SettlementFinalized(bytes32 indexed settlementId, uint256 indexed tokenId, bytes32 indexed recordCommitment, uint64 version, uint64 effectiveAt);
     event SettlementCancelled(bytes32 indexed settlementId, uint256 indexed tokenId, bytes32 indexed reasonHash);
+    event SettlementSuperseded(bytes32 indexed supersededId, bytes32 indexed replacementId, uint256 indexed tokenId);
 
     function settlement(bytes32 settlementId)
-        external view returns (SettlementRecord memory record);
-    function pendingSettlementOf(uint256 tokenId)
+        external view returns (Settlement memory record);
+
+    function openGapOf(uint256 tokenId)
         external view returns (bytes32 settlementId);
-    function beginSettlement(uint256 tokenId, bytes32 settlementId, address to, bytes32 snapshotHash, uint64 deadline) external;
-    function finalizeSettlement(bytes32 settlementId, bytes32 newCertificateHash, bytes32 authorityReference, uint64 effectiveAt, bytes calldata proofData) external;
+
+    function settlementPeriod()
+        external view returns (uint64 maximumInterval);
+
+    function beginSettlement(uint256 tokenId, bytes32 settlementId, address expectedHolder, bytes32 snapshotHash, uint64 deadline) external;
+
+    function finalizeSettlement(bytes32 settlementId, bytes32 recordCommitment, bytes32 registryReference, uint64 effectiveAt, bytes calldata proofData) external;
+
     function cancelSettlement(bytes32 settlementId, bytes32 reasonHash, bytes calldata proofData) external;
 }
 ```
 
-The ERC-165 interface identifier is `0x2773d4c9`. Renaming the final bytes parameter from `authorityData` to `proofData` does not change the ABI selector.
+The ERC-165 identifier for `IProjectionSettlement` is `0xbe360d3d`.
 
-### State queries
+`settlement(unknownId)` MUST revert. `openGapOf` MUST return zero when no gap is open. `NONE` is the zero-value internal status and MUST NOT be returned by a successful query for an unknown identifier.
 
-`settlement(unknownSettlementId)` MUST revert. `pendingSettlementOf` MUST return zero when no settlement is pending. `NONE` is the zero-value internal status and MUST NOT be returned by a successful `settlement` query for an unknown identifier.
+### Conformance levels
+
+A contract has **projection conformance** if it implements `IRegisterProjection`, advertises `0x3e925bdc`, and satisfies the projection invariants and the entitlement rules. It MUST NOT advertise `0xbe360d3d` unless it also implements proof-verified admission.
+
+A contract has **settlement conformance** if it has projection conformance, implements `IProjectionSettlement`, advertises both identifiers, and satisfies every settlement and proof requirement here.
+
+A projection may be maintained by means other than the settlement interface, provided the invariants hold. Interface discovery therefore reports which is offered.
 
 ## Rationale
 
-The proof binds both ledgers through the remote leaf rather than trusting a bridge message or oracle assertion. Binding every mutable field prevents a valid checkpoint from being replayed for another chain, contract, token, recipient, snapshot, version, or commitment. Strictly increasing per-token remote height prevents rollback to an older finalized record. Atomic local execution removes the interval in which proof acceptance and token transfer could diverge.
+The contribution is the projection, not the proof. Off-chain registration is asynchronous and no design removes that. What a register does provide is a unique identity per change, and this ERC turns that into a total order in which every past instant resolves to one confirmed holder. Strict monotonicity and commitment uniqueness are not tidiness rules; they are the minimum conditions for that property to hold, which is why they are stated as invariants rather than as guidance.
 
-The existing settlement selectors are retained to ease migration from the earlier working draft. The final bytes argument becomes an opaque proof container. Certificate history remains because it supplies a stable commitment transition for the remote record, but implementations may treat the external record generically.
+Two ownership notions are kept apart deliberately. `ownerOf` is the tradeable position and moves when the market moves. The confirmed holder moves only when the register is proven to have moved. Collapsing them forces a choice between freezing the market and lying about the record; keeping them apart makes the divergence explicit and, more importantly, resolvable.
 
-`certificateAuthority` remains in the mandatory certificate interface as discoverable metadata, not as an authorization input. A certificate-conforming implementation that never performs settlement still needs a stable accessor for the issuer or record keeper that a consumer evaluates out of band, and removing the function would change the frozen `0xebaa86a0` identifier without removing that need. Finalization ignores the returned address; no proof is accepted because of it.
+Entitlement rules follow from the projection rather than being added to it. Because any instant resolves, a distribution can be deferred and later credited to the party the register confirms for that instant, which is also why buying inside a gap cannot capture distributions that fall in it. A vote is different in kind: reopening a closed ballot to admit a later-confirmed party would change a decided outcome, so the exercise is extinguished. That loss is foreseeable, since the settlement period is bounded and record instants are published in advance, so the parties can decline to incur it. Traditional infrastructure reaches the same result by centralising the arithmetic in an ex-date; here the state is exposed and the parties do it themselves.
+
+Proof submitters are untrusted so that admission depends on the remote consensus rather than on a privileged reporter. Verification and admission are atomic so that no interval exists in which a proof has been accepted but the projection has not advanced.
 
 ### Prior art
 
-[ERC-2018](./eip-2018.md) defines delayed clearing controlled by a clearing agent. [ERC-6997](./eip-6997.md) defines a validation stage for ERC-721 transfers. Neither requires finalized remote-state membership or binds such proof to the complete local settlement.
+[ERC-7965](./eip-7965.md) is the closest work on the proof side. It standardizes proof-based verification of source-chain messages inside [ERC-7786](./eip-7786.md) gateways. Its broadcast semantics require one proof to serve many recipients, so it deliberately does not bind a proof to a destination field set, and it does not constrain the relationship between verification and execution. It proves a message; it does not build an ordered register whose past instants resolve. [ERC-5164](./eip-5164.md) and [ERC-6358](./eip-6358.md) likewise address execution and multi-chain token state rather than register history.
 
-[ERC-6358](./eip-6358.md) synchronizes global token operations across chains through signed omniverse transactions and delayed execution. This proposal does not create a multi-chain global token; it consumes proof of a particular remote asset record to gate one local ERC-721 settlement.
+This is not a bridge. ICS-721 and similar designs escrow, burn or mint a representation so that a token moves between chains. Here the token never leaves its chain and nothing is minted; a proof admits a record.
 
-[ERC-5164](./eip-5164.md) and [ERC-7786](./eip-7786.md) standardize cross-chain execution and message passing. A message delivered through such a gateway is authorized by the gateway and its own trust assumptions, and its acceptance is a transaction separate from any local effect. This proposal does not consume an endorsed message. It verifies a membership proof against finalized remote state and requires that verification, certificate supersession, and the ERC-721 holder transition succeed or revert together in one transaction. A profile MAY transport proof material through such a gateway, but a messaging layer does not supply this settlement invariant.
+[ERC-6997](./eip-6997.md) adds a validation stage to transfers, and holds cleared by a notary are long-established. All of them gate a transfer on an authorized party's word, and none maintains a time-resolvable record of who was confirmed when.
 
-[ERC-7965](./eip-7965.md) is the closest prior work. It standardizes proof-based verification of source-chain messages inside [ERC-7786](./eip-7786.md) gateways, so a destination contract can act on a message proven to exist in a finalized source state rather than on validator endorsement. Two properties it leaves open are the ones this proposal makes mandatory. It does not bind a proof to a specific destination chain, contract, or field set, because broadcast semantics require one proof to serve many recipients; and it does not constrain the relationship between verification and execution, which remain separable steps. This proposal requires the proven remote record to bind every field of one identified local settlement, and requires verification, certificate supersession, and the ERC-721 holder transition to succeed or revert in a single transaction. An implementation MAY obtain its proof material from an ERC-7965 route; doing so does not remove the binding and atomicity obligations defined here.
+[ERC-7765](./eip-7765.md) and [ERC-5496](./eip-5496.md) express whether a right may be exercised and allow rights to be separated from ownership. Neither ties the availability of an exercise to the state of an external register, nor defines deferral and later attribution when a record instant falls in a gap. [ERC-7943](./eip-7943.md) supplies transfer eligibility and freezing controls that compose with this ERC; [ERC-8325](./eip-8325.md) supplies asset anchoring that an implementation MAY use.
 
-[ERC-6956](./eip-6956.md) binds NFTs to physical assets and uses oracle attestations for proof of control. This proposal neither defines physical proof of control nor authorizes an oracle; the remote finalized state and membership proof are verified on chain.
-
-[ERC-8320](./eip-8320.md), [ERC-8325](./eip-8325.md), and [ERC-8326](./eip-8326.md) define claims, asset anchors, and document-bundle commitments. They can supply fields or anchors referenced by a remote record but do not define proof-gated atomic ERC-721 settlement.
-
-IBC light clients and membership proofs, ICS-721 interchain non-fungible token transfer, and Hyperledger Cacti/Weaver interoperability establish general remote-state verification patterns. This ERC does not claim those primitives. It also differs structurally from that family: a bridge escrows, burns, or mints a representation so that a token moves between chains, whereas here the ERC-721 never leaves the chain it was issued on and the remote proof only authorizes a change of local holder. Its contribution is the ERC-721 settlement interface and the mandatory full-field binding and atomicity invariant applied to a deferred holder change.
-
-W3C Verifiable Credentials and attestation registries such as Ethereum Attestation Service can express issuer statements and revocation state. By themselves, those systems do not require a finalized remote-ledger membership proof to be bound to every field of a pending ERC-721 settlement, nor do they require certificate supersession and the ERC-721 holder transition to execute atomically. They can provide evidence referenced by a profile without replacing this ERC's settlement invariant.
+Off-chain credential and attestation systems can express issuance and revocation, but do not make a past instant resolve to one holder under an on-chain invariant.
 
 ## Backwards Compatibility
 
-This ERC is additive to ERC-721 and discoverable through ERC-165. Implementations of the earlier oracle-authorized working draft have the same settlement selectors but are not behaviorally conforming: an authority signature is not a remote-state proof. Integrators MUST check the declared profile and verifier configuration rather than infer V8 conformance from selectors alone.
-
-Contracts that receive the token during finalization are not called through `onERC721Received`; implementations and initiators MUST account for non-receiver or operationally inaccessible contract recipients before initiation.
+This ERC is additive to ERC-721 and discoverable through ERC-165. It does not alter transfer semantics, and existing marketplaces and wallets continue to work unchanged; they simply do not read the projection. A contract that cannot enforce the projection invariants across every path that writes entries MUST NOT claim conformance.
 
 ## Test Cases
 
-Conforming implementations SHOULD test successful proof submission by an untrusted relayer and rejection after independent mutation of every bound field. Tests MUST cover incorrect ledger identity or validator set, non-final or insufficiently attested checkpoints, malformed signatures, duplicate validators, invalid membership paths, stale heights, proof replay, deadline expiry, inactive anchor rechecks, holder cancellation, append-only history, transfer locking, and atomic rollback.
+Conforming implementations MUST satisfy at least the following.
 
-The reference suite contains deterministic positive and negative vectors and independently derives both ERC-165 interface identifiers, the finality type hash, the remote-settlement leaf type hash, the validator-set hash, the Merkle root, and proof identifiers.
+1. `IRegisterProjection` interface identifier is `0x3e925bdc` and `IProjectionSettlement` is `0xbe360d3d`.
+2. An entry whose `effectiveAt` equals the preceding entry's is rejected.
+3. A repeated record commitment within a token is rejected.
+4. `entryAsOf` returns the covering entry for instants inside, at the start of, and after each interval, and reverts before the first entry.
+5. `holderAsOf` agrees with `entryAsOf` for the same instant.
+6. Ordinary transfers succeed while a gap is open, and do not change the projection.
+7. Beginning a settlement while a gap is open supersedes it and leaves the projection unchanged.
+8. Admission is rejected after independent mutation of every bound field, for an incorrect register identity, for a non-final state, for a non-member record, for a stale height and for a replayed proof.
+9. A successful admission appends the entry and closes the gap atomically; a failure changes nothing.
+10. Cancellation before the deadline is rejected; after the deadline it succeeds and leaves the projection unchanged.
+11. A proof finalized within the deadline succeeds after a rejected cancellation attempt.
 
 ## Reference Implementation
 
-A CC0 Solidity reference implementation and test suite accompany this draft. The implementation uses an immutable sorted validator set and threshold checkpoint signatures as a compact demonstration profile. It is not a claim that a fixed committee is appropriate for every deployment. Profiles for production consortium ledgers SHOULD verify native consensus finality and validator-set transitions.
+A CC0 Solidity reference implementation and self-contained local-EVM tests accompany this draft under `assets/eip-xxxx/`, where `xxxx` MUST be replaced only after an editor assigns a number.
 
 ## Security Considerations
 
-This ERC removes trust in the proof submitter, not all trust. Security depends on the remote consensus, light client or validator quorum, validator-set update rules, cryptography, canonical encoding, verifier implementation, and any upgrade authority. A colluding remote consensus can finalize a false remote record, and a faulty verifier can accept an invalid proof.
+This ERC removes trust in the proof submitter, not all trust. Security depends on the remote consensus, the light client or validator quorum, validator-set update rules, cryptography, canonical encoding, the verifier implementation and any upgrade authority. A colluding remote consensus can finalize a false record and a faulty verifier can accept an invalid proof.
 
-The proof establishes that bytes were included in accepted finalized remote state. It does not establish that an asset exists, that a custodian told the truth, that a record is legally effective, or that the remote system complied with any law.
+A proof establishes that bytes were included in accepted finalized remote state. It does not establish that an asset exists, that a registrar told the truth, or that a record is legally effective.
 
-Profiles MUST address validator equivocation, quorum uniqueness, signature malleability, replay, remote forks, validator-set rotation, proof-size and gas denial of service, hash collisions, integer bounds, malformed encodings, and verifier upgrades. Fixed validator sets are suitable only where their lifecycle and recovery assumptions are acceptable.
+Profiles MUST address validator equivocation, quorum uniqueness, signature malleability, replay, remote forks, validator-set rotation, proof-size and gas denial of service, hash collisions, integer bounds, malformed encodings and verifier upgrades. Fixed validator sets are suitable only where their lifecycle and recovery assumptions are acceptable.
 
-Asset-anchor checks at both initiation and finalization prevent settlement after a local binding is revoked. Cancellation remains available to the recorded holder once the deadline has passed, so a missing proof cannot permanently lock the token, while the interval before the deadline is reserved for the proof so that a completed remote transfer cannot be stranded by unilateral abandonment.
+The deadline bounds how long a gap may stay open; an unbounded gap would make the projection permanently unresolvable for that interval, so the maximum interval MUST be enforced. Cancellation after the deadline preserves a bounded recovery path, while the interval before it belongs to the proof.
 
-### Privacy
+Because trading is not blocked, integrators MUST NOT treat `ownerOf` as the confirmed holder. An integrator that needs the confirmed record MUST read the projection, and one that needs to know whether the current position is confirmed MUST check `openGapOf`.
 
-Settlement participants, timing, commitments, remote heights, and proof material are public on Ethereum. Commitments may still leak information through low-entropy inputs or correlation. Profiles SHOULD use domain-separated commitments, avoid personal or confidential plaintext, and publish only proof material necessary for verification. Deletion of off-chain data does not delete commitments, logs, calldata, or historical chain state.
+Entries, commitments, participants, instants and proof material are public. Commitments may leak information through low-entropy inputs or correlation. Profiles SHOULD use domain-separated commitments, avoid confidential plaintext, and publish only proof material necessary for verification. Deleting off-chain data does not delete commitments, logs, calldata or historical chain state.
 
 ## Copyright
 

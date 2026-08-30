@@ -1,24 +1,27 @@
-Giraffe ERC V9 technical validation
-Date: 2026-08-29
+Giraffe ERC technical validation
+Proposal: Asynchronous Register Projection for NFTs
+Date: 2026-08-30
 Status: PREP_READY
 
-Authoritative candidate SHA-256: 7300AC2003A4374FE30EF77134418C1E9F6A187F3AB00FF33FCECA3606FA81EB
-Reference Solidity SHA-256: C09CE29455F7077E4F270CAF2142474EB7981A1900573C3EE1CA566577C6DFE4
-Protocol tests SHA-256: 821DD151F600D3229D3275740FBC38B4DC9F36284BAE6D1D1A00A5C4998E64CE
+Authoritative candidate SHA-256: 4D98E7AC9E42E79B50F62E394C2D15694462805AC43FC9645A80C2D4D8EA9568
+Reference Solidity SHA-256:      5BBBC8EF5D99666313CA8ABD50824BBEC3AB9223B7E1B3629F40FA6F5F4BA1A7
+Protocol tests SHA-256:          28B22AAD29433C349E8172FAD5E9D7334835681D170B16D6A34A46A0DA59B7C1
 
-Node.js v24.19.0
+Node.js v22.22.2
 Hardhat 2.29.0
 ethers 6.17.0
-solc 0.8.26+commit.8a97fa7a.Emscripten.clang
+solc 0.8.26
 
-Working reference suite: 39 passing, 0 failing
-Packaged public assets suite: 39 passing, 0 failing
-Submission static gate: PASS
-Candidate Solidity compile and ABI parity: PASS
-Final deterministic preflight: PREP_READY
-Official eipw 0.11.0 synthetic-substitution lint: PASS, 0 diagnostics
+Packaged public assets suite: 22 passing, 0 failing
+Clean-copy `npm test` entrypoint: PASS
+Solidity compile warnings: 0 (asserted inside the suite)
+Submission static gate (tools/verify-package.mjs): PASS
+Official eipw 0.11.0 synthetic-substitution lint: PASS, 0 diagnostics, exit code 0
+eipw negative control: breaking the CC0 sentence reproduces markdown-copyright, exit code 65
 
-IVersionedCertificate interface ID: 0xebaa86a0
-IDeferredCertificateSettlement interface ID: 0x2773d4c9
+IRegisterProjection interface ID:   0x3e925bdc
+IProjectionSettlement interface ID: 0xbe360d3d
 
-No discussion was published. No PR was created or submitted. The only remaining user inputs are the final authorized GitHub username and explicit publication authorization including IPR/CC0 confirmation.
+No discussion was published. No PR was created or submitted. The only remaining
+user inputs are the Ethereum Magicians discussion URL and explicit publication
+authorization including IPR/CC0 confirmation.

@@ -1,6 +1,6 @@
 # Reference assets
 
-These CC0 files accompany the Proof-Verified Deferred Asset Settlement submission-preparation draft.
+These CC0 files accompany the Asynchronous Register Projection for NFTs submission-preparation draft.
 
 Run the self-contained local-EVM suite with:
 
@@ -9,4 +9,4 @@ npm install
 npm test
 ```
 
-The suite requires no wallet, RPC endpoint, testnet asset, credential, or external signer. It contains 39 local-EVM protocol tests covering finalized checkpoint signatures, ledger and validator-set identity, Merkle membership, full settlement-field binding, replay and rollback protection, transfer locking, cancellation, append-only history, zero-authority rejection, non-callback contract recipients, and unknown-settlement semantics. Historical ZIPs remain immutable evidence but are not the current submission assets.
+The suite requires no wallet, RPC endpoint, testnet asset, credential, or external signer. It contains 22 local-EVM protocol tests covering the ERC-165 identifiers, the EIP-170 size limit, the projection invariants (strictly increasing `effectiveAt`, commitment uniqueness within a token, append-only versioning), `entryAsOf` and `holderAsOf` interval resolution, unblocked transfers during an open gap, gap supersession, atomic proof-verified admission, independent mutation of every bound leaf field, register and validator-set identity, signature rules, replay and stale-height rejection, Merkle membership, deadline-gated cancellation, and unknown-settlement semantics.

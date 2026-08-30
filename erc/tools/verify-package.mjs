@@ -37,7 +37,7 @@ const publicFiles = files.map(relative).filter((name) => name.startsWith("ERCS/"
 assert.deepEqual(publicFiles.sort(), [
   "ERCS/erc-xxxx.md",
   "assets/eip-xxxx/README.md",
-  "assets/eip-xxxx/contracts/VersionedCertificateReference.sol",
+  "assets/eip-xxxx/contracts/RegisterProjectionReference.sol",
   "assets/eip-xxxx/hardhat.config.cjs",
   "assets/eip-xxxx/package.json",
   "assets/eip-xxxx/test/protocol.cjs",
@@ -49,7 +49,7 @@ assert.deepEqual(ledger.remainingUserInputs, ["ethereumMagiciansDiscussionUrl", 
 assert.equal(ledger.discussionPublished, false);
 assert.equal(ledger.pullRequestCreated, false);
 assert.equal(indexed.get("ERCS/erc-xxxx.md"), ledger.candidateSha256);
-assert.equal(indexed.get("assets/eip-xxxx/contracts/VersionedCertificateReference.sol"), ledger.referenceSha256);
+assert.equal(indexed.get("assets/eip-xxxx/contracts/RegisterProjectionReference.sol"), ledger.referenceSha256);
 assert.equal(indexed.get("assets/eip-xxxx/test/protocol.cjs"), ledger.testsSha256);
 
 const candidate = fs.readFileSync(path.join(packageRoot, "ERCS/erc-xxxx.md"), "utf8");

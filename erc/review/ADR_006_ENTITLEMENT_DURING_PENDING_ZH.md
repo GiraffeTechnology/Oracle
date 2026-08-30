@@ -1,7 +1,9 @@
 # ADR-006　pending 期间的权益处理:可延期权利与不可延期权利
 
 日期：2026-08-29
-状态：草案，待确认
+状态：**已采纳**（2026-08-30 重写时升为规范正文，见 `ERCS/erc-xxxx.md` 的 Entitlements during a projection gap 一节）
+
+> 后续说明：本 ADR 写于旧架构（pending 期间阻断转让）之下，文中关于 interface ID 变更的估算（`0xebaa86a0` / `0x2773d4c9`）已被 ADR-007 的整体重写取代。现行接口 ID 是 `0x3e925bdc` 与 `0xbe360d3d`。本文的**分类与处理规则**未变，且已全部落入规范正文；仅编号与影响面估算属于历史内容。
 来源：业务方裁定，结合 HKEX / CCASS 规则核实
 
 ## 背景

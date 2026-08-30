@@ -4,38 +4,56 @@
 
 ## 当前状态
 
-- 提案标题:Proof-Verified Deferred Asset Settlement
+- 提案标题:**Asynchronous Register Projection for NFTs**
+- 前身:Proof-Verified Deferred Asset Settlement(V1–V9)。已按 `review/ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md` 的公理整体重写,不是增量修订。
 - 状态:Draft,未提交,未分配编号
 - 作者:Michael Yip (@GiraffeTechnology)
 - 候选正文:`ERCS/erc-xxxx.md`
 - 公开资产:`assets/eip-xxxx/`
 
+## 重写改变了什么
+
+| | 旧版 | 现版 |
+| --- | --- | --- |
+| 核心主张 | 用远端证明作为转移的唯一授权 | 用登记册变更的唯一身份(生效时刻 + 内容承诺)构造**可按时间解析的投影** |
+| pending 期间的转让 | 一律 revert | **不阻断**,`ownerOf` 照常移动 |
+| 两种所有权 | 合并 | `ownerOf` 是可交易头寸,投影是确认记录,刻意分开 |
+| 权利 | 未定义 | 不可回补的永久消灭(双方均不可行使);可回补的递延,落定后补记给该瞬间的确认持有人 |
+| 新增不变量 | — | `effectiveAt` 严格递增;record commitment 在代币内唯一 |
+| ERC-8325 | 强制锚定 | MAY |
+
 ## 已机械验证(可复现)
 
 | 项 | 方式 | 结果 |
 | --- | --- | --- |
-| 官方 eipw | 本地编译 eipw 0.11.0,使用 `tools/eipw-official-config-snapshot.toml`(取自 ethereum/ERCs `config/eipw.toml`),并拉取 11 份被引提案原文供链接解析 | 退出码 0,**零诊断** |
-| eipw 有效性负向对照 | 故意破坏 CC0 行 | 立即报 `markdown-copyright` 与 `markdown-rel-links`,证明配置生效 |
-| 参考实现测试 | `npm install && npx hardhat test` | **39 passing / 0 failing** |
-| 参考实现格式化 | prettier-plugin-solidity;剥离 metadata 后比对运行时字节码 | 逐字节一致,ABI 相同,**语义零变化** |
+| 官方 eipw | 本地编译 eipw 0.11.0,使用 `tools/eipw-official-config-snapshot.toml`(取自 ethereum/ERCs `config/eipw.toml`),并拉取 15 份被引提案原文供链接解析 | 退出码 0,**零诊断** |
+| eipw 有效性负向对照 | 故意破坏 CC0 行 | 立即报 `markdown-copyright`,退出码 65,证明配置生效 |
+| 参考实现测试 | 从 `assets/eip-xxxx` 的干净副本跑 `npm install && npm test` | **22 passing / 0 failing** |
+| Solidity 编译告警 | 由测试自身断言 | **0** |
+| 接口 ID | selector XOR 独立复算,并在测试内断言 | `0x3e925bdc` / `0xbe360d3d` |
 | 包完整性 | `tools/verify-package.mjs` | PASS |
 
-冻结值:`IVersionedCertificate` `0xebaa86a0`,`IDeferredCertificateSettlement` `0x2773d4c9`。
+冻结值:`IRegisterProjection` `0x3e925bdc`,`IProjectionSettlement` `0xbe360d3d`。
 
 ## 剩余一步(且仅此一步)
 
 `ERCS/erc-xxxx.md` 的 `discussions-to` 仍为 `REPLACE_WITH_DISCUSSION_SLUG`。
 
-需要:在 Ethereum Magicians 发帖 → 取真实 URL → 填入 → 重跑 eipw → 重建 `FILE_INDEX_SHA256.txt` → 跑 `tools/verify-package.mjs` → 向 ethereum/ERCs 提 PR。
+需要:在 Ethereum Magicians 发帖(草稿见 `MAGICIANS_FIRST_POST_EN.md`)→ 取真实 URL → 填入 → 重跑 eipw → 重建 `FILE_INDEX_SHA256.txt` → 跑 `tools/verify-package.mjs` → 向 ethereum/ERCs 提 PR。
 
 `eip: XXXX` 保持占位是正确的,由 ERC 编辑分配后再替换,同时需重命名 `ERCS/erc-<编号>.md` 与 `assets/eip-<编号>/`。
 
-## 未完成的技术工作(不影响提交的机械可行性)
+## 未决的设计问题(需要作者拍板,不阻断提交)
 
-对 proof 路径的对抗性审查尚未进行:validator set 轮换、equivocation、远端分叉、证明重放与 remote height 边界。规范已把这些列入 Profile 责任,但尚无人专门审过。
+1. 递延权利的登记表放在本标准内(宽),还是留给消费方的权利合约(窄)。当前正文取窄:只规定"必须按代币 + 权利标识 + 记录时刻记录,且递延时不得绑定受益地址",不规定存储接口。
+2. 是否为登记册身份 / 验证 Profile 增加一个可发现的访问器。当前只有 `settlementPeriod()`,没有 register/profile 身份访问器。
+
+## 已知架构局限(已在参考实现文件头声明)
+
+验证人分叉签名(equivocation)不检测;验证人集合不可变;数组无界。生产 Profile 必须自行解决,规范 Security Considerations 已列为 Profile 责任。
 
 ## 修改规则
 
-1. 改动落在本分支,不通过 zip 往返。
+1. 改动落在本分支,不通过 zip 往返。**本分支不可并入 main。**
 2. 任何触及 `ERCS/` 或 `assets/` 的改动,必须重跑 eipw、测试、重建索引、跑包校验器,四项齐全才算完成。
 3. `tools/verify-package.mjs` 的断言反映当前应有状态;状态推进时同步更新断言,不要绕过它。
