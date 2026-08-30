@@ -2,16 +2,16 @@
   "schemaVersion": 1,
   "status": "PREP_READY",
   "proposalTitle": "Proof-Verified Deferred Asset Settlement",
-  "candidateSha256": "58e84a89975450121c1fd513ce7b3440df47b4315d5a08a41132ee6c47daa800",
-  "referenceSha256": "dada5a9c62c5d231e00124a7e8d3e0b9b0bd9428ab602382b272751b90545e04",
-  "testsSha256": "821dd151f600d3229d3275740fbc38b4dc9f36284bae6d1d1a00a5c4998e64ce",
+  "candidateSha256": "539e74fd0560268e2b4aba79557c62dc1f9ed11a225afdc5cc0a54e495ad2ee2",
+  "referenceSha256": "0ab04a933b22a621d53588871aff4eee02c5fc4443f48e37bd5a78729d7342e4",
+  "testsSha256": "0ef49ee75e7d8829b499419b6240e8b47a61b006956bf3a5348a1afccbf0156b",
   "interfaceIds": {
     "IVersionedCertificate": "0xebaa86a0",
     "IDeferredCertificateSettlement": "0x2773d4c9"
   },
   "verification": {
-    "workingReferenceTests": "39/39 PASS",
-    "publicAssetTests": "39/39 PASS",
+    "workingReferenceTests": "41/41 PASS",
+    "publicAssetTests": "41/41 PASS",
     "submissionGate": "PASS",
     "candidateSolidityAbiParity": "PASS",
     "finalPreflight": "PASS",
@@ -24,7 +24,8 @@
     "referenceImplementationFormatting": "prettier-plugin-solidity; runtime bytecode identical after stripping metadata",
     "proofPathAdversarialReview": "COMPLETED / no exploitable defect; two architectural limits documented in the reference header",
     "noveltyIndependentAssessment": "COMPLETED / nearest neighbour ERC-7965 now cited; narrow but defensible",
-    "interoperabilityRationale": "ADDED / third-party venues, automatic trading halt, divergence-aware synchronization"
+    "interoperabilityRationale": "ADDED / third-party venues, automatic trading halt, divergence-aware synchronization",
+    "reviewerPerspectiveBlocker": "FIXED / holder cancellation gated on deadline; 2 regression tests added"
   },
   "userPrinciples": {
     "authorityMustBeNonzero": true,

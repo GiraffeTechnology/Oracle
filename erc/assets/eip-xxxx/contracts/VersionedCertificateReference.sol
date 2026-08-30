@@ -182,6 +182,7 @@ contract VersionedCertificateReference is
     error StaleRemoteHeight();
     error UnsafeRecipient();
     error DeadlineTooFar();
+    error DeadlineNotPassed();
     bytes4 private constant _ERC165_ID = 0x01ffc9a7;
     bytes4 private constant _ERC721_ID = 0x80ac58cd;
     bytes4 private constant _ERC721_RECEIVED = 0x150b7a02;
@@ -463,6 +464,10 @@ contract VersionedCertificateReference is
         SettlementRecord storage item = _settlements[id];
         if (item.status != SettlementStatus.PENDING) revert InvalidSettlement();
         if (msg.sender != item.from || proofData.length != 0) revert Unauthorized();
+        // The window up to the deadline belongs to the proof. Allowing the holder
+        // to cancel earlier would let it strand a remote transfer that already
+        // finalized, leaving the two ledgers permanently divergent.
+        if (block.timestamp <= item.deadline) revert DeadlineNotPassed();
         item.status = SettlementStatus.CANCELLED;
         delete _pending[item.tokenId];
         emit SettlementCancelled(id, item.tokenId, reason);

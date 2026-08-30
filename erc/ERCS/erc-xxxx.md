@@ -165,7 +165,7 @@ The reference profile pins an immutable remote-ledger identifier and sorted vali
 
 ### Cancellation
 
-The recorded `from` address MAY cancel a pending settlement using empty `proofData`. Cancellation MUST NOT change holder or certificate state. Nonempty cancellation data and cancellation by other accounts MUST revert. Profiles MAY impose an additional delay, but MUST define a bounded recovery path that does not depend on the unavailable remote proof.
+The recorded `from` address MAY cancel a pending settlement using empty `proofData`, but only after the settlement deadline has passed. Cancellation before the deadline MUST revert. The interval up to the deadline therefore belongs to the proof: a finalized remote record proven within it MUST take precedence over unilateral abandonment by the initiating holder. Without this rule a holder could observe that the remote process has completed and cancel before anyone submits the proof, leaving the remote ledger and the token permanently divergent with no on-chain path to reconverge. Cancellation MUST NOT change holder or certificate state. Nonempty cancellation data and cancellation by other accounts MUST revert. Profiles MAY impose an additional delay beyond the deadline, but MUST define a bounded recovery path that does not depend on the unavailable remote proof.
 
 ### Settlement interface
 
@@ -260,7 +260,7 @@ The proof establishes that bytes were included in accepted finalized remote stat
 
 Profiles MUST address validator equivocation, quorum uniqueness, signature malleability, replay, remote forks, validator-set rotation, proof-size and gas denial of service, hash collisions, integer bounds, malformed encodings, and verifier upgrades. Fixed validator sets are suitable only where their lifecycle and recovery assumptions are acceptable.
 
-Asset-anchor checks at both initiation and finalization prevent settlement after a local binding is revoked. Cancellation remains available to the recorded holder so a missing proof cannot permanently lock the token.
+Asset-anchor checks at both initiation and finalization prevent settlement after a local binding is revoked. Cancellation remains available to the recorded holder once the deadline has passed, so a missing proof cannot permanently lock the token, while the interval before the deadline is reserved for the proof so that a completed remote transfer cannot be stranded by unilateral abandonment.
 
 ### Privacy
 

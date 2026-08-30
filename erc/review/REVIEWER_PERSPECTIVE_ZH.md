@@ -2,9 +2,11 @@
 
 日期：2026-08-29
 立场：假设我是 ERC 编辑／Ethereum Magicians 评审人，第一次看到这份提案，不知道它的准备过程
-结论：**存在一个阻断级缺陷，不应在修复前提交**
+结论：**曾存在一个阻断级缺陷，现已修复；MAJOR-2 与 MAJOR-3 仍需在提交前定案**
 
-## BLOCKER-1　卖方可以单方面作废一次已在远端完成的过户
+## BLOCKER-1　卖方可以单方面作废一次已在远端完成的过户　—　**已修复（2026-08-29）**
+
+> **修复记录**：持有人取消已限定在 deadline 之后；deadline 之前的窗口归证明所有。规范 Cancellation 与 Security Considerations 两节同步，参考实现新增 `DeadlineNotPassed` 门禁，并补两条回归测试（deadline 前取消被拒；取消尝试失败后有效证明仍能终局）。测试 39 → 41 全通过。
 
 **位置**：`ERCS/erc-xxxx.md:168`，以及参考实现 `cancelSettlement`
 
@@ -98,4 +100,4 @@ Definitions 里不得不写 "Despite the retained ABI name, it does not authoriz
 2. MAJOR-2 与 MAJOR-3 都会改变冻结的 interface ID，**必须在提交前定案**，Last Call 阶段再改代价极高；
 3. MINOR-4、MINOR-5、EDITORIAL-6 是纯文本，随 1–3 一并处理。
 
-以审查人身份，我不会建议在 BLOCKER-1 修复前提交。它不是理论风险，是一条可执行的、导致买方付款后无救济的路径，而提案的立论恰恰是消除这种分叉。
+以审查人身份，我原本不会建议在 BLOCKER-1 修复前提交。该项现已修复并有回归测试覆盖；MAJOR-2 与 MAJOR-3 涉及冻结 interface ID，仍应在提交前定案。原判断保留如下：它不是理论风险，是一条可执行的、导致买方付款后无救济的路径，而提案的立论恰恰是消除这种分叉。
