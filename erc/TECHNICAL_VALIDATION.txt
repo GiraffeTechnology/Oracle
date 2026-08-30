@@ -3,24 +3,25 @@ Proposal: Asynchronous Register Projection for NFTs
 Date: 2026-08-30
 Status: PREP_READY
 
-Authoritative candidate SHA-256: 4D98E7AC9E42E79B50F62E394C2D15694462805AC43FC9645A80C2D4D8EA9568
-Reference Solidity SHA-256:      5BBBC8EF5D99666313CA8ABD50824BBEC3AB9223B7E1B3629F40FA6F5F4BA1A7
-Protocol tests SHA-256:          28B22AAD29433C349E8172FAD5E9D7334835681D170B16D6A34A46A0DA59B7C1
+Authoritative candidate SHA-256: 2C6F55D172C0A5A71A21080E1EBC338E1C792EF1961FB32C617D7F9AC46FADE1
+Reference Solidity SHA-256:      BEF640E66F6EC534F689B06A67D56B200D59BE4BC30AC91EA9E0D0B342B0FA74
+Protocol tests SHA-256:          847C0E9D284C3FF8739A5F674923A1C6B2190F2688B5F76EAA3252568FB3219A
 
 Node.js v22.22.2
 Hardhat 2.29.0
 ethers 6.17.0
 solc 0.8.26
 
-Packaged public assets suite: 22 passing, 0 failing
+Packaged public assets suite: 30 passing, 0 failing
 Clean-copy `npm test` entrypoint: PASS
 Solidity compile warnings: 0 (asserted inside the suite)
 Submission static gate (tools/verify-package.mjs): PASS
 Official eipw 0.11.0 synthetic-substitution lint: PASS, 0 diagnostics, exit code 0
 eipw negative control: breaking the CC0 sentence reproduces markdown-copyright, exit code 65
 
-IRegisterProjection interface ID:   0x3e925bdc
-IProjectionSettlement interface ID: 0xbe360d3d
+IRegisterProjection interface ID:   0x3ce71a8d
+IProjectionSettlement interface ID: 0xfd0f6337
+IDeferredEntitlement interface ID:  0x6d39b0a8
 
 No discussion was published. No PR was created or submitted. The only remaining
 user inputs are the Ethereum Magicians discussion URL and explicit publication

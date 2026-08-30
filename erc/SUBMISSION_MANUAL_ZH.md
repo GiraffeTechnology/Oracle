@@ -55,8 +55,8 @@ discussions-to: https://ethereum-magicians.org/t/REPLACE_WITH_DISCUSSION_SLUG
 | --- | --- | --- |
 | 官方 eipw 0.11.0 | **0 诊断,退出码 0** | 本地编译 eipw,使用 `tools/eipw-official-config-snapshot.toml`,补齐 15 份被引提案原文供链接解析 |
 | lint 有效性 | 负向对照通过 | 故意破坏 CC0 行会立即报 `markdown-copyright`,退出码 65,证明配置在生效 |
-| 参考实现测试 | **22 passing / 0 failing** | `npm install && npx hardhat test` |
-| 接口 ID | `0x3e925bdc` / `0xbe360d3d` | selector XOR 独立复算,并在测试内断言 |
+| 参考实现测试 | **30 passing / 0 failing** | `npm install && npx hardhat test` |
+| 接口 ID | `0x3ce71a8d` / `0xfd0f6337` / `0x6d39b0a8` | selector XOR 独立复算,并在测试内断言,无碰撞 |
 
 ## 五、提交后会被问到的三个问题(准备好答案)
 

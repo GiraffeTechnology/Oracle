@@ -27,6 +27,14 @@ Consequence: **any past instant resolves to exactly one confirmed holder.** Stri
 
 `ownerOf` is left alone. It is the tradeable position and it moves the moment the market moves. The projection is the confirmed record and it moves only when the register is proven to have moved. Ordinary transfers are explicitly **not** blocked while a gap is open.
 
+**Finality falls out of the same invariants.** Resolving an instant and knowing the answer cannot change are different questions, and the second one is what a distribution actually needs. Because `effectiveAt` strictly increases and entries only append, no entry admitted in the future can ever cover an instant that already precedes the latest entry's effective time. So:
+
+> An instant is final if and only if it is strictly before the latest entry's `effectiveAt`.
+
+One comparison, exposed as `isFinalAsOf`. Instants at or after the latest entry still resolve, but provisionally — a later admission may carry an earlier effective time and supersede the answer. Leaving each integrator to derive this is how a provisional answer gets treated as settled, which is exactly the mistake an asynchronous register makes easy.
+
+Two consequences worth stating plainly. Cancelling a settlement settles nothing: the provisional answer reverts to the prior entry, but a change the register already made can still arrive later, so nothing becomes final. And an entry that confirms the *same* holder is permitted rather than rejected as a no-op — on a token whose holder never changes it is the only thing that ever makes an instant final, so a profile needs a way to produce one.
+
 **What this gives entitlements**
 
 Because any instant resolves, the gap stops being a black hole. An entitlement resolves against the projection at the record instant its own terms specify:
@@ -34,7 +42,9 @@ Because any instant resolves, the gap stops being a black hole. An entitlement r
 - An exercise that **cannot** be performed later with equivalent effect — voting in a ballot that closes — is unavailable to both the outgoing and incoming party, and is extinguished. When you cannot determine the rightful party, abstention is the only outcome that cannot be wrong, and later resolution must not reopen a decided ballot.
 - An exercise that **can** be performed later with equivalent effect — a distribution — is deferred, not destroyed. Once the projection admits the covering entry, it is credited to the party confirmed for that instant, even if that party no longer holds the token.
 
-A deferred entitlement is recorded against the token, the entitlement id and the record instant, and deliberately does **not** bind a beneficiary address when deferred — that address is not yet determinable. It binds when the projection resolves.
+Deferral is in the standard, not left to each entitlement contract. A deferral is keyed on the token, the entitlement id and the record instant, and deliberately binds **no** beneficiary address when recorded — that address is not yet determinable. `resolveDeferral` reverts until `isFinalAsOf` is true, then binds the beneficiary to `holderAsOf` at that instant. Anyone may call it, because the projection fixes the outcome, not the caller. The registry records attribution only; the contract that owes the entitlement reads the resolved beneficiary and settles it.
+
+The reason it belongs here rather than in each consuming contract is that every one of them would otherwise reimplement the same finality check, be free to get it wrong, and leave a party owed a distribution with no common place to look.
 
 Traditional infrastructure gets to the same place by centralising the arithmetic into an ex-date. This exposes the state instead and lets the parties do it themselves.
 
@@ -58,8 +68,8 @@ This is not a bridge. ICS-721 and xERC721-style designs escrow, burn or mint a r
 
 **Status**
 
-Draft. A CC0 reference implementation and 22 local-EVM tests accompany the proposal. The reference proof profile is deliberately minimal — a fixed validator set signing a domain-separated checkpoint, plus a Merkle membership proof — and its two limits are stated in the file header: validator equivocation is not detected and the validator set is immutable. Production profiles should use the remote register's native light client.
+Draft. A CC0 reference implementation and 30 local-EVM tests accompany the proposal. The reference proof profile is deliberately minimal — a fixed validator set signing a domain-separated checkpoint, plus a Merkle membership proof — and its two limits are stated in the file header: validator equivocation is not detected and the validator set is immutable. Production profiles should use the remote register's native light client.
 
-Interface identifiers are `0x3e925bdc` (`IRegisterProjection`) and `0xbe360d3d` (`IProjectionSettlement`).
+Interface identifiers are `0x3ce71a8d` (`IRegisterProjection`), `0xfd0f6337` (`IProjectionSettlement`) and `0x6d39b0a8` (`IDeferredEntitlement`).
 
-Feedback welcome, particularly on: whether the deferred-entitlement registry belongs in this standard or in the entitlement contracts that consume it; whether the projection/settlement conformance split is the right one; and on the proof encoding profile.
+Feedback welcome, particularly on the finality rule, on whether the deferral registry should also record extinguished perishable exercises, and on the proof encoding profile.

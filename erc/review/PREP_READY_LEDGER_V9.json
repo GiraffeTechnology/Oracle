@@ -3,15 +3,16 @@
   "status": "PREP_READY",
   "proposalTitle": "Asynchronous Register Projection for NFTs",
   "supersedes": "Proof-Verified Deferred Asset Settlement (V1-V9); rewritten around the register-projection axiom, see review/ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md",
-  "candidateSha256": "4d98e7ac9e42e79b50f62e394c2d15694462805ac43fc9645a80c2d4d8ea9568",
-  "referenceSha256": "5bbbc8ef5d99666313ca8abd50824bbec3ab9223b7e1b3629f40fa6f5f4ba1a7",
-  "testsSha256": "28b22aad29433c349e8172fad5e9d7334835681d170b16d6a34a46a0da59b7c1",
+  "candidateSha256": "2c6f55d172c0a5a71a21080e1ebc338e1c792ef1961fb32c617d7f9ac46fade1",
+  "referenceSha256": "bef640e66f6ec534f689b06a67d56b200d59be4bc30ac91ea9e0d0b342b0fa74",
+  "testsSha256": "847c0e9d284c3ff8739a5f674923a1c6b2190f2688b5f76eaa3252568fb3219a",
   "interfaceIds": {
-    "IRegisterProjection": "0x3e925bdc",
-    "IProjectionSettlement": "0xbe360d3d"
+    "IRegisterProjection": "0x3ce71a8d",
+    "IProjectionSettlement": "0xfd0f6337",
+    "IDeferredEntitlement": "0x6d39b0a8"
   },
   "verification": {
-    "publicAssetTests": "22/22 PASS",
+    "publicAssetTests": "30/30 PASS",
     "npmTestEntrypoint": "PASS from a clean copy of assets/eip-xxxx",
     "solidityCompileWarnings": "0 (asserted by the suite)",
     "submissionGate": "PASS",
@@ -23,16 +24,19 @@
     "noveltyIndependentAssessment": "COMPLETED / nearest neighbour ERC-7965; novelty now rests on the projection invariants, not the proof",
     "reviewerPerspectiveBlocker": "FIXED / holder cancellation gated on deadline; regression tests retained through the rewrite",
     "entitlementSemantics": "ADR-006 perishable/deferrable taxonomy promoted to normative text",
-    "registerProjectionAxiom": "ADR-007 adopted; transfer blocking removed, strict monotonicity and commitment uniqueness added as invariants"
+    "registerProjectionAxiom": "ADR-007 adopted; transfer blocking removed, strict monotonicity and commitment uniqueness added as invariants",
+    "finalityRule": "isFinalAsOf added; an instant is final iff it precedes the latest entry's effectiveAt, which follows from invariant 3",
+    "deferredEntitlementRegistry": "IN SCOPE by author decision; IDeferredEntitlement added with resolution gated on finality",
+    "discoverability": "registerId, registerDescriptor and verificationProfile added; MAJOR-3 closed",
+    "confirmingEntries": "same-holder expectedHolder now permitted; it is what makes instants final on a static holder"
   },
-  "openDesignQuestions": [
-    "whether the deferred-entitlement registry belongs in this ERC or in consuming entitlement contracts",
-    "whether a register/profile identity accessor should be added for discoverability"
-  ],
+  "openDesignQuestions": [],
   "userPrinciples": {
     "tradingMustNotBeBlockedDuringAGap": true,
     "everyPastInstantResolvesToExactlyOneConfirmedHolder": true,
-    "independentEndorsementVerification": "out-of-band by consumers"
+    "independentEndorsementVerification": "out-of-band by consumers",
+    "deferredEntitlementRegistryInStandard": true,
+    "registerAndProfileIdentityDiscoverable": true
   },
   "remainingUserInputs": [
     "ethereumMagiciansDiscussionUrl",

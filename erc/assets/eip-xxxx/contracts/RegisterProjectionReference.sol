@@ -79,7 +79,10 @@ interface IRegisterProjection is IERC165 {
     function entryAt(uint256 tokenId, uint64 version) external view returns (RegisterEntry memory entry);
     function entryAsOf(uint256 tokenId, uint64 instant) external view returns (RegisterEntry memory entry);
     function holderAsOf(uint256 tokenId, uint64 instant) external view returns (address holder);
+    function isFinalAsOf(uint256 tokenId, uint64 instant) external view returns (bool settled);
     function entryCount(uint256 tokenId) external view returns (uint64 count);
+    function registerId() external view returns (bytes32 identifier);
+    function registerDescriptor() external view returns (string memory uri);
 }
 
 interface IProjectionSettlement is IERC165 {
@@ -103,12 +106,33 @@ interface IProjectionSettlement is IERC165 {
     function settlement(bytes32 settlementId) external view returns (Settlement memory record);
     function openGapOf(uint256 tokenId) external view returns (bytes32 settlementId);
     function settlementPeriod() external view returns (uint64 maximumInterval);
+    function verificationProfile() external view returns (bytes32 identifier);
     function beginSettlement(uint256 tokenId, bytes32 settlementId, address expectedHolder, bytes32 snapshotHash, uint64 deadline) external;
     function finalizeSettlement(bytes32 settlementId, bytes32 recordCommitment, bytes32 registryReference, uint64 effectiveAt, bytes calldata proofData) external;
     function cancelSettlement(bytes32 settlementId, bytes32 reasonHash, bytes calldata proofData) external;
 }
 
-contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectionSettlement {
+interface IDeferredEntitlement is IERC165 {
+    enum DeferralStatus { NONE, DEFERRED, RESOLVED }
+
+    struct Deferral {
+        uint256 tokenId;
+        bytes32 entitlementId;
+        address beneficiary;
+        uint64 recordInstant;
+        DeferralStatus status;
+    }
+
+    event EntitlementDeferred(bytes32 indexed deferralId, uint256 indexed tokenId, bytes32 indexed entitlementId, uint64 recordInstant);
+    event EntitlementResolved(bytes32 indexed deferralId, uint256 indexed tokenId, address indexed beneficiary, uint64 recordInstant);
+
+    function deferralId(uint256 tokenId, bytes32 entitlementId, uint64 recordInstant) external pure returns (bytes32 id);
+    function deferral(bytes32 id) external view returns (Deferral memory record);
+    function deferEntitlement(uint256 tokenId, bytes32 entitlementId, uint64 recordInstant) external returns (bytes32 id);
+    function resolveDeferral(bytes32 id) external returns (address beneficiary);
+}
+
+contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectionSettlement, IDeferredEntitlement {
     error Unauthorized();
     error InvalidAddress();
     error TokenNotFound();
@@ -125,6 +149,9 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
     error ProofAlreadyUsed();
     error StaleRemoteHeight();
     error UnsafeRecipient();
+    error InvalidDeferral();
+    error InstantAlreadyFinal();
+    error InstantNotFinal();
 
     bytes4 private constant _ERC165_ID = 0x01ffc9a7;
     bytes4 private constant _ERC721_ID = 0x80ac58cd;
@@ -140,6 +167,11 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
     );
 
     uint64 public constant MAX_SETTLEMENT_PERIOD = 30 days;
+
+    // Identifies the proof rules this contract accepts, so that a party can tell
+    // whether it knows how to check them. It changes when those rules change.
+    bytes32 public constant VERIFICATION_PROFILE =
+        keccak256("erc-xxxx/reference-profile/fixed-validator-set+keccak-merkle/v1");
 
     address public immutable administrator;
     bytes32 public immutable remoteRegisterId;
@@ -159,8 +191,16 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
     mapping(uint256 => mapping(bytes32 => bool)) private _commitmentUsed;
     mapping(bytes32 => Settlement) private _settlements;
     mapping(uint256 => bytes32) private _openGap;
+    mapping(bytes32 => Deferral) private _deferrals;
 
-    constructor(bytes32 remoteRegisterId_, address[] memory validators_, uint8 threshold_) {
+    string private _descriptor;
+
+    constructor(
+        bytes32 remoteRegisterId_,
+        address[] memory validators_,
+        uint8 threshold_,
+        string memory descriptor_
+    ) {
         if (remoteRegisterId_ == bytes32(0) || threshold_ == 0 || threshold_ > validators_.length) {
             revert InvalidProof();
         }
@@ -175,13 +215,15 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
             previous = validator;
         }
         validatorSetHash = keccak256(abi.encode(validators_, threshold_));
+        _descriptor = descriptor_;
     }
 
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
         return interfaceId == _ERC165_ID
             || interfaceId == _ERC721_ID
             || interfaceId == type(IRegisterProjection).interfaceId
-            || interfaceId == type(IProjectionSettlement).interfaceId;
+            || interfaceId == type(IProjectionSettlement).interfaceId
+            || interfaceId == type(IDeferredEntitlement).interfaceId;
     }
 
     function mint(
@@ -295,10 +337,31 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
         return entryAsOf(tokenId, instant).holder;
     }
 
+    // An instant is final exactly when a later entry already exists, because
+    // effectiveAt strictly increases: no entry admitted afterwards can ever
+    // carry an effective time low enough to cover it.
+    function isFinalAsOf(uint256 tokenId, uint64 instant) public view returns (bool) {
+        ownerOf(tokenId);
+        RegisterEntry[] storage list = _entries[tokenId];
+        return instant >= list[0].effectiveAt && instant < list[list.length - 1].effectiveAt;
+    }
+
+    function registerId() external view returns (bytes32) {
+        return remoteRegisterId;
+    }
+
+    function registerDescriptor() external view returns (string memory) {
+        return _descriptor;
+    }
+
     // --- Settlement ---
 
     function settlementPeriod() external pure returns (uint64) {
         return MAX_SETTLEMENT_PERIOD;
+    }
+
+    function verificationProfile() external pure returns (bytes32) {
+        return VERIFICATION_PROFILE;
     }
 
     function settlement(bytes32 id) external view returns (Settlement memory record) {
@@ -322,10 +385,10 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
         if (!_isAuthorized(msg.sender, tokenId)) revert Unauthorized();
         if (id == bytes32(0) || snapshot == bytes32(0)) revert InvalidSettlement();
         if (_settlements[id].status != GapStatus.NONE) revert SettlementExists();
+        // An expectedHolder equal to the confirmed holder is deliberately allowed:
+        // it admits a confirming entry, which is what makes earlier instants final
+        // on a token whose holder is not changing.
         if (expectedHolder == address(0)) revert InvalidAddress();
-        if (expectedHolder == _entries[tokenId][_entries[tokenId].length - 1].holder) {
-            revert InvalidAddress();
-        }
         if (deadline <= block.timestamp) revert DeadlinePassed();
         if (uint256(deadline) - block.timestamp > MAX_SETTLEMENT_PERIOD) revert DeadlineTooFar();
 
@@ -428,6 +491,48 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
         item.status = GapStatus.CANCELLED;
         delete _openGap[item.tokenId];
         emit SettlementCancelled(id, item.tokenId, reason);
+    }
+
+    // --- Deferred entitlements ---
+
+    function deferralId(uint256 tokenId, bytes32 entitlementId, uint64 recordInstant)
+        public pure returns (bytes32)
+    {
+        return keccak256(abi.encode(tokenId, entitlementId, recordInstant));
+    }
+
+    function deferral(bytes32 id) external view returns (Deferral memory record) {
+        record = _deferrals[id];
+        if (record.status == DeferralStatus.NONE) revert InvalidDeferral();
+    }
+
+    function deferEntitlement(uint256 tokenId, bytes32 entitlementId, uint64 recordInstant)
+        external returns (bytes32 id)
+    {
+        ownerOf(tokenId);
+        if (entitlementId == bytes32(0)) revert InvalidDeferral();
+        RegisterEntry[] storage list = _entries[tokenId];
+        if (recordInstant < list[0].effectiveAt) revert NoEntryAsOf();
+        if (recordInstant < list[list.length - 1].effectiveAt) revert InstantAlreadyFinal();
+
+        id = deferralId(tokenId, entitlementId, recordInstant);
+        // Recording the same triple again is not an error and does not duplicate.
+        if (_deferrals[id].status != DeferralStatus.NONE) return id;
+
+        _deferrals[id] = Deferral(tokenId, entitlementId, address(0), recordInstant, DeferralStatus.DEFERRED);
+        emit EntitlementDeferred(id, tokenId, entitlementId, recordInstant);
+    }
+
+    // Callable by anyone: the outcome is fixed by the projection, not the caller.
+    function resolveDeferral(bytes32 id) external returns (address beneficiary) {
+        Deferral storage item = _deferrals[id];
+        if (item.status != DeferralStatus.DEFERRED) revert InvalidDeferral();
+        if (!isFinalAsOf(item.tokenId, item.recordInstant)) revert InstantNotFinal();
+
+        beneficiary = entryAsOf(item.tokenId, item.recordInstant).holder;
+        item.beneficiary = beneficiary;
+        item.status = DeferralStatus.RESOLVED;
+        emit EntitlementResolved(id, item.tokenId, beneficiary, item.recordInstant);
     }
 
     // --- internals ---

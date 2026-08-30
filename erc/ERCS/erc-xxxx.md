@@ -17,6 +17,8 @@ An off-chain register that records who holds an asset updates asynchronously. No
 
 This ERC uses that identity to build a verifiable, totally ordered projection of such a register onto an [ERC-721](./eip-721.md) token. Entries are append-only, their effective times strictly increase, and their commitments are unique within a token, so **any past instant resolves to exactly one confirmed holder** even while the chain lags the register.
 
+Whether an instant's answer can still change is decidable from the same invariants, so an entitlement whose record instant is not yet settled can be deferred and later credited to the party the register confirms for it.
+
 The token continues to trade throughout. `ownerOf` is the tradeable position; the projection is the confirmed record. Entitlements resolve against the projection, so a holder change that the register has not yet confirmed cannot silently redirect a right.
 
 A change is admitted to the projection only on proof that the corresponding record exists in a finalized state of the remote register. Proof submitters are untrusted.
@@ -47,6 +49,8 @@ A **record commitment** is a nonzero `bytes32` commitment to the register's cont
 
 A **confirmed holder** at an instant is the `holder` of the entry whose effective interval contains that instant. It is distinct from `ownerOf`, which is the tradeable position.
 
+An instant is **final** when no entry admitted in the future can change the confirmed holder for it. An answer that a later admission may supersede is **provisional**.
+
 A **projection gap** is an interval in which a change is known to be in progress and not yet admitted. A pending settlement marks such a gap.
 
 A **verification profile** defines the remote-finality proof, light-client or validator rules, state-root commitment, membership-proof algorithm, validator-set evolution, canonical encoding and hash functions. It MUST be deterministic and domain separated.
@@ -65,6 +69,14 @@ These four rules are what make an instant resolve uniquely. An implementation th
 Entries MUST NOT be overwritten, deleted, reordered or skipped. Queries for a nonexistent token or version MUST revert.
 
 `entryAsOf` MUST return the entry whose effective interval contains the queried instant, and MUST revert for an instant preceding the first entry. `holderAsOf` MUST return that entry's `holder`.
+
+### Finality of a resolved instant
+
+Invariant 3 makes finality decidable with one comparison. Every admitted entry has an `effectiveAt` strictly greater than the latest entry's, so no entry admitted in the future can ever cover an instant that already precedes the latest entry's effective time.
+
+An instant is therefore final if and only if it is at or after the first entry's `effectiveAt` and strictly before the latest entry's `effectiveAt`. `isFinalAsOf` MUST return `true` exactly for those instants, MUST return `false` otherwise, and MUST NOT revert for an instant preceding the first entry.
+
+An instant at or after the latest entry's `effectiveAt` still resolves, but provisionally: a later admission may carry an earlier effective time and supersede the answer. A consumer that requires a settled answer MUST check `isFinalAsOf`, because `entryAsOf` does not distinguish the two cases. An open projection gap indicates that such an admission is expected, but finality does not depend on whether a gap is open, and closing a gap does not by itself make any instant final.
 
 ### Register interface
 
@@ -116,12 +128,21 @@ interface IRegisterProjection is IERC165 {
     function holderAsOf(uint256 tokenId, uint64 instant)
         external view returns (address holder);
 
+    function isFinalAsOf(uint256 tokenId, uint64 instant)
+        external view returns (bool settled);
+
     function entryCount(uint256 tokenId)
         external view returns (uint64 count);
+
+    function registerId() external view returns (bytes32 identifier);
+
+    function registerDescriptor() external view returns (string memory uri);
 }
 ```
 
-The [ERC-165](./eip-165.md) identifier for `IRegisterProjection` is `0x3e925bdc`.
+The [ERC-165](./eip-165.md) identifier for `IRegisterProjection` is `0x3ce71a8d`.
+
+`registerId` MUST be a nonzero identifier of the remote register being projected and MUST NOT change. `registerDescriptor` MUST return a URI for a document describing that register, its commitment algorithm and its verification profile, or an empty string where none is published. A party with no relationship to the registrar otherwise cannot tell what a projection is a projection of, which is the position every third-party venue is in.
 
 ### Trading is not blocked
 
@@ -129,23 +150,70 @@ Ordinary ERC-721 transfers MUST NOT be blocked while a projection gap is open. T
 
 An implementation MUST NOT infer the confirmed holder from `ownerOf`, and MUST NOT update the projection on an ordinary transfer. The projection changes only through proof-verified admission.
 
-### Entitlements during a projection gap
+### Entitlements at a non-final instant
 
-An entitlement determined by registration time MUST be resolved against the projection at the record instant its own terms specify, not against `ownerOf`. This ERC does not decide how any entitlement determines its holder; it guarantees only that the question is answerable.
+An entitlement determined by registration time MUST be resolved against the projection at the record instant its own terms specify, not against `ownerOf`. This ERC does not decide how any entitlement determines its holder; it guarantees that the question is answerable and states when the answer is settled.
 
-When a record instant falls inside a projection gap, the confirmed holder for that instant is not yet known. Two cases follow, and they differ:
+When `isFinalAsOf` is false for that record instant, the confirmed holder is not yet settled. Two cases follow, and they differ:
 
 **An exercise that cannot be performed later with equivalent effect**, such as voting in a ballot that closes, MUST be treated as unavailable to both the outgoing and the incoming party for that instant. When the rightful party cannot be determined, allowing either to act may be wrong, and abstention is the only outcome that cannot be wrong. Such an exercise is extinguished permanently. Later resolution of the projection settles attribution; it MUST NOT revive an exercise opportunity that has passed.
 
-**An exercise that can be performed later with equivalent effect**, such as a distribution, MUST NOT be treated as extinguished. It is deferred. Once the projection admits the entry covering that instant, the entitlement is claimable by the confirmed holder for that instant, and MUST be credited to that party even if it no longer holds the token.
+**An exercise that can be performed later with equivalent effect**, such as a distribution, MUST NOT be treated as extinguished. It is deferred, recorded through the deferred entitlement interface below, and claimable once the instant becomes final. It MUST be credited to the party the register confirms for that instant even if that party no longer holds the token.
 
-A deferred entitlement MUST be recorded against the token, the entitlement identifier and the record instant, and MUST NOT bind a beneficiary address at the time it is deferred, because that address is not yet determinable. It binds when the projection resolves.
+Cancelling a settlement settles nothing. The preceding entry remains in force, so the provisional answer reverts to the holder confirmed before the gap opened, but the instant does not thereby become final and a deferred entitlement at that instant MUST NOT resolve on cancellation. A change the register already made, and this chain has not yet seen, can still be admitted afterwards.
 
-If a gap closes by cancellation rather than admission, the preceding entry remains in force, so entitlements inside the gap resolve to the holder confirmed before it opened.
+### Deferred entitlement interface
+
+A deferral is identified by the token, the entitlement identifier and the record instant, and by nothing else. It MUST NOT bind a beneficiary address when it is recorded, because that address is not yet determinable; the address binds on resolution.
+
+`deferEntitlement` MUST require an existing token, a nonzero `entitlementId`, and a record instant that is not earlier than the token's first entry and not already final. Recording the same triple again MUST NOT create a second deferral, MUST NOT revert, and MUST return the existing identifier.
+
+`resolveDeferral` MUST revert unless `isFinalAsOf` is true for the recorded instant. On success it MUST bind the beneficiary to `holderAsOf` at that instant, mark the deferral resolved, and emit `EntitlementResolved`. Any account MAY call it, because the outcome is determined by the projection rather than by the caller. A resolved deferral MUST NOT be resolved again and its beneficiary MUST NOT change.
+
+This interface records attribution only. It does not hold, transfer or account for the entitlement; the contract that owes the entitlement reads the resolved beneficiary and settles it.
+
+```solidity
+// SPDX-License-Identifier: CC0-1.0
+pragma solidity ^0.8.20;
+
+interface IERC165 {
+    function supportsInterface(bytes4 interfaceId) external view returns (bool);
+}
+
+interface IDeferredEntitlement is IERC165 {
+    enum DeferralStatus { NONE, DEFERRED, RESOLVED }
+
+    struct Deferral {
+        uint256 tokenId;
+        bytes32 entitlementId;
+        address beneficiary;
+        uint64 recordInstant;
+        DeferralStatus status;
+    }
+
+    event EntitlementDeferred(bytes32 indexed deferralId, uint256 indexed tokenId, bytes32 indexed entitlementId, uint64 recordInstant);
+    event EntitlementResolved(bytes32 indexed deferralId, uint256 indexed tokenId, address indexed beneficiary, uint64 recordInstant);
+
+    function deferralId(uint256 tokenId, bytes32 entitlementId, uint64 recordInstant)
+        external pure returns (bytes32 id);
+
+    function deferral(bytes32 id)
+        external view returns (Deferral memory record);
+
+    function deferEntitlement(uint256 tokenId, bytes32 entitlementId, uint64 recordInstant)
+        external returns (bytes32 id);
+
+    function resolveDeferral(bytes32 id) external returns (address beneficiary);
+}
+```
+
+The ERC-165 identifier for `IDeferredEntitlement` is `0x6d39b0a8`. `deferral` MUST revert for an unrecorded identifier, and `NONE` MUST NOT be returned by a successful query.
 
 ### Settlement and proof-verified admission
 
-`beginSettlement` MUST require an existing token, a nonzero unused `settlementId`, a nonzero snapshot, an authorized ERC-721 caller, a recipient different from the current confirmed holder, and a future deadline whose distance from the current block timestamp MUST NOT exceed an implementation-defined maximum. It MUST emit `SettlementStarted`.
+`beginSettlement` MUST require an existing token, a nonzero unused `settlementId`, a nonzero snapshot, an authorized ERC-721 caller, and a future deadline whose distance from the current block timestamp MUST NOT exceed an implementation-defined maximum. It MUST emit `SettlementStarted`.
+
+An `expectedHolder` equal to the current confirmed holder MUST be permitted. It admits a **confirming entry**: an entry asserting that the register still records the same holder at a later effective time. Confirming entries are how instants become final on a token whose holder is not changing, so a profile SHOULD provide a way to produce them. Without them, instants at or after the latest entry's effective time never become final and deferred entitlements at those instants never resolve.
 
 A token MAY have at most one open gap. Beginning a settlement while one is open MUST supersede the earlier one, emit `SettlementSuperseded`, and leave the projection unchanged. A profile MAY forbid supersession where its register cannot absorb it.
 
@@ -194,6 +262,9 @@ interface IProjectionSettlement is IERC165 {
     function settlementPeriod()
         external view returns (uint64 maximumInterval);
 
+    function verificationProfile()
+        external view returns (bytes32 identifier);
+
     function beginSettlement(uint256 tokenId, bytes32 settlementId, address expectedHolder, bytes32 snapshotHash, uint64 deadline) external;
 
     function finalizeSettlement(bytes32 settlementId, bytes32 recordCommitment, bytes32 registryReference, uint64 effectiveAt, bytes calldata proofData) external;
@@ -202,17 +273,21 @@ interface IProjectionSettlement is IERC165 {
 }
 ```
 
-The ERC-165 identifier for `IProjectionSettlement` is `0xbe360d3d`.
+The ERC-165 identifier for `IProjectionSettlement` is `0xfd0f6337`.
 
 `settlement(unknownId)` MUST revert. `openGapOf` MUST return zero when no gap is open. `NONE` is the zero-value internal status and MUST NOT be returned by a successful query for an unknown identifier.
 
+`verificationProfile` MUST return a nonzero identifier of the profile under which proofs are accepted and MUST NOT change, so that a party can tell whether it knows how to check what this contract accepts.
+
 ### Conformance levels
 
-A contract has **projection conformance** if it implements `IRegisterProjection`, advertises `0x3e925bdc`, and satisfies the projection invariants and the entitlement rules. It MUST NOT advertise `0xbe360d3d` unless it also implements proof-verified admission.
+A contract has **projection conformance** if it implements `IRegisterProjection`, advertises `0x3ce71a8d`, and satisfies the projection invariants, the finality rule and the entitlement rules.
 
-A contract has **settlement conformance** if it has projection conformance, implements `IProjectionSettlement`, advertises both identifiers, and satisfies every settlement and proof requirement here.
+A contract has **settlement conformance** if it has projection conformance, implements `IProjectionSettlement`, advertises `0xfd0f6337`, and satisfies every settlement and proof requirement here.
 
-A projection may be maintained by means other than the settlement interface, provided the invariants hold. Interface discovery therefore reports which is offered.
+A contract has **entitlement conformance** if it has projection conformance, implements `IDeferredEntitlement`, advertises `0x6d39b0a8`, and satisfies every deferral requirement here.
+
+A contract MUST NOT advertise an identifier whose requirements it does not satisfy. A projection may be maintained by means other than the settlement interface, and a deferral registry is useful without one, so the three are discovered separately.
 
 ## Rationale
 
@@ -220,7 +295,15 @@ The contribution is the projection, not the proof. Off-chain registration is asy
 
 Two ownership notions are kept apart deliberately. `ownerOf` is the tradeable position and moves when the market moves. The confirmed holder moves only when the register is proven to have moved. Collapsing them forces a choice between freezing the market and lying about the record; keeping them apart makes the divergence explicit and, more importantly, resolvable.
 
+Finality is stated separately from resolution because they are different questions and only one of them is answered by reading an entry. An instant always resolves; whether it can still change is what a distribution needs to know, and invariant 3 reduces that to a single comparison against the latest entry's effective time. Exposing it as `isFinalAsOf` rather than leaving each integrator to derive it prevents the common error of treating a provisional answer as settled, which is exactly the error the asynchronous register makes easy. Finality deliberately does not depend on whether a gap is open, because a gap is a statement about what is expected, not about what can still arrive.
+
+The deferral registry is in this ERC rather than left to each entitlement contract because the thing being recorded is a claim on the projection, and the projection is what makes it resolvable. Every entitlement contract that deferred on its own would have to reimplement the same finality check and would be free to get it wrong, and a party owed a deferred distribution would have no common place to look. What the registry deliberately does not do is hold or move value: it records who the register confirms, and the contract that owes the entitlement settles it.
+
+Register and profile identifiers are exposed for the same reason the projection is exposed at all. The parties who need this are third parties with no relationship to the registrar; a projection they cannot attribute to a register, under a proof profile they cannot name, tells them very little.
+
 Entitlement rules follow from the projection rather than being added to it. Because any instant resolves, a distribution can be deferred and later credited to the party the register confirms for that instant, which is also why buying inside a gap cannot capture distributions that fall in it. A vote is different in kind: reopening a closed ballot to admit a later-confirmed party would change a decided outcome, so the exercise is extinguished. That loss is foreseeable, since the settlement period is bounded and record instants are published in advance, so the parties can decline to incur it. Traditional infrastructure reaches the same result by centralising the arithmetic in an ex-date; here the state is exposed and the parties do it themselves.
+
+An entry that confirms the same holder is permitted rather than rejected as a no-op, because under these rules it is not one. A register that says nothing produces no entries, and a token whose holder never changes would then have no instant that ever becomes final, which would strand every deferred entitlement on it. A confirming entry is the register saying *still this holder, as of here*, and that statement is what closes the interval.
 
 Proof submitters are untrusted so that admission depends on the remote consensus rather than on a privileged reporter. Verification and admission are atomic so that no interval exists in which a proof has been accepted but the projection has not advanced.
 
@@ -244,7 +327,7 @@ This ERC is additive to ERC-721 and discoverable through ERC-165. It does not al
 
 Conforming implementations MUST satisfy at least the following.
 
-1. `IRegisterProjection` interface identifier is `0x3e925bdc` and `IProjectionSettlement` is `0xbe360d3d`.
+1. Interface identifiers are `0x3ce71a8d` for `IRegisterProjection`, `0xfd0f6337` for `IProjectionSettlement` and `0x6d39b0a8` for `IDeferredEntitlement`.
 2. An entry whose `effectiveAt` equals the preceding entry's is rejected.
 3. A repeated record commitment within a token is rejected.
 4. `entryAsOf` returns the covering entry for instants inside, at the start of, and after each interval, and reverts before the first entry.
@@ -255,6 +338,13 @@ Conforming implementations MUST satisfy at least the following.
 9. A successful admission appends the entry and closes the gap atomically; a failure changes nothing.
 10. Cancellation before the deadline is rejected; after the deadline it succeeds and leaves the projection unchanged.
 11. A proof finalized within the deadline succeeds after a rejected cancellation attempt.
+12. `isFinalAsOf` is false at and after the latest entry's `effectiveAt`, true for earlier instants covered by an entry, false before the first entry, and does not revert.
+13. An instant that is final does not change its confirmed holder after any further admission.
+14. A confirming entry naming the current confirmed holder is admitted and makes the preceding instants final.
+15. `deferEntitlement` is rejected for a final instant and for an instant before the first entry, and recording the same triple twice returns the same identifier without creating a second deferral.
+16. `resolveDeferral` reverts while the instant is not final, including after the gap is cancelled, and succeeds once a later entry makes the instant final.
+17. A resolved deferral binds the holder confirmed at the record instant, not the holder at resolution time, cannot be resolved again, and its beneficiary does not change.
+18. `registerId` and `verificationProfile` are nonzero and unchanged across admissions.
 
 ## Reference Implementation
 
@@ -270,7 +360,11 @@ Profiles MUST address validator equivocation, quorum uniqueness, signature malle
 
 The deadline bounds how long a gap may stay open; an unbounded gap would make the projection permanently unresolvable for that interval, so the maximum interval MUST be enforced. Cancellation after the deadline preserves a bounded recovery path, while the interval before it belongs to the proof.
 
-Because trading is not blocked, integrators MUST NOT treat `ownerOf` as the confirmed holder. An integrator that needs the confirmed record MUST read the projection, and one that needs to know whether the current position is confirmed MUST check `openGapOf`.
+Because trading is not blocked, integrators MUST NOT treat `ownerOf` as the confirmed holder. An integrator that needs the confirmed record MUST read the projection, one that needs to know whether a change is expected MUST check `openGapOf`, and one that needs a settled answer MUST check `isFinalAsOf`. Treating a provisional answer as final is the most likely integration error here, because `entryAsOf` returns an answer either way.
+
+Finality depends on a later entry existing, so a register that stops producing entries leaves recent instants permanently non-final and their deferred entitlements permanently unresolved. This is a liveness dependency on the register and its profile, not a safety defect, but a profile that offers no way to admit a confirming entry inherits it. Conversely, an authority that can produce entries at will can make instants final at will, so the ability to begin settlements is itself a privilege and MUST be scoped accordingly.
+
+A deferral binds no address until it resolves, so nothing about it can be front-run by acquiring the token; the beneficiary is whatever the register confirms for the record instant. Deferral identifiers are derived from the token, entitlement identifier and record instant, so they are predictable, and an implementation MUST NOT treat knowledge of one as authorization.
 
 Entries, commitments, participants, instants and proof material are public. Commitments may leak information through low-entropy inputs or correlation. Profiles SHOULD use domain-separated commitments, avoid confidential plaintext, and publish only proof material necessary for verification. Deleting off-chain data does not delete commitments, logs, calldata or historical chain state.
 

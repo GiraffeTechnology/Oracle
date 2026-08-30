@@ -19,6 +19,10 @@
 | pending 期间的转让 | 一律 revert | **不阻断**,`ownerOf` 照常移动 |
 | 两种所有权 | 合并 | `ownerOf` 是可交易头寸,投影是确认记录,刻意分开 |
 | 权利 | 未定义 | 不可回补的永久消灭(双方均不可行使);可回补的递延,落定后补记给该瞬间的确认持有人 |
+| 递延权利登记表 | 无 | **入标准**:`IDeferredEntitlement`,解析以终局为闸门 |
+| 终局性 | 未区分 | `isFinalAsOf`:t 终局 ⟺ t < 最新条目的 `effectiveAt` |
+| 可发现性 | 无 | `registerId` / `registerDescriptor` / `verificationProfile` |
+| 同持有人条目 | 拒绝为 no-op | 允许,且是静态持有人下唯一能让瞬间终局的手段 |
 | 新增不变量 | — | `effectiveAt` 严格递增;record commitment 在代币内唯一 |
 | ERC-8325 | 强制锚定 | MAY |
 
@@ -28,12 +32,12 @@
 | --- | --- | --- |
 | 官方 eipw | 本地编译 eipw 0.11.0,使用 `tools/eipw-official-config-snapshot.toml`(取自 ethereum/ERCs `config/eipw.toml`),并拉取 15 份被引提案原文供链接解析 | 退出码 0,**零诊断** |
 | eipw 有效性负向对照 | 故意破坏 CC0 行 | 立即报 `markdown-copyright`,退出码 65,证明配置生效 |
-| 参考实现测试 | 从 `assets/eip-xxxx` 的干净副本跑 `npm install && npm test` | **22 passing / 0 failing** |
+| 参考实现测试 | 从 `assets/eip-xxxx` 的干净副本跑 `npm install && npm test` | **30 passing / 0 failing** |
 | Solidity 编译告警 | 由测试自身断言 | **0** |
-| 接口 ID | selector XOR 独立复算,并在测试内断言 | `0x3e925bdc` / `0xbe360d3d` |
+| 接口 ID | selector XOR 独立复算,测试内断言,无选择器碰撞 | `0x3ce71a8d` / `0xfd0f6337` / `0x6d39b0a8` |
 | 包完整性 | `tools/verify-package.mjs` | PASS |
 
-冻结值:`IRegisterProjection` `0x3e925bdc`,`IProjectionSettlement` `0xbe360d3d`。
+冻结值:`IRegisterProjection` `0x3ce71a8d`,`IProjectionSettlement` `0xfd0f6337`,`IDeferredEntitlement` `0x6d39b0a8`。
 
 ## 剩余一步(且仅此一步)
 
@@ -43,10 +47,12 @@
 
 `eip: XXXX` 保持占位是正确的,由 ERC 编辑分配后再替换,同时需重命名 `ERCS/erc-<编号>.md` 与 `assets/eip-<编号>/`。
 
-## 未决的设计问题(需要作者拍板,不阻断提交)
+## 已决的设计问题
 
-1. 递延权利的登记表放在本标准内(宽),还是留给消费方的权利合约(窄)。当前正文取窄:只规定"必须按代币 + 权利标识 + 记录时刻记录,且递延时不得绑定受益地址",不规定存储接口。
-2. 是否为登记册身份 / 验证 Profile 增加一个可发现的访问器。当前只有 `settlementPeriod()`,没有 register/profile 身份访问器。
+1. 递延权利登记表 —— **入标准**(作者 2026-08-30 裁定)。新增 `IDeferredEntitlement`,`resolveDeferral` 以 `isFinalAsOf` 为闸门。登记表只记归属,不持有、不转移权益本身。
+2. 可发现性 —— **加**(同上)。`IRegisterProjection` 增 `registerId()` 与 `registerDescriptor()`,`IProjectionSettlement` 增 `verificationProfile()`。旧评审的 MAJOR-3 就此关闭。
+
+这两项各自改变了对应接口的 ID,已在同一轮内一次性定案,见 `review/CHANGELOG_REWRITE_ZH.md`。
 
 ## 已知架构局限(已在参考实现文件头声明)
 

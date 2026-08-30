@@ -5,18 +5,23 @@
   "version": "0.11.0",
   "runBy": "claude-on-branch",
   "runDate": "2026-08-30",
-  "subject": "rewrite to Asynchronous Register Projection for NFTs",
+  "subject": "deferred entitlement registry in scope; finality rule and identity accessors added",
   "toolBinarySha256": "ae1b2f651f8c8e8534a37e6eac093031c13381e0dc565ce45a28efdd4641d595",
   "configSource": "https://raw.githubusercontent.com/ethereum/ERCs/master/config/eipw.toml",
   "configSha256": "575e0cf5f4f93c924616e3e4ab0ba49b5910b0d78e95c333fad043548a7a2357",
   "mode": "synthetic-placeholder-substitution",
-  "substituted": ["eip", "discussions-to"],
-  "notSubstituted": ["author"],
+  "substituted": [
+    "eip",
+    "discussions-to"
+  ],
+  "notSubstituted": [
+    "author"
+  ],
   "syntheticEip": 9999,
   "syntheticDiscussionUrl": "https://ethereum-magicians.org/t/erc-9999-preflight/99999",
   "linkResolutionCorpus": "ethereum/ERCs master ERCS/erc-{165,721,2018,5164,5496,6358,6956,6997,7765,7786,7943,7965,8320,8325,8326}.md",
-  "authoritativeCandidateSha256Before": "4d98e7ac9e42e79b50f62e394c2d15694462805ac43fc9645a80c2d4d8ea9568",
-  "authoritativeCandidateSha256After": "4d98e7ac9e42e79b50f62e394c2d15694462805ac43fc9645a80c2d4d8ea9568",
+  "authoritativeCandidateSha256Before": "2c6f55d172c0a5a71a21080e1ebc338e1c792ef1961fb32c617d7f9ac46fade1",
+  "authoritativeCandidateSha256After": "2c6f55d172c0a5a71a21080e1ebc338e1c792ef1961fb32c617d7f9ac46fade1",
   "diagnosticCount": 0,
   "exitCode": 0,
   "negativeControl": "replacing the CC0 sentence reproduces markdown-copyright with exit code 65, confirming the config is loaded and enforcing",
