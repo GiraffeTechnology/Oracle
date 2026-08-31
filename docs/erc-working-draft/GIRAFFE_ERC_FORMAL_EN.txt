@@ -1,0 +1,515 @@
+Versioned RWA Certificate Settlement
+
+Formal English Text
+
+Status: Working Draft; not submitted; no ERC number assigned
+Author: github-username (@github-username), Giraffe Technology Holding Limited
+Type: Standards Track
+Category: ERC
+Requires: ERC-165, ERC-721, EIP-712, ERC-1271, ERC-8325
+Created: 2026-08-24
+Discussions-To: To be created
+
+Note: Until a number is assigned through the Ethereum ERC process, this document is a Working Draft only. The GitHub username and discussion URL are placeholders that MUST be replaced before submission.
+
+
+Abstract
+
+This proposal defines discoverable interfaces for ERC-721 tokens to expose the current authoritative certificate commitment, its version, and an append-only certificate supersession history.
+
+It also defines mandatory deferred settlement semantics for conforming implementations. When a change of ERC-721 holder depends on an off-chain authoritative registry issuing an updated certificate, the token enters a pending settlement. While pending, ownerOf(tokenId) continues to return the original holder and ordinary ERC-721 transfers MUST NOT execute.
+
+After the authoritative registry completes its process and produces a new certificate, the contract atomically supersedes the certificate, changes the ERC-721 holder, and finalizes the settlement in one transaction. The external process may complete at an implementation-defined T+n; this proposal does not prescribe n.
+
+This proposal does not determine legal ownership of an off-chain asset and does not prescribe a registry operator, jurisdiction, certificate schema, KYC/AML implementation, oracle network, payment process, or financial activity.
+
+
+Motivation
+
+ERC-721 represents a unique token and its on-chain holder, but it does not provide a common interface for determining:
+
+1. the current authoritative certificate commitment and version;
+2. how a new certificate supersedes an old certificate;
+3. whether historical certificates are preserved without overwrite;
+4. whether a token is undergoing settlement while an off-chain registry update remains incomplete; or
+5. whether certificate supersession and an ERC-721 holder change form one final result.
+
+If a token is transferred before the external registry completes its update, applications may incorrectly infer that external registration has completed. If further transfers remain possible during off-chain processing, concurrent settlements, ordering conflicts, or divergence between the certificate and token holder may occur.
+
+This proposal provides minimal interoperability semantics for versioned certificate supersession and certificate-bound deferred settlement across registries, token contracts, wallets, and indexers.
+
+
+Scope
+
+This proposal standardizes:
+
+- the current certificate commitment, version, effective time, and append-only history;
+- certificate supersession relationships and common events;
+- ERC-165 interface discovery;
+- initiation, finalization, and cancellation of deferred settlement;
+- ERC-721 transfer restrictions while settlement is pending;
+- replay-resistant authority authorization fields; and
+- atomic certificate supersession and ERC-721 transfer.
+
+This proposal does not standardize:
+
+- an off-chain asset anchor registry;
+- co-ownership, fractionalization, splitting, or merging;
+- securities issuance, lending, collateralization, yield, or other financial activity;
+- internal KYC, AML, sanctions, or identity-system implementation;
+- cross-chain messaging or finality;
+- valuation, pricing, or collateral ratios;
+- certificate file schemas, business fields, URIs, or storage media;
+- a registry operator, oracle operator, jurisdiction, or regulatory conclusion;
+- payment, custody of funds, refunds, matching, APIs, SaaS, or service levels;
+- creation, enforcement, or legal effect of off-chain rights; or
+- physical redemption, privilege exercise, or entitlement workflows.
+
+
+Trust Model and Legal Boundary
+
+This proposal distinguishes on-chain token state, off-chain authoritative facts, and verification results. It only enables contracts to reference and verify off-chain evidence.
+
+An implementation MUST NOT claim that an address necessarily owns an off-chain asset, possesses a delivery right, holds a license, or has another legal right merely because a token exists, a certificate commitment is on-chain, or the address is returned by ownerOf(tokenId).
+
+certificateAuthority(tokenId) returns the on-chain verification authority accepted by the contract. That address need not be the off-chain certificate issuer and does not imply governmental or regulatory authorization.
+
+
+Specification Language
+
+The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RECOMMENDED, NOT RECOMMENDED, MAY, and OPTIONAL are to be interpreted as described in RFC 2119 and RFC 8174.
+
+
+Definitions
+
+Certificate: An external authoritative record that can be canonicalized and committed to under an implementation profile.
+
+Certificate Commitment: A nonzero bytes32 commitment to a certificate. An implementation profile MUST define the commitment algorithm, domain separation, and deterministic canonicalization procedure. The ABI field name certificateHash is retained for compatibility and carries this commitment value; it does not require Keccak-256.
+
+Certificate Version: A version number beginning at 1 and increasing by exactly one.
+
+Authority Reference: A non-sensitive bytes32 reference to a registry record, issuance record, or evidence package.
+
+Certificate Authority: An account or contract able to authorize or verify certificate updates.
+
+Settlement: The deferred process beginning with a transfer intent and ending in finalization or cancellation.
+
+Settlement Deadline: The last time at which a pending settlement may be finalized.
+
+Ordinary Transfer: ERC-721 transferFrom or either safeTransferFrom overload.
+
+Finalization: Superseding the certificate, changing the ERC-721 holder, and finalizing settlement in one transaction.
+
+
+Specification
+
+1. Certificate Version Rules
+
+The initial certificate version MUST be 1. Its previousCertificateHash MUST equal bytes32(0).
+
+For every certificate supersession:
+
+- the new certificate hash MUST be nonzero;
+- the new version MUST equal the previous version plus one;
+- previousCertificateHash MUST equal the previous current certificate hash;
+- historical records MUST NOT be deleted, overwritten, or reordered;
+- supersededAt MUST be set on the previous record;
+- supersededAt MUST be zero on the new record; and
+- CertificateSuperseded MUST be emitted.
+
+A duplicate write for the same token and version MUST revert. Versions MUST NOT skip, decrease, or form a cycle.
+
+Queries for a nonexistent token or certificate version MUST revert.
+
+
+2. Core Interface
+
+// SPDX-License-Identifier: CC0-1.0
+pragma solidity ^0.8.20;
+
+import {IERC165} from
+    "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+
+interface IVersionedRWACertificate is IERC165 {
+    struct CertificateRecord {
+        bytes32 certificateHash;
+        bytes32 previousCertificateHash;
+        bytes32 authorityReference;
+        uint64 version;
+        uint64 effectiveAt;
+        uint64 supersededAt;
+    }
+
+    event CertificateInitialized(
+        uint256 indexed tokenId,
+        bytes32 indexed certificateHash,
+        bytes32 indexed authorityReference,
+        uint64 version,
+        uint64 effectiveAt
+    );
+
+    event CertificateSuperseded(
+        uint256 indexed tokenId,
+        uint64 indexed version,
+        bytes32 indexed certificateHash,
+        bytes32 previousCertificateHash,
+        bytes32 authorityReference,
+        uint64 effectiveAt
+    );
+
+    function currentCertificate(uint256 tokenId)
+        external
+        view
+        returns (CertificateRecord memory record);
+
+    function certificateAt(uint256 tokenId, uint64 version)
+        external
+        view
+        returns (CertificateRecord memory record);
+
+    function certificateAuthority(uint256 tokenId)
+        external
+        view
+        returns (address authority);
+}
+
+The core interface intentionally does not define a generic external certificate mutation function. An implementation may update certificates through construction, controlled administration, or the deferred settlement extension, but every path MUST preserve the same version, history, query, and event semantics.
+
+An implementation MUST advertise IVersionedRWACertificate through ERC-165. Solidity compilation and selector-by-selector XOR verification produce interface ID 0xebaa86a0. A contract implementing only this read interface MUST NOT claim full conformance with this ERC.
+
+
+3. Deferred Settlement States
+
+Settlement status values are fixed as follows:
+
+0 NONE
+1 PENDING
+2 FINALIZED
+3 CANCELLED
+
+Each settlementId MUST be globally unique. A settlement may transition only from PENDING to FINALIZED or CANCELLED. A token MUST have no more than one pending settlement at a time.
+
+
+4. Settlement Initiation
+
+Before beginSettlement succeeds, the implementation MUST verify that:
+
+- the token exists;
+- the token implements the ERC-8325 IAssetBoundTokenId interface, returns a nonzero immutable anchorIdOf(tokenId), and isAnchorActiveFor(tokenId) returns true;
+- the token has no other pending settlement;
+- the caller is the current holder, an approved address, or an operator;
+- to is nonzero and differs from the current holder;
+- settlementId has not been used;
+- snapshotHash is nonzero;
+- deadline is later than the current block timestamp; and
+- any additional implementation-defined transfer checks pass.
+
+On success, the implementation MUST store from, to, snapshotHash, initiatedAt, and deadline, and MUST emit SettlementStarted.
+
+While settlement is pending:
+
+- ownerOf(tokenId) MUST continue to return from;
+- the current certificate hash and version MUST remain unchanged;
+- every Ordinary Transfer MUST revert; and
+- the proposed recipient MUST NOT be represented as the finally settled holder.
+
+
+5. Settlement Finalization
+
+finalizeSettlement MUST process only a pending settlement whose deadline has not passed.
+
+Authorization MUST originate from the current certificateAuthority(tokenId), or be verifiable by that authority.
+
+Finalization MUST atomically perform all of the following in one transaction:
+
+1. mark the previous certificate as superseded;
+2. append the new certificate with a version equal to the previous version plus one;
+3. transfer the ERC-721 token from from to to;
+4. set the settlement status to FINALIZED;
+5. consume the authorization nonce; and
+6. emit CertificateSuperseded, Transfer, and SettlementFinalized.
+
+Implementations SHOULD emit those three events in the order listed to simplify deterministic indexing. Consumers MUST NOT treat event order alone as proof of settlement validity.
+
+Failure of any step MUST revert the entire transaction. An implementation MUST NOT retain a partial certificate update, partial settlement state, or holder-only change.
+
+
+6. Settlement Cancellation
+
+A pending settlement MAY be cancelled using the canonical authority cancellation data specified below. After deadline, the recorded from address MAY cancel it with empty authorityData.
+
+Cancellation MUST NOT change the ERC-721 holder, current certificate hash, or current certificate version. It MUST set the settlement status to CANCELLED and emit SettlementCancelled.
+
+If a certificate conflict, authority compromise, or asset dispute exists, an implementation MAY freeze the token through ERC-7943 or another compliance mechanism. This proposal does not redefine a general freeze interface.
+
+
+7. Deferred Settlement Interface
+
+// SPDX-License-Identifier: CC0-1.0
+pragma solidity ^0.8.20;
+
+import {IERC165} from
+    "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+
+interface IDeferredCertificateSettlement is IERC165 {
+    enum SettlementStatus {
+        NONE,
+        PENDING,
+        FINALIZED,
+        CANCELLED
+    }
+
+    struct SettlementRecord {
+        uint256 tokenId;
+        address from;
+        address to;
+        bytes32 snapshotHash;
+        uint64 initiatedAt;
+        uint64 deadline;
+        SettlementStatus status;
+    }
+
+    event SettlementStarted(
+        bytes32 indexed settlementId,
+        uint256 indexed tokenId,
+        address indexed from,
+        address to,
+        bytes32 snapshotHash,
+        uint64 deadline
+    );
+
+    event SettlementFinalized(
+        bytes32 indexed settlementId,
+        uint256 indexed tokenId,
+        bytes32 indexed certificateHash,
+        uint64 certificateVersion,
+        uint64 effectiveAt
+    );
+
+    event SettlementCancelled(
+        bytes32 indexed settlementId,
+        uint256 indexed tokenId,
+        bytes32 indexed reasonHash
+    );
+
+    function settlement(bytes32 settlementId)
+        external
+        view
+        returns (SettlementRecord memory record);
+
+    function pendingSettlementOf(uint256 tokenId)
+        external
+        view
+        returns (bytes32 settlementId);
+
+    function beginSettlement(
+        uint256 tokenId,
+        bytes32 settlementId,
+        address to,
+        bytes32 snapshotHash,
+        uint64 deadline
+    ) external;
+
+    function finalizeSettlement(
+        bytes32 settlementId,
+        bytes32 newCertificateHash,
+        bytes32 authorityReference,
+        uint64 effectiveAt,
+        bytes calldata authorityData
+    ) external;
+
+    function cancelSettlement(
+        bytes32 settlementId,
+        bytes32 reasonHash,
+        bytes calldata authorityData
+    ) external;
+}
+
+Every conforming implementation MUST implement both IVersionedRWACertificate and IDeferredCertificateSettlement and MUST advertise both through ERC-165. Solidity compilation and selector-by-selector XOR verification produce IDeferredCertificateSettlement interface ID 0x2773d4c9.
+
+
+8. Authority Authorization
+
+Implementations MUST use EIP-712 with the domain:
+
+EIP712Domain(
+    string name,
+    string version,
+    uint256 chainId,
+    address verifyingContract
+)
+
+name MUST equal "Versioned RWA Certificate Settlement" and version MUST equal "1".
+
+Finalization authorization MUST use the exact type:
+
+SettlementAuthorization(
+    uint256 tokenId,
+    bytes32 settlementId,
+    address from,
+    address to,
+    bytes32 previousCertificateHash,
+    bytes32 newCertificateHash,
+    uint64 newCertificateVersion,
+    uint64 effectiveAt,
+    uint64 validUntil,
+    uint256 nonce
+)
+
+Its type hash is keccak256 of the preceding canonical type string without whitespace or line breaks:
+
+SettlementAuthorization(uint256 tokenId,bytes32 settlementId,address from,address to,bytes32 previousCertificateHash,bytes32 newCertificateHash,uint64 newCertificateVersion,uint64 effectiveAt,uint64 validUntil,uint256 nonce)
+
+Authority cancellation MUST use the exact type:
+
+CancellationAuthorization(
+    bytes32 settlementId,
+    uint256 tokenId,
+    bytes32 reasonHash,
+    uint64 validUntil,
+    uint256 nonce
+)
+
+Its canonical type string is:
+
+CancellationAuthorization(bytes32 settlementId,uint256 tokenId,bytes32 reasonHash,uint64 validUntil,uint256 nonce)
+
+For both authorization types, authorityData MUST be encoded as:
+
+abi.encode(uint64 validUntil, uint256 nonce, bytes signature)
+
+The validUntil and nonce values in authorityData MUST equal the corresponding signed fields. For timeout cancellation by the recorded from address after deadline, authorityData MUST be empty.
+
+An authorization omitting or changing any required field MUST NOT be accepted. Authorization MUST NOT be replayable across chains, contracts, tokens, settlements, purposes, or authority epochs.
+
+A successfully used nonce MUST be permanently consumed across both authorization types for the applicable authority. A reverted transaction MUST NOT incorrectly consume a nonce.
+
+If the authority is an externally owned account, the implementation MUST validate a canonical low-s ECDSA signature. If the authority is a contract, the implementation MUST validate the signature through ERC-1271. Authority rotation MUST be auditable. After authority compromise or rotation, an implementation MUST reject authorizations from the prior authority.
+
+
+9. ERC-721 Transfer Semantics
+
+While a settlement is pending, transferFrom and both safeTransferFrom overloads MUST revert. An implementation MUST NOT allow an approved operator to bypass the pending restriction.
+
+After entering pending state, an implementation SHOULD clear or suspend token-specific approval. Even if an approval remains, every Ordinary Transfer MUST revert.
+
+Finalization relies on the holder authorization recorded at initiation and valid authority authorization. It does not depend on approve remaining valid at finalization time.
+
+
+10. Interoperability
+
+Asset anchoring: Every conforming token MUST implement the ERC-8325 IAssetBoundTokenId interface. Each conforming tokenId MUST return exactly one nonzero, immutable anchorIdOf(tokenId), MUST return an immutable anchorRegistry(), and MUST reflect registry lifecycle state through isAnchorActiveFor(tokenId). The registry and token-side declaration MUST form a mutually declared token-ID binding under ERC-8325. A conforming tokenId MUST represent one off-chain asset claim and MUST NOT represent a fraction, co-ownership share, or collection of multiple assets. This proposal does not define a competing general asset anchor interface.
+
+Transfer controls: An implementation MAY use ERC-7943 to expose canSend, canReceive, canTransfer, freezing, and forced transfer. If ERC-7943 is implemented, canTransfer MUST return false while settlement is pending, and forcedTransfer MUST NOT silently bypass certificate version rules.
+
+Metadata: If a certificate update changes data represented by tokenURI, the implementation SHOULD emit ERC-4906 MetadataUpdate.
+
+
+Rationale
+
+This proposal does not define a general assetId interface because ERC-8325 already addresses registry-scoped asset anchoring, binding status, and binding history. ERC-8325 is a required composition dependency so asset association remains discoverable without duplicating its interface.
+
+This proposal does not define general freezing or compliance interfaces because ERC-7943 already provides those capabilities.
+
+ERC-6997 is not a direct dependency. It validates generic transfers and approvals, does not define certificate commitments or version history, does not bind an external registry record, and does not standardize settlement deadlines, cancellation, or certificate-bound EIP-712 authorization. It also permits an approved account to transfer directly. This proposal permits an approved account to initiate settlement, but once pending exists no owner, approved address, or operator can bypass it. Finalization atomically supersedes the certificate and transfers the token under one settlementId.
+
+Combining ERC-8325, ERC-6997, and ERC-7943 without this proposal remains insufficient for interoperable certificate settlement. Those standards do not define a shared settlement record, the canonical authority payload above, consecutive certificate supersession, or the invariant that certificate update and ERC-721 transfer succeed or revert together.
+
+Append-only certificate history detects overwrite, rollback, and reordering. Sequential versions and previousCertificateHash form an auditable supersession chain.
+
+The proposal does not prescribe a certificate schema because certificate content varies by industry, registry, and jurisdiction. Only commitments, versions, references, and times are standardized on-chain.
+
+The proposal uses deadline, effectiveAt, and T+n instead of prescribing a fixed processing period.
+
+
+Backwards Compatibility
+
+This proposal is an optional extension to ERC-721 and does not change the ERC-721 ABI. A contract claiming conformance with this ERC, however, MUST implement ERC-8325 IAssetBoundTokenId, IVersionedRWACertificate, and IDeferredCertificateSettlement. Applications unaware of this proposal can still read standard ERC-721 state, but may not recognize pending settlement or certificate versions.
+
+Pending restrictions MUST be enforced by the token contract and cannot rely only on a user interface or external registry. A non-upgradeable legacy ERC-721 may claim deferred settlement support only if an underlying mechanism can constrain every transfer entry point.
+
+
+Security Considerations
+
+- Authority keys affect certificates and settlement and SHOULD use multisignature or threshold signing, hardware isolation, rotation, and revocation.
+- A single administrator MUST NOT bypass authority authorization to finalize settlement.
+- Authorization MUST bind the full domain and pre-state and post-state to prevent cross-chain, cross-token, cross-settlement, and stale-version replay.
+- Concurrent authorizations MUST verify the current certificate hash and expected version so that only one can succeed.
+- Finalization includes an ERC-721 transfer. Implementations MUST lock state before external calls and prevent reentrancy.
+- deadline uses block time and MUST NOT be represented as a strict real-world service-level guarantee.
+- Authority denial of service can be handled by timeout cancellation. Implementations MUST NOT infer disputed off-chain facts.
+- settlementId, participants, snapshot, and nonce MUST be bound to prevent calldata copying and front-running.
+- forcedTransfer alone is not evidence that certificate supersession has completed.
+- Contract upgrades MUST NOT delete certificate history, reuse nonces, or alter finalized or cancelled settlements.
+- Profiles MUST define certificate canonicalization. Visually identical documents may not have identical bytes or commitments.
+
+
+Privacy Considerations
+
+On-chain fields and events SHOULD contain only irreversible commitments, versions, non-sensitive times, and opaque references.
+
+Implementations MUST NOT directly publish names, government identifiers, contact information, wallet-to-identity mappings, complete certificates, precise storage locations, raw KYC/AML materials, or reversible low-entropy hashes.
+
+Hashing a low-entropy identifier does not provide adequate privacy. Implementations SHOULD use randomized commitments, access controls, and minimized off-chain storage.
+
+
+Test Cases
+
+The following implementation-independent vectors are normative:
+
+1. IVersionedRWACertificate interface ID is 0xebaa86a0;
+2. IDeferredCertificateSettlement interface ID is 0x2773d4c9;
+3. keccak256("SettlementAuthorization(uint256 tokenId,bytes32 settlementId,address from,address to,bytes32 previousCertificateHash,bytes32 newCertificateHash,uint64 newCertificateVersion,uint64 effectiveAt,uint64 validUntil,uint256 nonce)") equals the SETTLEMENT_AUTHORIZATION_TYPEHASH used by the implementation;
+4. keccak256("CancellationAuthorization(bytes32 settlementId,uint256 tokenId,bytes32 reasonHash,uint64 validUntil,uint256 nonce)") equals the CANCELLATION_AUTHORIZATION_TYPEHASH used by the implementation; and
+5. authorityData ABI-decodes as (uint64 validUntil, uint256 nonce, bytes signature), with the first two values equal to the signed fields.
+
+A reference implementation MUST additionally test at least:
+
+1. initial certificate version equals 1;
+2. certificate supersession increases the version by exactly one;
+3. history cannot be overwritten or reordered;
+4. ownerOf remains unchanged after settlement initiation;
+5. every Ordinary Transfer entry point fails while pending;
+6. an approved account cannot bypass pending state;
+7. the external process may finalize at T+n before deadline;
+8. finalization atomically changes certificate version and holder;
+9. timeout cancellation changes neither holder nor certificate;
+10. changing any authorization domain field invalidates prior authorization;
+11. concurrent pending settlements, version skips, and repeated terminal transitions fail; and
+12. a nonce succeeds no more than once.
+
+Property tests MUST establish that:
+
+- a token has exactly one current certificate at a time;
+- a token has no more than one pending settlement at a time;
+- certificate history only grows and versions remain consecutive;
+- ownerOf remains unchanged while pending;
+- only finalization can change holder and certificate version together;
+- cancellation changes neither holder nor certificate; and
+- a nonce cannot be successfully used twice.
+
+
+Reference Implementation
+
+The accompanying CC0 Solidity reference implementation is VersionedRWACertificateReference.sol. The accompanying protocol.cjs suite compiles it with Solidity 0.8.26, optimizer runs 200, and viaIR enabled, then executes interface, ERC-8325 binding, EIP-712, ERC-1271, settlement, replay, cancellation, and append-only-history tests on a local EVM. These files are illustrative; implementation-specific administration and deployment choices are not normative.
+
+
+Related Standards
+
+ERC-8325: Asset Anchor Registry.
+ERC-6997: ERC-721 with transaction validation step.
+ERC-6956: Asset-bound NFTs.
+ERC-7943: uRWA - Universal Real World Asset Interface.
+ERC-6454: Minimal Transferable NFT.
+ERC-7066: Lockable ERC-721.
+ERC-4906: EIP-721 Metadata Update Extension.
+ERC-8048: On-Chain Metadata.
+ERC-3643: T-REX Token Standard.
+ERC-8106: Compliance Events.
+ERC-7578, ERC-7498, and ERC-7765: physical asset, redemption, and privilege standards.
+ERC-7891: NFT Split and Merge.
+
+
+Copyright
+
+Copyright and related rights waived via [CC0](/LICENSE).

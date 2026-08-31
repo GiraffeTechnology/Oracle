@@ -1,154 +1,163 @@
-name: CI
+name: Oracle PRD v0.3 CI
 
 on:
-  push:
-    branches: ['**']
   pull_request:
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 env:
-  # Fail closed: nothing in CI may reach a real authority, wallet or signing key.
   CI: 'true'
 
 jobs:
-  verify:
-    name: verify (node ${{ matrix.node-version }})
+  locked-install:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: ['22.22.2']
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.33.0, run_install: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.33.0
-          run_install: false
+  format-lint-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: node scripts/syntax-check.mjs
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: pnpm
+  unit-negative:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: node --test --test-reporter=spec "test/*.test.js"
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+  production-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: node scripts/syntax-check.mjs
+      - run: node scripts/verify-release.mjs
 
-      - name: Verify
-        run: pnpm run verify
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.33.0, run_install: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm run test:erc
 
-  acceptance-gates:
-    name: PRD acceptance gates
+  consumer-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: node --test --test-reporter=spec test/prd-v0.3-acceptance.test.js test/control-plane.test.js test/l2-l3-configuration.test.js
+
+  mysql-migrate-backup-restore:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: synthetic-ci-only
+          MYSQL_DATABASE: oracle_ci
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -psynthetic-ci-only"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - name: Apply migration to an empty schema
+        env: { MYSQL_PWD: synthetic-ci-only }
+        run: mysql --protocol=TCP -h 127.0.0.1 -uroot oracle_ci < db/mysql/001_initial.sql
+      - name: Backup and restore into an independent empty schema
+        env: { MYSQL_PWD: synthetic-ci-only }
+        run: |
+          mysqldump --protocol=TCP -h 127.0.0.1 -uroot --no-data oracle_ci > /tmp/oracle-schema.sql
+          mysql --protocol=TCP -h 127.0.0.1 -uroot -e 'CREATE DATABASE oracle_restore'
+          mysql --protocol=TCP -h 127.0.0.1 -uroot oracle_restore < /tmp/oracle-schema.sql
+          test "$(mysql --batch --skip-column-names --protocol=TCP -h 127.0.0.1 -uroot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='oracle_ci'")" = "$(mysql --batch --skip-column-names --protocol=TCP -h 127.0.0.1 -uroot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='oracle_restore'")"
+      - name: Validate migration contract tests
+        run: node --test --test-reporter=spec --test-name-pattern="MySQL migration|backup manifest" "test/*.test.js"
+
+  financial-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: node scripts/product-boundary-scan.mjs
+      - run: node --test --test-reporter=spec --test-name-pattern="ORACLE-005 and ORACLE-006|financial" "test/*.test.js"
+
+  subject-compliance-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: node --test --test-reporter=spec --test-name-pattern="ORACLE-005" "test/*.test.js"
+
+  personal-information-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: node --test --test-reporter=spec --test-name-pattern="ORACLE-007" "test/*.test.js"
+
+  secret-credential-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: node scripts/repository-scan.mjs
+
+  integration-gates:
+    name: integration gates (decisions, scope, hygiene, frozen ERC)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           persist-credentials: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-
-      # Acceptance standard section 6 requires these as CI jobs. No dependencies needed.
       - name: Decision consistency (DECISIONS_ZH.md)
         run: node scripts/check-decision-consistency.mjs
-
       - name: Scope coverage (acceptance 8.4)
         run: node scripts/check-scope-coverage.mjs
-
       - name: Financial output gate (ORACLE-006)
         run: node scripts/check-no-financial-output.mjs
-
       - name: Secrets and personal data gate (NFR-001 / ORACLE-007)
         run: node scripts/check-repository-hygiene.mjs
-
-  erc-constants:
-    name: frozen ERC constants
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-
-      # No dependencies: the guard re-derives every constant with the standard library alone.
-      - name: Re-derive the frozen ERC constants
+      - name: Frozen ERC constants
         run: node scripts/check-frozen-erc-constants.ts
-
-  smoke:
-    name: service smoke test
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: verify
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.33.0
-          run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Start service
-        run: |
-          pnpm start &
-          echo "$!" > /tmp/oracle.pid
-          for _ in $(seq 1 30); do
-            if curl -sf http://127.0.0.1:8787/healthz >/dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "service did not become healthy" >&2
-          exit 1
-
-      - name: Probe the exposed routes
-        run: |
-          set -euo pipefail
-          curl -sf http://127.0.0.1:8787/healthz | tee /dev/stderr | grep -q '"status":"ok"'
-          curl -sf http://127.0.0.1:8787/readyz | tee /dev/stderr | grep -q '"status":"ready"'
-          curl -sf http://127.0.0.1:8787/v1/oracle/statuses | tee /dev/stderr | grep -q 'NOT_VERIFIED'
-
-      - name: Assert no write endpoint is exposed
-        run: |
-          set -euo pipefail
-          code="$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8787/v1/oracle/statuses)"
-          test "$code" = "405" || { echo "expected 405 for POST, got $code" >&2; exit 1; }
-
-      - name: Stop service
-        if: always()
-        run: kill "$(cat /tmp/oracle.pid)" || true

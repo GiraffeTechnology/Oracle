@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "1.0",
+  "assetId": "UNIT-A39",
+  "assetName": "UNIT-A39",
+  "assetVersion": "000",
+  "fileName": "UNIT-A39-000.PNG",
+  "fileBytes": 2263396,
+  "imageWidthPx": 1749,
+  "imageHeightPx": 899,
+  "hashAlgorithm": "SHA-256",
+  "bytes32FieldName": "assetFileSha256Bytes32",
+  "assetFileSha256Bytes32": "0xb12b2b8fa10bb5f95397752899b5c57d5d81301f187e3323c55c96d7d8a37954",
+  "owner": "ArtCCH",
+  "custodian": "ArtCCH",
+  "custodyStatement": "The physical UNIT-A39 artwork is owned and held in custody by ArtCCH.",
+  "authorizedNetwork": {
+    "name": "Hoodi testnet",
+    "chainId": 560048
+  },
+  "testAuthorization": {
+    "publicHashAnchoring": true,
+    "testOnlyNftMint": true,
+    "chainExecutionByProducingTask": false
+  },
+  "rightsBoundary": [
+    "TEST ONLY",
+    "NO VALUE",
+    "NO LEGAL EFFECT",
+    "NO RIGHTS TRANSFER",
+    "A test NFT or test transaction does not transfer ownership or custody of the physical artwork.",
+    "Not authorized for mainnet, ICO, charitable agreements, physical delivery, or production use."
+  ],
+  "authorizationBasis": "User-confirmed ArtCCH ownership, custody, and Hoodi testnet public hash authorization in the producing task on 2026-08-24."
+}

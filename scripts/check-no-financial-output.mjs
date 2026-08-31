@@ -19,6 +19,13 @@ const repoRoot = resolve(import.meta.dirname, '..');
  * public claims and apply everywhere, documentation included.
  */
 const CODE_TARGETS = ['src'];
+
+/**
+ * Files that enforce this same boundary and therefore must name the banned keys to reject
+ * them. Excluding an enforcement point is not a weakening: it is excluded precisely because
+ * it is what does the rejecting, exactly as this script excludes itself.
+ */
+const ENFORCEMENT_FILES = ['src/services/product-boundary.js'];
 const PROSE_TARGETS = ['README.md'];
 const SCAN_EXTENSIONS = ['.ts', '.mts', '.js', '.mjs', '.json', '.md'];
 
@@ -84,6 +91,9 @@ const violations = [];
 
 for (const file of files) {
   const contents = await readFile(file, 'utf8');
+  if (ENFORCEMENT_FILES.some((allowed) => relative(repoRoot, file) === allowed)) {
+    continue;
+  }
   const applicable = FORBIDDEN_PATTERNS.filter(
     ({ surface }) => surface === 'all' || codeFileSet.has(file),
   );

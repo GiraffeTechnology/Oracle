@@ -1,30 +1,44 @@
 {
-  "name": "giraffe-rwa-oracle",
-  "version": "0.1.0",
+  "name": "@giraffe/rwa-oracle",
+  "version": "0.3.0",
   "private": true,
-  "description": "Giraffe RWA Oracle (L2) verification service",
   "type": "module",
+  "description": "Giraffe RWA Oracle service",
   "engines": {
-    "node": ">=22.18.0 <23"
+    "node": ">=22.18.0"
   },
-  "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "start": "node src/index.ts",
-    "dev": "node --watch src/index.ts",
+    "start": "node src/main.js",
+    "check": "node scripts/syntax-check.mjs",
+    "test": "node --test --test-reporter=spec \"test/*.test.js\" \"src/**/*.test.ts\"",
+    "test:erc": "node scripts/run-erc-tests.mjs",
+    "test:erc:hoodi": "node scripts/run-erc-hoodi-tests.mjs",
+    "verify:erc:asset": "node -e \"import('./scripts/erc-test-asset-config.mjs').then(({loadAuthorizedHoodiTestAsset})=>{const path=require('node:path'); const value=loadAuthorizedHoodiTestAsset(process.cwd()); console.log(JSON.stringify(value));})\"",
+    "gate:erc": "node scripts/erc-submission-gate.mjs",
+    "test:erc:hoodi-adapter": "node scripts/test-erc-hoodi-adapter.cjs",
+    "test:erc:hoodi-readonly": "node scripts/test-erc-hoodi-readonly-provider.cjs",
+    "test:erc:submission-solidity": "node scripts/test-erc-submission-solidity.mjs",
+    "scan": "node scripts/repository-scan.mjs && node scripts/product-boundary-scan.mjs",
+    "verify": "pnpm run format:check && pnpm run typecheck && pnpm run check:decisions && pnpm run check:scope-coverage && pnpm run check:no-financial-output && pnpm run check:hygiene && pnpm run check:erc-constants && node scripts/syntax-check.mjs && node scripts/repository-scan.mjs && node scripts/product-boundary-scan.mjs && pnpm run test",
+    "verify:erc": "node scripts/run-erc-tests.mjs",
+    "verify:prd": "node scripts/syntax-check.mjs && node --test \"test/*.test.js\" && node scripts/repository-scan.mjs && node scripts/product-boundary-scan.mjs && node scripts/verify-prd-v0.3.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
-    "test": "node --test 'src/**/*.test.ts'",
     "check:no-financial-output": "node scripts/check-no-financial-output.mjs",
-    "verify": "pnpm run format:check && pnpm run typecheck && pnpm run check:decisions && pnpm run check:scope-coverage && pnpm run check:no-financial-output && pnpm run check:hygiene && pnpm run check:erc-constants && pnpm run test",
     "check:erc-constants": "node scripts/check-frozen-erc-constants.ts",
     "check:scope-coverage": "node scripts/check-scope-coverage.mjs",
     "check:hygiene": "node scripts/check-repository-hygiene.mjs",
     "check:decisions": "node scripts/check-decision-consistency.mjs"
   },
+  "license": "UNLICENSED",
   "devDependencies": {
+    "@nomicfoundation/hardhat-ethers": "^3.1.3",
     "@types/node": "22.20.1",
+    "ethers": "^6.17.0",
+    "hardhat": "2.29.0",
     "prettier": "3.9.6",
     "typescript": "5.9.3"
-  }
+  },
+  "packageManager": "pnpm@10.33.0"
 }

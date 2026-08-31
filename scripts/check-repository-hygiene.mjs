@@ -15,6 +15,12 @@ import { join, relative, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'coverage']);
+
+/**
+ * Generated lockfiles embed third-party package-author emails. Those are public package
+ * metadata rather than personal data this project holds, and the file is not hand-edited.
+ */
+const SKIP_FILES = new Set(['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock']);
 const SCAN_EXTENSIONS = [
   '.ts',
   '.mts',
@@ -76,7 +82,8 @@ async function collect(directory) {
       files.push(...(await collect(full)));
     } else if (
       SCAN_EXTENSIONS.some((extension) => entry.name.endsWith(extension)) &&
-      full !== SELF
+      full !== SELF &&
+      !SKIP_FILES.has(entry.name)
     ) {
       files.push(full);
     }

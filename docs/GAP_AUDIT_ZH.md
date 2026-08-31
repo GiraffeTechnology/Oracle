@@ -11,6 +11,12 @@
 > 本文审计**仓库整体**的能力覆盖与差距。依验收标准 §3，跨分支证据不能用于认定某个
 > commit 的状态，故本文一律不授予 `VERIFIED`，只陈述"某处存在何种证据"。
 
+> **更新（2026-08-28，issue #5 已处理）**：本节所述的结构性差距**已通过分支整合关闭**。
+> 实现、需求、验收、CI 现处于同一 commit；I0–I12 与 ORACLE/CONSUMER/NFR 的追溯映射见
+> `TRACEABILITY_ZH.md`，并由 `scripts/check-scope-coverage.mjs` 强制。整合后本地实测：
+> `verify-prd-v0.3` 报 23/24 工程侧已验证（仅 NFR-004 待外部证据），217 项测试通过。
+> 下文保留为整合前的记录。
+
 ## 1. 首要结论：主要差距是结构性的，不是功能性的
 
 `feature/oracle-all-iterations` 已实现 PRD v0.3 绝大部分 L2 能力：34 个源模块、12 个测试

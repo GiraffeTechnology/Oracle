@@ -1,0 +1,207 @@
+import { OracleStatus } from "./oracle-status.js";
+import { evidenceHash } from "./canonical-json.js";
+
+const SHA256_HEX = /^[a-f0-9]{64}$/i;
+
+function validBoundedString(value, maximum) {
+  return typeof value === "string" && value.length > 0 && value.length <= maximum;
+}
+
+function assertFailureReason(reasonHash) {
+  if (!SHA256_HEX.test(reasonHash ?? "")) throw new Error("SETTLEMENT_REASON_HASH_INVALID");
+}
+
+function assertActor(actorId) {
+  if (!validBoundedString(actorId, 64)) throw new Error("SETTLEMENT_ACTOR_INVALID");
+}
+
+export class SettlementCoordinator {
+  #settlements = new Map();
+  #intentHashes = new Map();
+
+  constructor({ recordStore, stateEngine, auditJournal, tokenIndex = null, attestations = null, businessCalendar = null, settlementProfile = null, clock = () => new Date() }) {
+    this.recordStore = recordStore;
+    this.stateEngine = stateEngine;
+    this.auditJournal = auditJournal;
+    this.tokenIndex = tokenIndex;
+    this.attestations = attestations;
+    this.businessCalendar = businessCalendar;
+    this.settlementProfile = settlementProfile;
+    this.clock = clock;
+  }
+
+  #updateAssetStatus(assetId, oracleStatus, evidenceVersion, updatedAt) {
+    const current = this.recordStore.getAsset(assetId);
+    const updated = Object.freeze({ ...current, oracleStatus, evidenceVersion, updatedAt });
+    this.recordStore.putAsset(updated, this.recordStore.provenance("REGISTRY", assetId));
+  }
+
+  begin(request) {
+    if (Object.hasOwn(request ?? {}, "snapshotHash") || Object.hasOwn(request ?? {}, "t0SnapshotHash")) {
+      throw new Error("SETTLEMENT_CALLER_SNAPSHOT_REFUSED");
+    }
+    if (Object.hasOwn(request ?? {}, "deadlineAt")) throw new Error("SETTLEMENT_CALLER_DEADLINE_REFUSED");
+    const { settlementId, assetId, token, sellerWallet, buyerWallet, externalExecutionRef, oldCertificateHash, warehouseReceiptHash, actorId, evidenceVersion } = request ?? {};
+    const certificate = this.recordStore.currentCertificate(assetId);
+    const warehouse = this.recordStore.getWarehouse(assetId);
+    if (!this.recordStore.getAsset(assetId) || !certificate || !warehouse) {
+      throw new Error("SETTLEMENT_EVIDENCE_INCOMPLETE");
+    }
+    if (!validBoundedString(settlementId, 128) || !validBoundedString(assetId, 128) || !validBoundedString(token?.chainId, 64) || !validBoundedString(token?.contract, 128) || !validBoundedString(token?.tokenId, 128) || !validBoundedString(sellerWallet, 128) || !validBoundedString(buyerWallet, 128) || !validBoundedString(externalExecutionRef, 256)) {
+      throw new Error("SETTLEMENT_SNAPSHOT_INCOMPLETE");
+    }
+    const binding = this.tokenIndex?.byToken(token.chainId, token.contract, token.tokenId);
+    if (!binding || binding.assetId !== assetId) throw new Error("SETTLEMENT_TOKEN_BINDING_INVALID");
+    if (oldCertificateHash !== certificate.certificateHash || warehouseReceiptHash !== warehouse.warehouseReceiptHash) {
+      throw new Error("SETTLEMENT_SNAPSHOT_CONFLICT");
+    }
+    const now = this.clock();
+    const targetBusinessDays = this.settlementProfile?.targetBusinessDays;
+    if (!this.businessCalendar || !Number.isInteger(targetBusinessDays) || targetBusinessDays < 1 || !this.settlementProfile?.businessCalendarRef) throw new Error("SETTLEMENT_CALENDAR_PROFILE_REQUIRED");
+    const deadline = this.businessCalendar.addBusinessDays(now, targetBusinessDays);
+    assertActor(actorId);
+    const normalizedDeadlineAt = deadline.toISOString();
+    const intent = Object.freeze({
+      schemaVersion: "giraffe-settlement-intent.v1",
+      settlementId,
+      assetId,
+      token: Object.freeze({ chainId: token.chainId, contract: token.contract, tokenId: token.tokenId }),
+      sellerWallet,
+      buyerWallet,
+      externalExecutionRef,
+      oldCertificateHash,
+      warehouseReceiptHash,
+      deadlineAt: normalizedDeadlineAt,
+      businessCalendarRef: this.settlementProfile?.businessCalendarRef ?? null,
+      targetBusinessDays: targetBusinessDays ?? null,
+    });
+    const intentHash = evidenceHash(intent);
+    const existing = this.#settlements.get(settlementId);
+    if (existing) {
+      if (this.#intentHashes.get(settlementId) !== intentHash) throw new Error("SETTLEMENT_IDEMPOTENCY_CONFLICT");
+      return existing;
+    }
+    const snapshotHash = evidenceHash({ ...intent, schemaVersion: "giraffe-settlement-snapshot.v1", observedAt: now.toISOString() });
+    this.stateEngine.assertTransition({ subjectId: assetId, to: OracleStatus.TRANSFER_PENDING, evidenceVersion });
+    this.stateEngine.transition({
+      subjectId: assetId,
+      to: OracleStatus.TRANSFER_PENDING,
+      reasonHash: snapshotHash,
+      evidenceVersion,
+      occurredAt: now.toISOString(),
+    });
+    this.#updateAssetStatus(assetId, OracleStatus.TRANSFER_PENDING, evidenceVersion, now.toISOString());
+    this.attestations?.revokeBySubject({
+      assetId,
+      purpose: "transfer-eligibility",
+      reasonHash: snapshotHash,
+      revokedAt: now.toISOString(),
+      authorityId: actorId,
+    });
+    const record = Object.freeze({ settlementId, assetId, token: Object.freeze({ ...token }), sellerWallet, buyerWallet, externalExecutionRef, snapshotHash, oldCertificateHash, warehouseReceiptHash, deadlineAt: normalizedDeadlineAt, businessCalendarRef: this.settlementProfile?.businessCalendarRef ?? null, targetBusinessDays: targetBusinessDays ?? null, status: "PENDING", startedAt: now.toISOString() });
+    this.#settlements.set(settlementId, record);
+    this.#intentHashes.set(settlementId, intentHash);
+    this.auditJournal.append({ type: "settlement.started", subjectId: assetId, payloadHash: snapshotHash, actorId, occurredAt: now.toISOString() });
+    return record;
+  }
+
+  finalize({ settlementId, certificate, certificateProvenance, warehouse, warehouseProvenance, registryChangeRef, snapshotHash, warehouseConfirmed, ownerBindingConfirmed, newOwnerCommitment, actorId, evidenceVersion }) {
+    assertActor(actorId);
+    const current = this.#settlements.get(settlementId);
+    const currentAsset = current ? this.recordStore.getAsset(current.assetId) : null;
+    const currentWarehouse = current ? this.recordStore.getWarehouse(current.assetId) : null;
+    if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
+    if (!registryChangeRef || warehouseConfirmed !== true || ownerBindingConfirmed !== true) throw new Error("SETTLEMENT_CONFIRMATION_INCOMPLETE");
+    if (certificate?.wenbaoChangeRef !== registryChangeRef || certificate?.warehouseReceiptHash !== current.warehouseReceiptHash) {
+      throw new Error("SETTLEMENT_CERTIFICATE_EVIDENCE_MISMATCH");
+    }
+    if (certificate?.assetId !== current.assetId) throw new Error("SETTLEMENT_CERTIFICATE_ASSET_MISMATCH");
+    if (certificate?.tokenId !== current.token.tokenId) throw new Error("SETTLEMENT_CERTIFICATE_TOKEN_MISMATCH");
+    if (snapshotHash !== current.snapshotHash) throw new Error("SETTLEMENT_SNAPSHOT_EVIDENCE_MISMATCH");
+    if (!SHA256_HEX.test(newOwnerCommitment ?? "")) throw new Error("SETTLEMENT_OWNER_COMMITMENT_INVALID");
+    if (!certificateProvenance?.sourceId || certificateProvenance.schemaVersion !== "certificate-record.v1") throw new Error("SETTLEMENT_CERTIFICATE_PROVENANCE_REQUIRED");
+    if (warehouse !== undefined) {
+      if (!currentWarehouse || !currentAsset || warehouse.assetId !== current.assetId || warehouse.warehouseReceiptHash !== current.warehouseReceiptHash || warehouse.warehouseId !== currentWarehouse.warehouseId || warehouse.warehouseId !== currentAsset.warehouseId || warehouse.holderCommitment !== newOwnerCommitment || warehouse.warehouseStatus !== "IN_CUSTODY") throw new Error("SETTLEMENT_WAREHOUSE_EVIDENCE_MISMATCH");
+      if (!warehouseProvenance?.sourceId || warehouseProvenance.schemaVersion !== "warehouse-record.v1") throw new Error("SETTLEMENT_WAREHOUSE_PROVENANCE_REQUIRED");
+      this.recordStore.assertWarehouse(warehouse);
+    }
+    if (this.clock() > new Date(current.deadlineAt)) throw new Error("SETTLEMENT_DEADLINE_EXCEEDED");
+    this.stateEngine.assertTransition({ subjectId: current.assetId, to: OracleStatus.VALID, evidenceVersion });
+    this.recordStore.assertCertificate(certificate);
+    const now = this.clock().toISOString();
+   const updatedAsset = Object.freeze({ ...currentAsset, currentCertificateHash: certificate.certificateHash, currentCertificateVersion: certificate.certificateVersion, currentOwnerCommitment: newOwnerCommitment, oracleStatus: OracleStatus.VALID, evidenceVersion, updatedAt: now });
+    this.recordStore.assertAsset(updatedAsset);
+    const assetProvenance = this.recordStore.provenance("REGISTRY", current.assetId);
+    this.recordStore.replaceCurrentCertificate(certificate, certificateProvenance, now);
+    this.recordStore.putAsset(updatedAsset, assetProvenance);
+    if (warehouse !== undefined) this.recordStore.putWarehouse(warehouse, warehouseProvenance);
+    this.stateEngine.transition({ subjectId: current.assetId, to: OracleStatus.VALID, reasonHash: certificate.certificateHash, evidenceVersion, occurredAt: now });
+    const finalized = Object.freeze({ ...current, status: "FINALIZED", registryChangeRef, newCertificateHash: certificate.certificateHash, finalizedAt: now });
+    this.#settlements.set(settlementId, finalized);
+    this.auditJournal.append({ type: "settlement.finalized", subjectId: current.assetId, payloadHash: certificate.certificateHash, actorId, occurredAt: now });
+    return finalized;
+  }
+
+  cancel({ settlementId, reasonHash, actorId, evidenceVersion }) {
+    assertActor(actorId);
+    assertFailureReason(reasonHash);
+    const current = this.#settlements.get(settlementId);
+    if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
+    const now = this.clock().toISOString();
+    this.stateEngine.transition({ subjectId: current.assetId, to: OracleStatus.REVIEW_REQUIRED, reasonHash, evidenceVersion, occurredAt: now });
+    this.#updateAssetStatus(current.assetId, OracleStatus.REVIEW_REQUIRED, evidenceVersion, now);
+    const cancelled = Object.freeze({ ...current, status: "CANCELLED", failureReasonHash: reasonHash, cancelledAt: now });
+    this.#settlements.set(settlementId, cancelled);
+    this.auditJournal.append({ type: "settlement.cancelled", subjectId: current.assetId, payloadHash: reasonHash, actorId, occurredAt: now });
+    return cancelled;
+  }
+
+  dispute({ settlementId, reasonHash, actorId, evidenceVersion }) {
+    assertActor(actorId);
+    assertFailureReason(reasonHash);
+    const current = this.#settlements.get(settlementId);
+    if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
+    const now = this.clock().toISOString();
+    this.stateEngine.transition({ subjectId: current.assetId, to: OracleStatus.REVIEW_REQUIRED, reasonHash, evidenceVersion, occurredAt: now });
+    this.#updateAssetStatus(current.assetId, OracleStatus.REVIEW_REQUIRED, evidenceVersion, now);
+    const disputed = Object.freeze({ ...current, status: "DISPUTED", failureReasonHash: reasonHash, disputedAt: now });
+    this.#settlements.set(settlementId, disputed);
+    this.auditJournal.append({ type: "settlement.disputed", subjectId: current.assetId, payloadHash: reasonHash, actorId, occurredAt: now });
+    return disputed;
+  }
+
+  timeout({ settlementId, reasonHash, actorId, evidenceVersion }) {
+    assertActor(actorId);
+    assertFailureReason(reasonHash);
+    const current = this.#settlements.get(settlementId);
+    if (!current || current.status !== "PENDING") throw new Error("SETTLEMENT_NOT_PENDING");
+    if (this.clock() <= new Date(current.deadlineAt)) throw new Error("SETTLEMENT_DEADLINE_NOT_REACHED");
+    const now = this.clock().toISOString();
+    this.stateEngine.transition({ subjectId: current.assetId, to: OracleStatus.REVIEW_REQUIRED, reasonHash, evidenceVersion, occurredAt: now });
+    this.#updateAssetStatus(current.assetId, OracleStatus.REVIEW_REQUIRED, evidenceVersion, now);
+    const timedOut = Object.freeze({ ...current, status: "TIMED_OUT", failureReasonHash: reasonHash, timedOutAt: now });
+    this.#settlements.set(settlementId, timedOut);
+    this.auditJournal.append({ type: "settlement.timed-out", subjectId: current.assetId, payloadHash: reasonHash, actorId, occurredAt: now });
+    return timedOut;
+  }
+
+  get(settlementId) {
+    return this.#settlements.get(settlementId) ?? null;
+  }
+
+  byAsset(assetId) {
+    return [...this.#settlements.values()].reverse().find((record) => record.assetId === assetId) ?? null;
+  }
+
+  exportState() { return Object.freeze({ settlements: [...this.#settlements.values()], intentHashes: [...this.#intentHashes.entries()] }); }
+  importState(state) {
+    if (this.#settlements.size || this.#intentHashes.size || !Array.isArray(state?.settlements) || !Array.isArray(state?.intentHashes)) throw new Error("SETTLEMENT_STATE_IMPORT_REJECTED");
+    const hashes = new Map(state.intentHashes);
+    for (const record of state.settlements) {
+      if (!record.settlementId || !record.assetId || !hashes.has(record.settlementId)) throw new Error("SETTLEMENT_STATE_IMPORT_INVALID");
+      this.#settlements.set(record.settlementId, Object.freeze({ ...record, token: Object.freeze({ ...record.token }) }));
+    }
+    this.#intentHashes = hashes;
+  }
+}
+
