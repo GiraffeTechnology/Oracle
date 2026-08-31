@@ -35,16 +35,19 @@ One comparison, exposed as `isFinalAsOf`. Instants at or after the latest entry 
 
 Two consequences worth stating plainly. Cancelling a settlement settles nothing: the provisional answer reverts to the prior entry, but a change the register already made can still arrive later, so nothing becomes final. And an entry that confirms the *same* holder is permitted rather than rejected as a no-op — on a token whose holder never changes it is the only thing that ever makes an instant final, so a profile needs a way to produce one.
 
-**What this gives entitlements**
+**What this gives rights — and what it deliberately does not**
 
-Because any instant resolves, the gap stops being a black hole. An entitlement resolves against the projection at the record instant its own terms specify:
+Because any instant resolves, the gap stops being a black hole. A right resolves against the projection at the record instant its own terms specify, and three separate facts are available to it:
 
-- An exercise that **cannot** be performed later with equivalent effect — voting in a ballot that closes, or opening a proposal — is gated on **contestedness**, not on finality: it is refused while a gap is open covering the instant, and extinguished for it. Otherwise it proceeds against the projection as it stands, and the implementation records the entry version it relied on. A later admission never retroactively invalidates a completed exercise.
-- An exercise that **can** be performed later with equivalent effect — a distribution — is deferred, not destroyed. Once the projection admits the covering entry, it is credited to the party confirmed for that instant, even if that party no longer holds the token.
+- `holderAsOf` — the confirmed holder at that instant.
+- `isFinalAsOf` — whether a later admission can still change that answer.
+- **contested** — whether a gap is open that opened at or before the instant.
 
-Deferral is in the standard, not left to each entitlement contract. A deferral is keyed on the token, the entitlement id and the record instant, and deliberately binds **no** beneficiary address when recorded — that address is not yet determinable. `resolveDeferral` reverts until `isFinalAsOf` is true, then binds the beneficiary to `holderAsOf` at that instant. Anyone may call it, because the projection fixes the outcome, not the caller. The registry records attribution only; the contract that owes the entitlement reads the resolved beneficiary and settles it.
+**The ERC stops there.** Whether a right may be exercised at a non-final or contested instant, whether a blocked exercise is postponed or forfeited, and who bears a forfeiture, are decisions for the right's own terms. A dividend and a ballot should answer them differently, and an issuer and a DAO may answer them differently again. Fixing those answers in a standard would be legislating well past the point where interoperability needs agreement. What the ERC removes is the excuse for deciding blindly: the three facts are available at the moment of exercise and stay checkable afterwards.
 
-The reason it belongs here rather than in each consuming contract is that every one of them would otherwise reimplement the same finality check, be free to get it wrong, and leave a party owed a distribution with no common place to look.
+As guidance rather than a rule: a distribution can be postponed at a cost of time alone, so finality suits it — defer, then credit the party the register confirms for the instant, even if that party no longer holds the token. A vote cannot be postponed, so finality is the wrong condition; the present moment is never final, and waiting for it would forbid voting at almost every moment rather than occasionally. Contestedness is the condition that fits a vote: bounded, visible in advance, avoidable.
+
+There is a registry for the postponed case, and it is a place to record an attribution, not a mandate to postpone. A deferral is keyed on the token, the entitlement id and the record instant, and binds **no** beneficiary address when recorded — that address is not yet determinable. `resolveDeferral` reverts until `isFinalAsOf` is true, then binds the beneficiary to `holderAsOf` at that instant. Anyone may call it, because the projection fixes the outcome, not the caller. It records who the register confirms; it does not decide whether a right should be postponed, what it is worth, or who owes it.
 
 Gating perishable exercises on finality would be a design error worth naming, because it is tempting: the present moment is at or after the latest entry's effective time and is therefore never final, so a finality gate forbids voting at almost every moment rather than occasionally. Contestedness is bounded, published in advance, and avoidable.
 
@@ -78,4 +81,4 @@ Draft. A CC0 reference implementation and 32 local-EVM tests accompany the propo
 
 Interface identifiers are `0x3ce71a8d` (`IRegisterProjection`), `0xfd0f6337` (`IProjectionSettlement`) and `0x6d39b0a8` (`IDeferredEntitlement`).
 
-Feedback welcome, particularly on the finality rule, on whether the deferral registry should also record extinguished perishable exercises, and on the proof encoding profile.
+Feedback welcome, particularly on the finality rule, on whether the deferral registry earns its place at all given that `holderAsOf` and `isFinalAsOf` already let a consuming contract do the same binding itself, and on the proof encoding profile.

@@ -3,7 +3,7 @@
   "status": "PREP_READY",
   "proposalTitle": "Asynchronous Register Projection for NFTs",
   "supersedes": "Proof-Verified Deferred Asset Settlement (V1-V9); rewritten around the register-projection axiom, see review/ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md",
-  "candidateSha256": "43faf50f73ba1ea13edae4421bb95c5659d2d6016088b43fc072455e4922d6ec",
+  "candidateSha256": "a49c58bc487cb34f337c45f077a30e45d7603e3067262097da46d576eb11b3e7",
   "referenceSha256": "bef640e66f6ec534f689b06a67d56b200d59be4bc30ac91ea9e0d0b342b0fa74",
   "testsSha256": "ddd2477ace672f36e5475aec2c0a41d4ecf8e377496e60ac88235bc3add7bf6f",
   "interfaceIds": {
@@ -31,10 +31,11 @@
     "confirmingEntries": "same-holder expectedHolder now permitted; it is what makes instants final on a static holder",
     "hkexRuleConformanceAudit": "COMPLETED / ex-entitlement misattribution corrected; H-1 (book closure) rejected by the author on the DAO-authority argument, see ADR-008",
     "perishableExerciseTrigger": "FIXED / trigger restored from isFinalAsOf-false to contested (an open gap covering the instant); the broadened form would have forbidden DAO voting at almost every moment",
-    "quiescence": "ADDED / an interval with no gap open at its start and none begun in it cannot admit an entry, so governance can constitute a register closure with no new primitive; the act constituting it cannot be protected by it, so the contested rule is the floor (ADR-008 addendum)"
+    "quiescence": "ADDED / an interval with no gap open at its start and none begun in it cannot admit an entry, so governance can constitute a register closure with no new primitive; the act constituting it cannot be protected by it, so the contested rule is the floor (ADR-008 addendum)",
+    "scopeDiscipline": "ADR-009 applied / every normative statement tested against 'does it say who holds power, or what you must do'; the rights section went from 6 MUSTs to 2 and the spec from 34 to 30; no interface changed"
   },
   "openDesignQuestions": [
-    "whether to add an isContestedAsOf accessor, which is derivable from openGapOf and settlement().openedAt but would change the projection interface id a third time"
+    "whether IDeferredEntitlement earns its place under ADR-009, given that holderAsOf and isFinalAsOf already let a consuming contract perform the same binding; kept pending the author's review of an earlier decision to include it"
   ],
   "userPrinciples": {
     "tradingMustNotBeBlockedDuringAGap": true,
