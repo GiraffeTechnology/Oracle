@@ -57,7 +57,7 @@ A **projection gap** is an interval in which a change is known to be in progress
 
 An interval is **quiescent** for a token when no gap is open at its start and none is begun during it.
 
-A **verification profile** defines the remote-finality proof, light-client or validator rules, state-root commitment, membership-proof algorithm, validator-set evolution, canonical encoding and hash functions. It MUST be deterministic and domain separated.
+A **verification profile** defines the remote-finality proof, light-client or validator rules, state-root commitment, membership-proof algorithm, validator-set evolution, canonical encoding and hash functions. Verification under it MUST be deterministic and domain separated. How an attested value was arrived at is outside the profile and outside this ERC.
 
 A **settlement period** is the implementation-defined interval within which a change is expected to be admitted. This ERC does not prescribe its length.
 
@@ -277,6 +277,8 @@ An entry that confirms the same holder is permitted rather than rejected as a no
 Proof submitters are untrusted so that admission depends on the remote consensus rather than on a privileged reporter. Verification and admission are atomic so that no interval exists in which a proof has been accepted but the projection has not advanced.
 
 This does not replace an oracle, and the distinction is worth being exact about. A register that is not itself a ledger with consensus needs some party to commit to its contents on its behalf, and the proof path verifies that party's committed statements, not the world behind them. Some data is unsuited to the chain in the first place — confidential, personal, or simply not the registrar's to publish — which is why entries carry a commitment and a reference and never the record. What changes is not who is trusted but what that trust permits. Statements enter one append-only order per token, two cannot share an effective instant, none can be reused, and any past instant can be re-examined long afterwards. A source that contradicts itself leaves the contradiction on the record rather than overwriting it, and a third party with no relationship to the registrar can see that it did.
+
+This ERC therefore constrains verification and says nothing about attestation. An attesting party may be a light client, a quorum of signers, a registrar's own key or a machine that reads the register, and the profile names which; the requirement is that checking what it committed to be deterministic, not that arriving at the value was. Where a profile uses a quorum, attesters that read the register differently commit to different roots, their signatures do not aggregate, and no entry is admitted: the gap stays open and the instant stays contested, which is the correct outcome when the register's own readers disagree.
 
 ### Prior art
 

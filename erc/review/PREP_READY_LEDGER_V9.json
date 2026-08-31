@@ -3,7 +3,7 @@
   "status": "PREP_READY",
   "proposalTitle": "Asynchronous Register Projection for NFTs",
   "supersedes": "Proof-Verified Deferred Asset Settlement (V1-V9); rewritten around the register-projection axiom, see review/ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md",
-  "candidateSha256": "64689d87b101045bf93be7ab9dbae268a95b3551b2ab068bd289aac2dae2257b",
+  "candidateSha256": "4d6e29096d8780f01d06b2fb0c2c23a90a16e06ccd3df0433aee2a466deaeb28",
   "referenceSha256": "cd35be944cfcdcf3e913730053497a518b77134e6715360b4692f2d8cb4e4009",
   "testsSha256": "e58ed516049bafa53769833428aead5b9db5f736c1ba4226dc23f853e185df78",
   "interfaceIds": {
@@ -32,7 +32,8 @@
     "perishableExerciseTrigger": "FIXED / trigger restored from isFinalAsOf-false to contested (an open gap covering the instant); the broadened form would have forbidden DAO voting at almost every moment",
     "quiescence": "ADDED / an interval with no gap open at its start and none begun in it cannot admit an entry, so governance can constitute a register closure with no new primitive; the act constituting it cannot be protected by it, so the contested rule is the floor (ADR-008 addendum)",
     "scopeDiscipline": "ADR-009 applied / every normative statement tested against 'does it say who holds power, or what you must do'; the rights section went from 6 MUSTs to 2 and the spec from 34 to 30; no interface changed",
-    "oracleBoundary": "CORRECTED / the Motivation had framed oracles as a path this ERC escapes; it does not. A register without consensus needs an attesting party, its contents often cannot be published, and the proof verifies that party's committed statements. Normative load unchanged at 30 MUSTs; reference header comment only, runtime bytecode byte-identical."
+    "oracleBoundary": "CORRECTED / the Motivation had framed oracles as a path this ERC escapes; it does not. A register without consensus needs an attesting party, its contents often cannot be published, and the proof verifies that party's committed statements. Normative load unchanged at 30 MUSTs; reference header comment only, runtime bytecode byte-identical.",
+    "attestationVsVerification": "CLARIFIED / the determinism requirement now explicitly scopes to verification, so a non-deterministic attester such as a machine reader is admissible; how an attested value was arrived at is out of scope"
   },
   "openDesignQuestions": [],
   "userPrinciples": {
@@ -45,7 +46,8 @@
     "perishableExercisesAreCheckedAtTheMomentOfExercise": true,
     "addNothingThatCanBeLeftOut": true,
     "theStandardEstablishesWhoHoldsPowerNotWhatTheRulesAre": true,
-    "theStandardDoesNotReplaceAnOracle": true
+    "theStandardDoesNotReplaceAnOracle": true,
+    "attestingPartyPreference": "AI oracle reading the off-chain register first, existing oracles second; a profile choice recorded in OWNERSHIP_AND_STATE.md and deliberately not written into the ERC"
   },
   "remainingUserInputs": [
     "ethereumMagiciansDiscussionUrl",

@@ -55,6 +55,23 @@
 
 变更过程见 `review/CHANGELOG_REWRITE_ZH.md` 与各 ADR。
 
+## Profile 意向(作者定,**不进 ERC 正文**)
+
+证明方(attesting party)的优先顺序:
+
+1. **AI oracle** —— 能读取链下登记册并提交可审计 / 不可篡改的数据;
+2. 现有 oracle。
+
+这条属于 Profile 选择,按 ADR-009 不写进规范正文 —— 标准指派"由 Profile 定义证明方并披露它是谁",不替任何人指定用哪一种。记在这里防止漂移。
+
+落地时需要注意三点:
+
+1. **"可审计"到哪一层。** 链上可审计的是:该方在某高度承诺了某个值,且该承诺处于终局状态。**它有没有读对登记册,链上无法审计** —— 登记册内容本就不上链。这一点对 AI oracle 和传统 oracle 完全相同,不是 AI 特有的短板,但也不是 AI 能解决的问题。
+2. **单一 AI 证明方弱于配额。** LLM 抽取不具确定性,单源出错与读对在链上无法区分。参考 Profile 的验证人配额就是为此设计的:多个独立读取者必须就**同一个** commitment 达成一致。AI oracle 应作为配额成员,而非唯一来源。
+3. **读取者不一致时的降级是对的。** 验证人签的是同一个 digest(含 state root)。两个读取者读出不同结果 → root 不同 → 签名凑不满门限 → `InvalidProof`,条目进不来。缺口保持打开,瞬间保持被争议,不可回补权利按规则拒绝。**宁可不进,不可进错。**
+
+规范正文只作了一处相应澄清(未新增条款):原文 "It MUST be deterministic" 可能被读成禁止非确定性的证明方,已改为 "Verification under it MUST be deterministic … How an attested value was arrived at is outside the profile and outside this ERC."
+
 ## 已知架构局限(已在参考实现文件头声明)
 
 验证人分叉签名(equivocation)不检测;验证人集合不可变;数组无界。生产 Profile 必须自行解决,规范 Security Considerations 已列为 Profile 责任。
