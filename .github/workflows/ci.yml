@@ -1,6 +1,12 @@
 name: Oracle PRD v0.3 CI
 
 on:
+  # Branch pushes must trigger CI too. The workflow merged from
+  # feature/oracle-all-iterations only listened for pull_request, so a push to a branch
+  # without an open PR produced no run at all — silence that reads exactly like a green
+  # build unless someone checks the Actions tab.
+  push:
+    branches: ['**']
   pull_request:
   workflow_dispatch:
 
