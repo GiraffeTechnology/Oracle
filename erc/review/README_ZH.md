@@ -16,6 +16,7 @@
 | `NOVELTY_INDEPENDENT_ASSESSMENT_ZH.md` | 独立查重与新颖性评估;结论仍成立,但新颖性依据已由"证明"移到"投影不变量" |
 | `PROOF_PATH_ADVERSARIAL_REVIEW_ZH.md` | 证明路径对抗性审查;结论仍成立(证明路径在重写中未改变),文中的接口/合约名是旧名 |
 | `ERC_PRIOR_ART_DUPLICATION_REVIEW_ZH.md` | prior-art 比对 |
+| `HKEX_RULE_CONFORMANCE_AUDIT_ZH.md` | 按 HKEX 官方规则原文核对本标准;含一处已修的事实错误与一项待作者裁定的重大缺口(H-1) |
 | `IPR_CC0_GATE_ZH.md`、`ERC_IPR_CC0_RELEASE_CHECKLIST_ZH.md`、`PUBLISH_AUTHORIZATION_TEMPLATE_ZH.md` | IPR / CC0 与发布授权 |
 | `SUBMISSION_CHECKLIST_ZH.md` | 提交清单 |
 
