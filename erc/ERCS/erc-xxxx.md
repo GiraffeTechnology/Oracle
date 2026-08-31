@@ -21,15 +21,17 @@ Whether an instant's answer can still change is decidable from the same invarian
 
 The token continues to trade throughout. `ownerOf` is the tradeable position; the projection is the confirmed record. Entitlements resolve against the projection, so a holder change that the register has not yet confirmed cannot silently redirect a right.
 
-A change is admitted to the projection only on proof that the corresponding record exists in a finalized state of the remote register. Proof submitters are untrusted.
+A change is admitted to the projection only on proof that the corresponding record exists in a finalized state of the remote register. Proof submitters are untrusted. The register's contents stay off chain; only commitments and references reach it.
 
 ## Motivation
 
 Applications that mirror an off-chain register on chain face a gap they cannot close. Registration completes when the registrar completes it. Meanwhile the token trades.
 
-Existing approaches take one of two unsatisfactory paths. They trust an oracle to assert that registration finished, in which case the contract proves only what the oracle said. Or they freeze the token until registration finishes, which stops a market to solve a bookkeeping problem and destroys any entitlement whose record instant falls inside the freeze.
+A register of this kind usually cannot be published. Its contents may be confidential, may identify people, or may exist only as records the registrar is not free to disclose, so what reaches the chain is a commitment and a reference rather than the register. Something must therefore attest to what the register says, and **this ERC does not remove that party**. No standard can: data that cannot go on chain has to be attested by someone who can see it.
 
-Neither is necessary. The register's own change identity is enough. If every admitted change carries a strictly later effective time and a commitment unique to that token, the on-chain history is a total order, and a question of the form *who did the register record at this instant* has exactly one answer for every instant in the past.
+What can be removed is the latitude that party is usually given. An assertion delivered as a bare report is a single statement at a single moment. Nothing binds it to what the same source said before, nothing prevents two statements about one instant, and nothing lets an unrelated third party ask afterwards what was claimed at a given time. The alternative taken in practice is to freeze the token until registration finishes, which stops a market to solve a bookkeeping problem and destroys any right whose record instant falls inside the freeze.
+
+Neither the unaccountable report nor the freeze is necessary. The register's own change identity is enough. If every admitted change carries a strictly later effective time and a commitment unique to that token, the on-chain history is a total order, and a question of the form *who did the register record at this instant* has exactly one answer for every instant in the past.
 
 That single property is what third parties need and cannot get today. A marketplace, a wallet, an indexer or a collateral system has no relationship with the registrar, yet must know whether the current holder is confirmed or merely provisional. A governance or distribution contract must know who was confirmed at a record instant that may have passed while the register was still catching up. `ownerOf` cannot answer either question, and an issuer that locks its own token cannot tell an unrelated venue why.
 
@@ -327,6 +329,8 @@ An entry that confirms the same holder is permitted rather than rejected as a no
 
 Proof submitters are untrusted so that admission depends on the remote consensus rather than on a privileged reporter. Verification and admission are atomic so that no interval exists in which a proof has been accepted but the projection has not advanced.
 
+This does not replace an oracle, and the distinction is worth being exact about. A register that is not itself a ledger with consensus needs some party to commit to its contents on its behalf, and the proof path verifies that party's committed statements, not the world behind them. Some data is unsuited to the chain in the first place — confidential, personal, or simply not the registrar's to publish — which is why entries carry a commitment and a reference and never the record. What changes is not who is trusted but what that trust permits. Statements enter one append-only order per token, two cannot share an effective instant, none can be reused, and any past instant can be re-examined long afterwards. A source that contradicts itself leaves the contradiction on the record rather than overwriting it, and a third party with no relationship to the registrar can see that it did.
+
 ### Prior art
 
 [ERC-7965](./eip-7965.md) is the closest work on the proof side. It standardizes proof-based verification of source-chain messages inside [ERC-7786](./eip-7786.md) gateways. Its broadcast semantics require one proof to serve many recipients, so it deliberately does not bind a proof to a destination field set, and it does not constrain the relationship between verification and execution. It proves a message; it does not build an ordered register whose past instants resolve. [ERC-5164](./eip-5164.md) and [ERC-6358](./eip-6358.md) likewise address execution and multi-chain token state rather than register history.
@@ -376,7 +380,7 @@ A CC0 Solidity reference implementation and self-contained local-EVM tests accom
 
 This ERC removes trust in the proof submitter, not all trust. Security depends on the remote consensus, the light client or validator quorum, validator-set update rules, cryptography, canonical encoding, the verifier implementation and any upgrade authority. A colluding remote consensus can finalize a false record and a faulty verifier can accept an invalid proof.
 
-A proof establishes that bytes were included in accepted finalized remote state. It does not establish that an asset exists, that a registrar told the truth, or that a record is legally effective.
+A proof establishes that bytes were included in accepted finalized remote state. It does not establish that an asset exists, that a registrar told the truth, or that a record is legally effective. Where the remote register is not itself a ledger with consensus, some party commits to its contents on its behalf. That party is an oracle in the ordinary sense, its honesty is assumed rather than proven, and identifying it is part of the verification profile a consumer must accept before relying on the projection.
 
 Profiles MUST address validator equivocation, quorum uniqueness, signature malleability, replay, remote forks, validator-set rotation, proof-size and gas denial of service, hash collisions, integer bounds, malformed encodings and verifier upgrades. Fixed validator sets are suitable only where their lifecycle and recovery assumptions are acceptable.
 

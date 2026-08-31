@@ -10,7 +10,9 @@ Category: EIPs / ERCs. Post this first, then put its URL into `discussions-to`.
 
 A token that stands for something recorded on an off-chain register lives with a gap it cannot close. Registration completes when the registrar completes it. Meanwhile the token trades. Nothing on chain says which of the two records is the confirmed one at any given moment.
 
-The usual responses are both bad. Trust an oracle to say "registration finished", and the contract proves only what the oracle said. Freeze the token until registration finishes, and you have stopped a market to solve a bookkeeping problem — and destroyed any entitlement whose record instant fell inside the freeze.
+**This does not replace an oracle, and I want to be exact about that up front.** A register of this kind usually cannot be published — confidential, personal, or simply not the registrar's to disclose — so what reaches the chain is a commitment and a reference, never the record. Something has to attest to what the register says, and no standard can remove that party: data that cannot go on chain has to be attested by someone who can see it.
+
+What can be removed is the latitude that party normally gets. A bare oracle report is one statement at one moment: nothing binds it to what the same source said before, nothing stops two statements about one instant, and nothing lets an unrelated third party ask afterwards what was claimed at a given time. The alternative in practice is to freeze the token until registration finishes, which stops a market to solve a bookkeeping problem and destroys any right whose record instant fell inside the freeze.
 
 Neither is necessary, because the register already supplies what is missing. Every change it makes has a unique identity: the instant it takes effect, and a commitment to its content. That is enough to build an ordered, verifiable projection of the register onto the token.
 
@@ -59,7 +61,7 @@ A registered market avoids the question differently: a board resolves to close t
 
 **Admission is proof-verified, and submitters are untrusted**
 
-A change enters the projection only on proof that the corresponding record exists in a finalized state of the remote register. The proven leaf binds `block.chainid`, the token contract, token id, settlement id, the asserted holder, the initiation snapshot, the prior and next commitments, the version and the effective time. Verification and admission are atomic: no interval exists in which a proof has been accepted but the projection has not advanced. `msg.sender` plays no part in whether a proof is valid.
+A change enters the projection only on proof that the corresponding record exists in a finalized state of the remote register — which is a proof about what the attesting party committed to, not about the world behind it. The proven leaf binds `block.chainid`, the token contract, token id, settlement id, the asserted holder, the initiation snapshot, the prior and next commitments, the version and the effective time. Verification and admission are atomic: no interval exists in which a proof has been accepted but the projection has not advanced. `msg.sender` plays no part in whether a proof is valid.
 
 **Relationship to existing work**
 

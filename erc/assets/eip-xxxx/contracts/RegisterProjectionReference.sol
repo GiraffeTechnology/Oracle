@@ -19,9 +19,14 @@ pragma solidity ^0.8.20;
 //    submitter gas only; the strictly increasing signer rule caps the number
 //    of accepted signatures at the validator set size.
 //
-// Production profiles SHOULD use the remote register's native light client
-// and validator-set transition rules, and MUST disclose the verifier and any
-// upgrade authority as part of the security boundary.
+// Where the remote register is itself a ledger with consensus, production
+// profiles SHOULD use its native light client and validator-set transition
+// rules. Many registers are not: a share registrar or a title office has no
+// consensus and no state root. There the validator set below is not a
+// consensus at all but an attestation quorum - an oracle - and the proof
+// establishes what that quorum committed to, not that the register said it.
+// Profiles MUST disclose the verifier, the attesting party and any upgrade
+// authority as part of the security boundary.
 
 interface IERC165 {
     function supportsInterface(bytes4 interfaceId) external view returns (bool);

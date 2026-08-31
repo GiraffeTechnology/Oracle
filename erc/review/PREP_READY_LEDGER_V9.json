@@ -3,8 +3,8 @@
   "status": "PREP_READY",
   "proposalTitle": "Asynchronous Register Projection for NFTs",
   "supersedes": "Proof-Verified Deferred Asset Settlement (V1-V9); rewritten around the register-projection axiom, see review/ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md",
-  "candidateSha256": "a49c58bc487cb34f337c45f077a30e45d7603e3067262097da46d576eb11b3e7",
-  "referenceSha256": "bef640e66f6ec534f689b06a67d56b200d59be4bc30ac91ea9e0d0b342b0fa74",
+  "candidateSha256": "e7e5771333fe148b9e244e9ed4c5b6d20bd8494f4dbac728850c3df386364a65",
+  "referenceSha256": "cd676fa5fad113e7c2110920d2bbe8317186b9cc74d6566e2d0275ac4e5aa13c",
   "testsSha256": "ddd2477ace672f36e5475aec2c0a41d4ecf8e377496e60ac88235bc3add7bf6f",
   "interfaceIds": {
     "IRegisterProjection": "0x3ce71a8d",
@@ -32,7 +32,8 @@
     "hkexRuleConformanceAudit": "COMPLETED / ex-entitlement misattribution corrected; H-1 (book closure) rejected by the author on the DAO-authority argument, see ADR-008",
     "perishableExerciseTrigger": "FIXED / trigger restored from isFinalAsOf-false to contested (an open gap covering the instant); the broadened form would have forbidden DAO voting at almost every moment",
     "quiescence": "ADDED / an interval with no gap open at its start and none begun in it cannot admit an entry, so governance can constitute a register closure with no new primitive; the act constituting it cannot be protected by it, so the contested rule is the floor (ADR-008 addendum)",
-    "scopeDiscipline": "ADR-009 applied / every normative statement tested against 'does it say who holds power, or what you must do'; the rights section went from 6 MUSTs to 2 and the spec from 34 to 30; no interface changed"
+    "scopeDiscipline": "ADR-009 applied / every normative statement tested against 'does it say who holds power, or what you must do'; the rights section went from 6 MUSTs to 2 and the spec from 34 to 30; no interface changed",
+    "oracleBoundary": "CORRECTED / the Motivation had framed oracles as a path this ERC escapes; it does not. A register without consensus needs an attesting party, its contents often cannot be published, and the proof verifies that party's committed statements. Normative load unchanged at 30 MUSTs; reference header comment only, runtime bytecode byte-identical."
   },
   "openDesignQuestions": [
     "whether IDeferredEntitlement earns its place under ADR-009, given that holderAsOf and isFinalAsOf already let a consuming contract perform the same binding; kept pending the author's review of an earlier decision to include it"
