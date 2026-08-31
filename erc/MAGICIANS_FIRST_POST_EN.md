@@ -39,14 +39,16 @@ Two consequences worth stating plainly. Cancelling a settlement settles nothing:
 
 Because any instant resolves, the gap stops being a black hole. An entitlement resolves against the projection at the record instant its own terms specify:
 
-- An exercise that **cannot** be performed later with equivalent effect — voting in a ballot that closes — is unavailable to both the outgoing and incoming party, and is extinguished. When you cannot determine the rightful party, abstention is the only outcome that cannot be wrong, and later resolution must not reopen a decided ballot.
+- An exercise that **cannot** be performed later with equivalent effect — voting in a ballot that closes, or opening a proposal — is gated on **contestedness**, not on finality: it is refused while a gap is open covering the instant, and extinguished for it. Otherwise it proceeds against the projection as it stands, and the implementation records the entry version it relied on. A later admission never retroactively invalidates a completed exercise.
 - An exercise that **can** be performed later with equivalent effect — a distribution — is deferred, not destroyed. Once the projection admits the covering entry, it is credited to the party confirmed for that instant, even if that party no longer holds the token.
 
 Deferral is in the standard, not left to each entitlement contract. A deferral is keyed on the token, the entitlement id and the record instant, and deliberately binds **no** beneficiary address when recorded — that address is not yet determinable. `resolveDeferral` reverts until `isFinalAsOf` is true, then binds the beneficiary to `holderAsOf` at that instant. Anyone may call it, because the projection fixes the outcome, not the caller. The registry records attribution only; the contract that owes the entitlement reads the resolved beneficiary and settles it.
 
 The reason it belongs here rather than in each consuming contract is that every one of them would otherwise reimplement the same finality check, be free to get it wrong, and leave a party owed a distribution with no common place to look.
 
-Traditional infrastructure gets to the same place by centralising the arithmetic into an ex-date. This exposes the state instead and lets the parties do it themselves.
+Gating perishable exercises on finality would be a design error worth naming, because it is tempting: the present moment is at or after the latest entry's effective time and is therefore never final, so a finality gate forbids voting at almost every moment rather than occasionally. Contestedness is bounded, published in advance, and avoidable.
+
+A registered market avoids all of this differently, and the difference does not carry over. There, a board resolves to close the register and the record date is fixed in advance — but the board is constituted *outside* the register: its membership does not depend on what the register says about any holding. On-chain governance has no such body. The right to open a proposal and the right to vote both derive from holding, which is exactly what the projection is resolving, so there is no roll to consult before the projection has answered. The only thing that can be checked is whether the power existed at the instant it was used — which is why this records the basis of an exercise rather than trying to fix an electorate in advance.
 
 **Admission is proof-verified, and submitters are untrusted**
 
@@ -68,7 +70,7 @@ This is not a bridge. ICS-721 and xERC721-style designs escrow, burn or mint a r
 
 **Status**
 
-Draft. A CC0 reference implementation and 30 local-EVM tests accompany the proposal. The reference proof profile is deliberately minimal — a fixed validator set signing a domain-separated checkpoint, plus a Merkle membership proof — and its two limits are stated in the file header: validator equivocation is not detected and the validator set is immutable. Production profiles should use the remote register's native light client.
+Draft. A CC0 reference implementation and 31 local-EVM tests accompany the proposal. The reference proof profile is deliberately minimal — a fixed validator set signing a domain-separated checkpoint, plus a Merkle membership proof — and its two limits are stated in the file header: validator equivocation is not detected and the validator set is immutable. Production profiles should use the remote register's native light client.
 
 Interface identifiers are `0x3ce71a8d` (`IRegisterProjection`), `0xfd0f6337` (`IProjectionSettlement`) and `0x6d39b0a8` (`IDeferredEntitlement`).
 

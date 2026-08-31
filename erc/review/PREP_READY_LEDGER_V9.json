@@ -3,16 +3,16 @@
   "status": "PREP_READY",
   "proposalTitle": "Asynchronous Register Projection for NFTs",
   "supersedes": "Proof-Verified Deferred Asset Settlement (V1-V9); rewritten around the register-projection axiom, see review/ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md",
-  "candidateSha256": "40530046048f87238dd5428085ce794cbe988caf3dc82585584710bb122d8ee5",
+  "candidateSha256": "50e1ea639e0741626156c9e3d2485c41bf097afe60177b6aee11e52c9617cd02",
   "referenceSha256": "bef640e66f6ec534f689b06a67d56b200d59be4bc30ac91ea9e0d0b342b0fa74",
-  "testsSha256": "847c0e9d284c3ff8739a5f674923a1c6b2190f2688b5f76eaa3252568fb3219a",
+  "testsSha256": "79ef42e4aa4e0dfeeaa2e12144eccc87398be858174f936f3695ce7662160141",
   "interfaceIds": {
     "IRegisterProjection": "0x3ce71a8d",
     "IProjectionSettlement": "0xfd0f6337",
     "IDeferredEntitlement": "0x6d39b0a8"
   },
   "verification": {
-    "publicAssetTests": "30/30 PASS",
+    "publicAssetTests": "31/31 PASS",
     "npmTestEntrypoint": "PASS from a clean copy of assets/eip-xxxx",
     "solidityCompileWarnings": "0 (asserted by the suite)",
     "submissionGate": "PASS",
@@ -29,17 +29,20 @@
     "deferredEntitlementRegistry": "IN SCOPE by author decision; IDeferredEntitlement added with resolution gated on finality",
     "discoverability": "registerId, registerDescriptor and verificationProfile added; MAJOR-3 closed",
     "confirmingEntries": "same-holder expectedHolder now permitted; it is what makes instants final on a static holder",
-    "hkexRuleConformanceAudit": "COMPLETED / one factual error in the Rationale corrected; H-1 (no book-closure analogue) open and awaiting the author's decision"
+    "hkexRuleConformanceAudit": "COMPLETED / ex-entitlement misattribution corrected; H-1 (book closure) rejected by the author on the DAO-authority argument, see ADR-008",
+    "perishableExerciseTrigger": "FIXED / trigger restored from isFinalAsOf-false to contested (an open gap covering the instant); the broadened form would have forbidden DAO voting at almost every moment"
   },
   "openDesignQuestions": [
-    "whether to add a register closure primitive so a record instant becomes final in advance, as HKEX achieves with book closure (audit finding H-1)"
+    "whether to add an isContestedAsOf accessor, which is derivable from openGapOf and settlement().openedAt but would change the projection interface id a third time"
   ],
   "userPrinciples": {
     "tradingMustNotBeBlockedDuringAGap": true,
     "everyPastInstantResolvesToExactlyOneConfirmedHolder": true,
     "independentEndorsementVerification": "out-of-band by consumers",
     "deferredEntitlementRegistryInStandard": true,
-    "registerAndProfileIdentityDiscoverable": true
+    "registerAndProfileIdentityDiscoverable": true,
+    "registerClosureRequiresAnAuthorityOutsideTheRegister": true,
+    "perishableExercisesAreCheckedAtTheMomentOfExercise": true
   },
   "remainingUserInputs": [
     "ethereumMagiciansDiscussionUrl",

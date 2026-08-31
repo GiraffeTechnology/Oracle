@@ -150,17 +150,21 @@ Ordinary ERC-721 transfers MUST NOT be blocked while a projection gap is open. T
 
 An implementation MUST NOT infer the confirmed holder from `ownerOf`, and MUST NOT update the projection on an ordinary transfer. The projection changes only through proof-verified admission.
 
-### Entitlements at a non-final instant
+### Exercising a right against the projection
 
-An entitlement determined by registration time MUST be resolved against the projection at the record instant its own terms specify, not against `ownerOf`. This ERC does not decide how any entitlement determines its holder; it guarantees that the question is answerable and states when the answer is settled.
+A right determined by registration time MUST be resolved against the projection at the record instant its own terms specify, not against `ownerOf`. This ERC does not decide how any right determines its holder; it guarantees that the question is answerable and states when the answer is settled.
 
-When `isFinalAsOf` is false for that record instant, the confirmed holder is not yet settled. Two cases follow, and they differ:
+An instant is **contested** when a projection gap is open on the token and that gap opened at or before the instant. A contract that offers no settlement interface has no gaps and no contested instants.
 
-**An exercise that cannot be performed later with equivalent effect**, such as voting in a ballot that closes, MUST be treated as unavailable to both the outgoing and the incoming party for that instant. When the rightful party cannot be determined, allowing either to act may be wrong, and abstention is the only outcome that cannot be wrong. Such an exercise is extinguished permanently. Later resolution of the projection settles attribution; it MUST NOT revive an exercise opportunity that has passed.
+Rights divide by whether an exercise can be repeated, and the two halves are gated on different conditions.
 
-**An exercise that can be performed later with equivalent effect**, such as a distribution, MUST NOT be treated as extinguished. It is deferred, recorded through the deferred entitlement interface below, and claimable once the instant becomes final. It MUST be credited to the party the register confirms for that instant even if that party no longer holds the token.
+**An exercise that can be performed later with equivalent effect**, such as a distribution, MUST NOT be treated as extinguished while its record instant is not final. It is deferred, recorded through the deferred entitlement interface below, and claimable once `isFinalAsOf` is true for that instant. It MUST be credited to the party the register confirms for that instant even if that party no longer holds the token. Finality is the correct gate here because deferral costs nothing but time.
 
-Cancelling a settlement settles nothing. The preceding entry remains in force, so the provisional answer reverts to the holder confirmed before the gap opened, but the instant does not thereby become final and a deferred entitlement at that instant MUST NOT resolve on cancellation. A change the register already made, and this chain has not yet seen, can still be admitted afterwards.
+**An exercise that cannot be performed later with equivalent effect**, such as casting a vote in a ballot that closes, or opening a proposal whose eligibility is judged when it is opened, MUST NOT be gated on finality. The present moment is at or after the latest entry's effective time and is therefore not final; gating on finality would forbid every such exercise at almost every moment. It MUST instead be evaluated against the projection as it stands at the instant of exercise, and an implementation MUST record the entry version relied upon, so that the basis of the exercise remains auditable. A later admission MUST NOT retroactively invalidate a completed exercise.
+
+**A perishable exercise MUST be refused while its instant is contested.** A gap is a published statement that a change is in flight and that either party may turn out not to have been entitled. Allowing either to act may be wrong, and abstention is the only outcome that cannot be wrong. Such an exercise is extinguished for that instant, and later resolution of the projection MUST NOT revive it. The loss is avoidable, because a gap is visible before a ballot is scheduled into it and its duration is bounded.
+
+Cancelling a settlement ends the contest but settles nothing. The preceding entry remains in force, so the provisional answer reverts to the holder confirmed before the gap opened, but the instant does not thereby become final and a deferred entitlement at that instant MUST NOT resolve on cancellation. A change the register already made, and this chain has not yet seen, can still be admitted afterwards.
 
 ### Deferred entitlement interface
 
@@ -301,7 +305,11 @@ The deferral registry is in this ERC rather than left to each entitlement contra
 
 Register and profile identifiers are exposed for the same reason the projection is exposed at all. The parties who need this are third parties with no relationship to the registrar; a projection they cannot attribute to a register, under a proof profile they cannot name, tells them very little.
 
-Entitlement rules follow from the projection rather than being added to it. Because any instant resolves, a distribution can be deferred and later credited to the party the register confirms for that instant, which is also why buying inside a gap cannot capture distributions that fall in it. A vote is different in kind: reopening a closed ballot to admit a later-confirmed party would change a decided outcome, so the exercise is extinguished. That loss is foreseeable, since the settlement period is bounded and record instants are published in advance, so the parties can decline to incur it.
+Entitlement rules follow from the projection rather than being added to it. Because any instant resolves, a distribution can be deferred and later credited to the party the register confirms for that instant, which is also why buying inside a gap cannot capture distributions that fall in it. A vote is different in kind: reopening a closed ballot to admit a later-confirmed party would change a decided outcome, so the exercise is extinguished. That loss is foreseeable, since a gap is visible before a ballot is scheduled into it and its duration is bounded, so the parties can decline to incur it.
+
+The two halves are gated on different conditions because one can wait and the other cannot, and gating both on finality would be a mistake specific to this design. The present moment is at or after the latest entry's effective time, so it is not final; a finality gate on perishable exercises would forbid voting at almost every moment rather than occasionally. What can be gated on instead is contestedness, which is bounded, published in advance, and avoidable.
+
+A registered market does not face this, and the reason is worth stating because it does not carry over. There, the body that fixes the record is constituted outside the register: a board resolves to close the register, and its membership is known ahead of time and does not depend on what the register says about any holding. On-chain governance has no such body. The right to open a proposal and the right to vote both derive from holding, which is the very thing the projection exists to resolve, so there is no roll that can be consulted before the projection has answered. The only thing that can be checked is whether the power existed at the instant it was used. That is why this ERC requires the entry version relied upon to be recorded, rather than attempting to fix an electorate in advance, and why a closure of the register — the mechanism a registered market would reach for — belongs to a profile whose register has an authority outside itself, not to this specification.
 
 Traditional infrastructure does not need this rule, because it compensates for the lag instead of recording it. Where settlement takes a fixed number of days, a market can mark trades from an ex-entitlement date onward as not carrying the entitlement, so that the register at the record date matches the intended attribution. That arithmetic exists only because the question that can actually be asked is *who is on the register at the record date*, never *who was on the register at instant t* for a trade still in flight. This ERC answers the second question directly, so no ex-entitlement arithmetic is required: a party who buys after a record instant is simply not the confirmed holder at it.
 
@@ -347,6 +355,7 @@ Conforming implementations MUST satisfy at least the following.
 16. `resolveDeferral` reverts while the instant is not final, including after the gap is cancelled, and succeeds once a later entry makes the instant final.
 17. A resolved deferral binds the holder confirmed at the record instant, not the holder at resolution time, cannot be resolved again, and its beneficiary does not change.
 18. `registerId` and `verificationProfile` are nonzero and unchanged across admissions.
+19. A contested instant and a merely non-final instant are distinguishable: while a gap is open, `openGapOf` identifies it and its `openedAt` bounds the contested interval; once the gap closes by admission or cancellation, no instant is contested even though instants at or after the latest entry remain non-final.
 
 ## Reference Implementation
 

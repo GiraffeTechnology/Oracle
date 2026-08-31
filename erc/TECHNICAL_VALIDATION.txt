@@ -3,16 +3,16 @@ Proposal: Asynchronous Register Projection for NFTs
 Date: 2026-08-31
 Status: PREP_READY
 
-Authoritative candidate SHA-256: 40530046048F87238DD5428085CE794CBE988CAF3DC82585584710BB122D8EE5
+Authoritative candidate SHA-256: 50E1EA639E0741626156C9E3D2485C41BF097AFE60177B6AEE11E52C9617CD02
 Reference Solidity SHA-256:      BEF640E66F6EC534F689B06A67D56B200D59BE4BC30AC91EA9E0D0B342B0FA74
-Protocol tests SHA-256:          847C0E9D284C3FF8739A5F674923A1C6B2190F2688B5F76EAA3252568FB3219A
+Protocol tests SHA-256:          79EF42E4AA4E0DFEEAA2E12144ECCC87398BE858174F936F3695CE7662160141
 
 Node.js v22.22.2
 Hardhat 2.29.0
 ethers 6.17.0
 solc 0.8.26
 
-Packaged public assets suite: 30 passing, 0 failing
+Packaged public assets suite: 31 passing, 0 failing
 Clean-copy `npm test` entrypoint: PASS
 Solidity compile warnings: 0 (asserted inside the suite)
 Submission static gate (tools/verify-package.mjs): PASS

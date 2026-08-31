@@ -398,6 +398,31 @@ describe("Asynchronous register projection", function () {
     assert.equal(await contract.holderAsOf(tokenId, 2600n), outsider.address);
   });
 
+  it("distinguishes a contested instant from a merely non-final one", async () => {
+    // Contested = a gap is open and it opened at or before the instant.
+    // Non-final = no later entry exists yet. The present moment is almost
+    // always the second, which is why perishable rights cannot be gated on it.
+    const contestedAt = async (instant) => {
+      const gap = await contract.openGapOf(tokenId);
+      if (gap === ethers.ZeroHash) return false;
+      return (await contract.settlement(gap)).openedAt <= instant;
+    };
+    const now = () => ethers.provider.getBlock("latest").then((b) => BigInt(b.timestamp));
+
+    assert.equal(await contract.isFinalAsOf(tokenId, await now()), false, "the present is not final");
+    assert.equal(await contestedAt(await now()), false, "but nothing is contested yet");
+
+    await begin();
+    const opened = (await contract.settlement(settlementId)).openedAt;
+    assert.equal(await contestedAt(opened), true);
+    assert.equal(await contestedAt(opened - 1n), false, "the contest does not reach before the gap opened");
+
+    await advance(4000);
+    await contract.connect(owner).cancelSettlement(settlementId, b32("abandoned"), "0x");
+    assert.equal(await contestedAt(await now()), false, "cancelling ends the contest");
+    assert.equal(await contract.isFinalAsOf(tokenId, await now()), false, "but settles nothing");
+  });
+
   // --- deferred entitlements ---
 
   const entitlement = b32("dividend-2026Q1");

@@ -9,6 +9,7 @@
 | 文件 | 内容 |
 | --- | --- |
 | `ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md` | 重写所依据的公理与两条被推翻的旧规则 |
+| `ADR_008_PERISHABLE_EXERCISE_TRIGGER_ZH.md` | 不可回补权利以"被争议"而非"非终局"为闸门;封闭机制为何不能进标准 |
 | `ADR_006_ENTITLEMENT_DURING_PENDING_ZH.md` | 可回补 / 不可回补权利的分类与处理;已升为规范正文(文内的接口 ID 影响估算属历史) |
 | `CHANGELOG_REWRITE_ZH.md` | 重写与其后两项作者裁定的完整变更记录、发现的语义漏洞与全链验证结果 |
 | `PREP_READY_LEDGER_V9.json` | 现行哈希、接口 ID 与验证状态(文件名沿用 V9,内容已更新) |

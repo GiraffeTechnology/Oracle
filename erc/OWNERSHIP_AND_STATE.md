@@ -32,7 +32,7 @@
 | --- | --- | --- |
 | 官方 eipw | 本地编译 eipw 0.11.0,使用 `tools/eipw-official-config-snapshot.toml`(取自 ethereum/ERCs `config/eipw.toml`),并拉取 15 份被引提案原文供链接解析 | 退出码 0,**零诊断** |
 | eipw 有效性负向对照 | 故意破坏 CC0 行 | 立即报 `markdown-copyright`,退出码 65,证明配置生效 |
-| 参考实现测试 | 从 `assets/eip-xxxx` 的干净副本跑 `npm install && npm test` | **30 passing / 0 failing** |
+| 参考实现测试 | 从 `assets/eip-xxxx` 的干净副本跑 `npm install && npm test` | **31 passing / 0 failing** |
 | Solidity 编译告警 | 由测试自身断言 | **0** |
 | 接口 ID | selector XOR 独立复算,测试内断言,无选择器碰撞 | `0x3ce71a8d` / `0xfd0f6337` / `0x6d39b0a8` |
 | 包完整性 | `tools/verify-package.mjs` | PASS |

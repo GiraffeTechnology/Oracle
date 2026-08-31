@@ -9,7 +9,7 @@ Giraffe ERC 正式提交前准备包说明
 
 公开候选布局：
 - ERCS/erc-xxxx.md：唯一规范文本
-- assets/eip-xxxx/：CC0 Solidity 参考实现和 30 项本地 EVM 测试
+- assets/eip-xxxx/：CC0 Solidity 参考实现和 31 项本地 EVM 测试
 
 review/ 目录只包含提交前审查材料：ADR、反馈闭环、N/M 来源记录、prior-art、新颖性独立评估、证明路径对抗性审查、评审视角批评、IPR/CC0、测试记录、发布授权模板和官方 eipw 核验摘要。它不属于未来 ethereum/ERCs PR 的必提交文件；正式 PR 只提交 ERCS 与 assets 下的 6 个文件。
 
