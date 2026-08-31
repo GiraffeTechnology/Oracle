@@ -3,16 +3,16 @@
   "status": "PREP_READY",
   "proposalTitle": "Asynchronous Register Projection for NFTs",
   "supersedes": "Proof-Verified Deferred Asset Settlement (V1-V9); rewritten around the register-projection axiom, see review/ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md",
-  "candidateSha256": "50e1ea639e0741626156c9e3d2485c41bf097afe60177b6aee11e52c9617cd02",
+  "candidateSha256": "43faf50f73ba1ea13edae4421bb95c5659d2d6016088b43fc072455e4922d6ec",
   "referenceSha256": "bef640e66f6ec534f689b06a67d56b200d59be4bc30ac91ea9e0d0b342b0fa74",
-  "testsSha256": "79ef42e4aa4e0dfeeaa2e12144eccc87398be858174f936f3695ce7662160141",
+  "testsSha256": "ddd2477ace672f36e5475aec2c0a41d4ecf8e377496e60ac88235bc3add7bf6f",
   "interfaceIds": {
     "IRegisterProjection": "0x3ce71a8d",
     "IProjectionSettlement": "0xfd0f6337",
     "IDeferredEntitlement": "0x6d39b0a8"
   },
   "verification": {
-    "publicAssetTests": "31/31 PASS",
+    "publicAssetTests": "32/32 PASS",
     "npmTestEntrypoint": "PASS from a clean copy of assets/eip-xxxx",
     "solidityCompileWarnings": "0 (asserted by the suite)",
     "submissionGate": "PASS",
@@ -30,7 +30,8 @@
     "discoverability": "registerId, registerDescriptor and verificationProfile added; MAJOR-3 closed",
     "confirmingEntries": "same-holder expectedHolder now permitted; it is what makes instants final on a static holder",
     "hkexRuleConformanceAudit": "COMPLETED / ex-entitlement misattribution corrected; H-1 (book closure) rejected by the author on the DAO-authority argument, see ADR-008",
-    "perishableExerciseTrigger": "FIXED / trigger restored from isFinalAsOf-false to contested (an open gap covering the instant); the broadened form would have forbidden DAO voting at almost every moment"
+    "perishableExerciseTrigger": "FIXED / trigger restored from isFinalAsOf-false to contested (an open gap covering the instant); the broadened form would have forbidden DAO voting at almost every moment",
+    "quiescence": "ADDED / an interval with no gap open at its start and none begun in it cannot admit an entry, so governance can constitute a register closure with no new primitive; the act constituting it cannot be protected by it, so the contested rule is the floor (ADR-008 addendum)"
   },
   "openDesignQuestions": [
     "whether to add an isContestedAsOf accessor, which is derivable from openGapOf and settlement().openedAt but would change the projection interface id a third time"

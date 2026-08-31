@@ -423,6 +423,32 @@ describe("Asynchronous register projection", function () {
     assert.equal(await contract.isFinalAsOf(tokenId, await now()), false, "but settles nothing");
   });
 
+  it("cannot advance the projection while no gap is open", async () => {
+    // Quiescence rests on this: an entry enters only through an open gap, so a
+    // window with no gap open and none begun is a window the projection cannot
+    // move in. That is what closing a register buys, with no new primitive.
+    const data = await proof();
+    await rejects(finalize(data), "InvalidSettlement");
+    assert.equal(await contract.openGapOf(tokenId), ethers.ZeroHash);
+
+    await begin();
+    await finalize(await proof());
+    const settled = await contract.currentEntry(tokenId);
+    // Admitted, cancelled and superseded gaps are all closed: none readmits.
+    await rejects(finalize(await proof()), "InvalidSettlement");
+    await begin(b32("to-cancel"), outsider.address);
+    await advance(4000);
+    await contract.connect(owner).cancelSettlement(b32("to-cancel"), b32("done"), "0x");
+    await rejects(finalize(await proof(), { id: b32("to-cancel") }), "InvalidSettlement");
+    await begin(b32("first"), outsider.address, b32("s-a"), BigInt((await ethers.provider.getBlock("latest")).timestamp + 3600));
+    await begin(b32("second"), outsider.address, b32("s-b"), BigInt((await ethers.provider.getBlock("latest")).timestamp + 3600));
+    await rejects(finalize(await proof(), { id: b32("first") }), "InvalidSettlement");
+
+    const after = await contract.currentEntry(tokenId);
+    assert.equal(after.version, settled.version);
+    assert.equal(after.recordCommitment, settled.recordCommitment);
+  });
+
   // --- deferred entitlements ---
 
   const entitlement = b32("dividend-2026Q1");

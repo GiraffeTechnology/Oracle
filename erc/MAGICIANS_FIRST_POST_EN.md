@@ -48,7 +48,11 @@ The reason it belongs here rather than in each consuming contract is that every 
 
 Gating perishable exercises on finality would be a design error worth naming, because it is tempting: the present moment is at or after the latest entry's effective time and is therefore never final, so a finality gate forbids voting at almost every moment rather than occasionally. Contestedness is bounded, published in advance, and avoidable.
 
-A registered market avoids all of this differently, and the difference does not carry over. There, a board resolves to close the register and the record date is fixed in advance — but the board is constituted *outside* the register: its membership does not depend on what the register says about any holding. On-chain governance has no such body. The right to open a proposal and the right to vote both derive from holding, which is exactly what the projection is resolving, so there is no roll to consult before the projection has answered. The only thing that can be checked is whether the power existed at the instant it was used — which is why this records the basis of an exercise rather than trying to fix an electorate in advance.
+A registered market avoids the question differently: a board resolves to close the register, so the record date is fixed before anyone votes. The board is constituted *outside* the register — its membership does not depend on what the register says about any holding. On-chain governance has no such body: the right to open a proposal and the right to vote both derive from holding, which is exactly what the projection is resolving, so there is no roll to consult before the projection has answered.
+
+**Governance can still reach the same arrangement, and needs nothing from this ERC to do it.** An entry is admitted only into an open gap, and opening one requires ERC-721 authorization. So an interval with no gap open at its start and none begun during it — the spec calls it *quiescent* — is an interval in which the projection cannot move at all. That is precisely what closing a register buys. A DAO can vote to keep a window quiescent and get a record instant fixed in advance, with no new primitive.
+
+**What it cannot do is protect the act that constitutes it.** The vote establishing a closure is held with no closure in force, and so is the vote that would establish that one. The regress has no bottom. So some exercise must always be evaluated against the projection as it stands, and its basis recorded. The contested rule is not a fallback for unsophisticated registers — it is the floor everything else is built on.
 
 **Admission is proof-verified, and submitters are untrusted**
 
@@ -70,7 +74,7 @@ This is not a bridge. ICS-721 and xERC721-style designs escrow, burn or mint a r
 
 **Status**
 
-Draft. A CC0 reference implementation and 31 local-EVM tests accompany the proposal. The reference proof profile is deliberately minimal — a fixed validator set signing a domain-separated checkpoint, plus a Merkle membership proof — and its two limits are stated in the file header: validator equivocation is not detected and the validator set is immutable. Production profiles should use the remote register's native light client.
+Draft. A CC0 reference implementation and 32 local-EVM tests accompany the proposal. The reference proof profile is deliberately minimal — a fixed validator set signing a domain-separated checkpoint, plus a Merkle membership proof — and its two limits are stated in the file header: validator equivocation is not detected and the validator set is immutable. Production profiles should use the remote register's native light client.
 
 Interface identifiers are `0x3ce71a8d` (`IRegisterProjection`), `0xfd0f6337` (`IProjectionSettlement`) and `0x6d39b0a8` (`IDeferredEntitlement`).
 
