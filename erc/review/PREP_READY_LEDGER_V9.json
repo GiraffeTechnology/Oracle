@@ -3,16 +3,15 @@
   "status": "PREP_READY",
   "proposalTitle": "Asynchronous Register Projection for NFTs",
   "supersedes": "Proof-Verified Deferred Asset Settlement (V1-V9); rewritten around the register-projection axiom, see review/ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md",
-  "candidateSha256": "e7e5771333fe148b9e244e9ed4c5b6d20bd8494f4dbac728850c3df386364a65",
-  "referenceSha256": "cd676fa5fad113e7c2110920d2bbe8317186b9cc74d6566e2d0275ac4e5aa13c",
-  "testsSha256": "ddd2477ace672f36e5475aec2c0a41d4ecf8e377496e60ac88235bc3add7bf6f",
+  "candidateSha256": "64689d87b101045bf93be7ab9dbae268a95b3551b2ab068bd289aac2dae2257b",
+  "referenceSha256": "cd35be944cfcdcf3e913730053497a518b77134e6715360b4692f2d8cb4e4009",
+  "testsSha256": "e58ed516049bafa53769833428aead5b9db5f736c1ba4226dc23f853e185df78",
   "interfaceIds": {
     "IRegisterProjection": "0x3ce71a8d",
-    "IProjectionSettlement": "0xfd0f6337",
-    "IDeferredEntitlement": "0x6d39b0a8"
+    "IProjectionSettlement": "0xfd0f6337"
   },
   "verification": {
-    "publicAssetTests": "32/32 PASS",
+    "publicAssetTests": "27/27 PASS",
     "npmTestEntrypoint": "PASS from a clean copy of assets/eip-xxxx",
     "solidityCompileWarnings": "0 (asserted by the suite)",
     "submissionGate": "PASS",
@@ -26,7 +25,7 @@
     "entitlementSemantics": "ADR-006 perishable/deferrable taxonomy promoted to normative text",
     "registerProjectionAxiom": "ADR-007 adopted; transfer blocking removed, strict monotonicity and commitment uniqueness added as invariants",
     "finalityRule": "isFinalAsOf added; an instant is final iff it precedes the latest entry's effectiveAt, which follows from invariant 3",
-    "deferredEntitlementRegistry": "IN SCOPE by author decision; IDeferredEntitlement added with resolution gated on finality",
+    "deferredEntitlementRegistry": "REMOVED by the author under ADR-009; holderAsOf and isFinalAsOf already let the owing contract bind the beneficiary itself, so the interface was convenience rather than capability and picked one policy for everyone",
     "discoverability": "registerId, registerDescriptor and verificationProfile added; MAJOR-3 closed",
     "confirmingEntries": "same-holder expectedHolder now permitted; it is what makes instants final on a static holder",
     "hkexRuleConformanceAudit": "COMPLETED / ex-entitlement misattribution corrected; H-1 (book closure) rejected by the author on the DAO-authority argument, see ADR-008",
@@ -35,9 +34,7 @@
     "scopeDiscipline": "ADR-009 applied / every normative statement tested against 'does it say who holds power, or what you must do'; the rights section went from 6 MUSTs to 2 and the spec from 34 to 30; no interface changed",
     "oracleBoundary": "CORRECTED / the Motivation had framed oracles as a path this ERC escapes; it does not. A register without consensus needs an attesting party, its contents often cannot be published, and the proof verifies that party's committed statements. Normative load unchanged at 30 MUSTs; reference header comment only, runtime bytecode byte-identical."
   },
-  "openDesignQuestions": [
-    "whether IDeferredEntitlement earns its place under ADR-009, given that holderAsOf and isFinalAsOf already let a consuming contract perform the same binding; kept pending the author's review of an earlier decision to include it"
-  ],
+  "openDesignQuestions": [],
   "userPrinciples": {
     "tradingMustNotBeBlockedDuringAGap": true,
     "everyPastInstantResolvesToExactlyOneConfirmedHolder": true,
@@ -45,7 +42,10 @@
     "deferredEntitlementRegistryInStandard": true,
     "registerAndProfileIdentityDiscoverable": true,
     "registerClosureRequiresAnAuthorityOutsideTheRegister": true,
-    "perishableExercisesAreCheckedAtTheMomentOfExercise": true
+    "perishableExercisesAreCheckedAtTheMomentOfExercise": true,
+    "addNothingThatCanBeLeftOut": true,
+    "theStandardEstablishesWhoHoldsPowerNotWhatTheRulesAre": true,
+    "theStandardDoesNotReplaceAnOracle": true
   },
   "remainingUserInputs": [
     "ethereumMagiciansDiscussionUrl",

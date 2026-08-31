@@ -49,15 +49,7 @@ Because any instant resolves, the gap stops being a black hole. A right resolves
 
 As guidance rather than a rule: a distribution can be postponed at a cost of time alone, so finality suits it — defer, then credit the party the register confirms for the instant, even if that party no longer holds the token. A vote cannot be postponed, so finality is the wrong condition; the present moment is never final, and waiting for it would forbid voting at almost every moment rather than occasionally. Contestedness is the condition that fits a vote: bounded, visible in advance, avoidable.
 
-There is a registry for the postponed case, and it is a place to record an attribution, not a mandate to postpone. A deferral is keyed on the token, the entitlement id and the record instant, and binds **no** beneficiary address when recorded — that address is not yet determinable. `resolveDeferral` reverts until `isFinalAsOf` is true, then binds the beneficiary to `holderAsOf` at that instant. Anyone may call it, because the projection fixes the outcome, not the caller. It records who the register confirms; it does not decide whether a right should be postponed, what it is worth, or who owes it.
-
-Gating perishable exercises on finality would be a design error worth naming, because it is tempting: the present moment is at or after the latest entry's effective time and is therefore never final, so a finality gate forbids voting at almost every moment rather than occasionally. Contestedness is bounded, published in advance, and avoidable.
-
-A registered market avoids the question differently: a board resolves to close the register, so the record date is fixed before anyone votes. The board is constituted *outside* the register — its membership does not depend on what the register says about any holding. On-chain governance has no such body: the right to open a proposal and the right to vote both derive from holding, which is exactly what the projection is resolving, so there is no roll to consult before the projection has answered.
-
-**Governance can still reach the same arrangement, and needs nothing from this ERC to do it.** An entry is admitted only into an open gap, and opening one requires ERC-721 authorization. So an interval with no gap open at its start and none begun during it — the spec calls it *quiescent* — is an interval in which the projection cannot move at all. That is precisely what closing a register buys. A DAO can vote to keep a window quiescent and get a record instant fixed in advance, with no new primitive.
-
-**What it cannot do is protect the act that constitutes it.** The vote establishing a closure is held with no closure in force, and so is the vote that would establish that one. The regress has no bottom. So some exercise must always be evaluated against the projection as it stands, and its basis recorded. The contested rule is not a fallback for unsophisticated registers — it is the floor everything else is built on.
+There is deliberately **no registry here** for the postponed case. `holderAsOf` and `isFinalAsOf` already let the contract that owes a distribution bind its beneficiary itself, once the instant settles, and a standard that shipped its own registry would be supplying convenience rather than capability — and quietly picking one policy for everyone.
 
 **Admission is proof-verified, and submitters are untrusted**
 
@@ -79,8 +71,8 @@ This is not a bridge. ICS-721 and xERC721-style designs escrow, burn or mint a r
 
 **Status**
 
-Draft. A CC0 reference implementation and 32 local-EVM tests accompany the proposal. The reference proof profile is deliberately minimal — a fixed validator set signing a domain-separated checkpoint, plus a Merkle membership proof — and its two limits are stated in the file header: validator equivocation is not detected and the validator set is immutable. Production profiles should use the remote register's native light client.
+Draft. A CC0 reference implementation and 27 local-EVM tests accompany the proposal. The reference proof profile is deliberately minimal — a fixed validator set signing a domain-separated checkpoint, plus a Merkle membership proof — and its two limits are stated in the file header: validator equivocation is not detected and the validator set is immutable. Production profiles should use the remote register's native light client.
 
-Interface identifiers are `0x3ce71a8d` (`IRegisterProjection`), `0xfd0f6337` (`IProjectionSettlement`) and `0x6d39b0a8` (`IDeferredEntitlement`).
+Interface identifiers are `0x3ce71a8d` (`IRegisterProjection`) and `0xfd0f6337` (`IProjectionSettlement`).
 
-Feedback welcome, particularly on the finality rule, on whether the deferral registry earns its place at all given that `holderAsOf` and `isFinalAsOf` already let a consuming contract do the same binding itself, and on the proof encoding profile.
+Feedback welcome, particularly on the finality rule, on whether contestedness is the right condition for perishable exercises, and on the proof encoding profile.

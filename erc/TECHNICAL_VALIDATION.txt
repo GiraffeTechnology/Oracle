@@ -3,16 +3,16 @@ Proposal: Asynchronous Register Projection for NFTs
 Date: 2026-08-31
 Status: PREP_READY
 
-Authoritative candidate SHA-256: E7E5771333FE148B9E244E9ED4C5B6D20BD8494F4DBAC728850C3DF386364A65
-Reference Solidity SHA-256:      CD676FA5FAD113E7C2110920D2BBE8317186B9CC74D6566E2D0275AC4E5AA13C
-Protocol tests SHA-256:          DDD2477ACE672F36E5475AEC2C0A41D4ECF8E377496E60AC88235BC3ADD7BF6F
+Authoritative candidate SHA-256: 64689D87B101045BF93BE7AB9DBAE268A95B3551B2AB068BD289AAC2DAE2257B
+Reference Solidity SHA-256:      CD35BE944CFCDCF3E913730053497A518B77134E6715360B4692F2D8CB4E4009
+Protocol tests SHA-256:          E58ED516049BAFA53769833428AEAD5B9DB5F736C1BA4226DC23F853E185DF78
 
 Node.js v22.22.2
 Hardhat 2.29.0
 ethers 6.17.0
 solc 0.8.26
 
-Packaged public assets suite: 32 passing, 0 failing
+Packaged public assets suite: 27 passing, 0 failing
 Clean-copy `npm test` entrypoint: PASS
 Solidity compile warnings: 0 (asserted inside the suite)
 Submission static gate (tools/verify-package.mjs): PASS
@@ -21,7 +21,6 @@ eipw negative control: breaking the CC0 sentence reproduces markdown-copyright, 
 
 IRegisterProjection interface ID:   0x3ce71a8d
 IProjectionSettlement interface ID: 0xfd0f6337
-IDeferredEntitlement interface ID:  0x6d39b0a8
 
 No discussion was published. No PR was created or submitted. The only remaining
 user inputs are the Ethereum Magicians discussion URL and explicit publication

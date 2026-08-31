@@ -142,16 +142,13 @@ describe("Asynchronous register projection", function () {
   it("exposes deterministic interface identifiers", async () => {
     const projection = interfaceId(compiled.IRegisterProjection.abi);
     const settlement = interfaceId(compiled.IProjectionSettlement.abi);
-    const entitlement = interfaceId(compiled.IDeferredEntitlement.abi);
     assert.equal(projection, "0x3ce71a8d");
     assert.equal(settlement, "0xfd0f6337");
-    assert.equal(entitlement, "0x6d39b0a8");
-    assert.equal(new Set([projection, settlement, entitlement]).size, 3);
+    assert.notEqual(projection, settlement);
     assert.equal(await contract.supportsInterface("0x01ffc9a7"), true);
     assert.equal(await contract.supportsInterface("0x80ac58cd"), true);
     assert.equal(await contract.supportsInterface(projection), true);
     assert.equal(await contract.supportsInterface(settlement), true);
-    assert.equal(await contract.supportsInterface(entitlement), true);
     assert.equal(await contract.supportsInterface("0xffffffff"), false);
   });
 
@@ -447,73 +444,5 @@ describe("Asynchronous register projection", function () {
     const after = await contract.currentEntry(tokenId);
     assert.equal(after.version, settled.version);
     assert.equal(after.recordCommitment, settled.recordCommitment);
-  });
-
-  // --- deferred entitlements ---
-
-  const entitlement = b32("dividend-2026Q1");
-
-  it("derives a deferral identifier from the token, entitlement and instant alone", async () => {
-    const id = await contract.deferralId(tokenId, entitlement, 1500n);
-    assert.equal(id, ethers.keccak256(coder.encode(["uint256", "bytes32", "uint64"], [tokenId, entitlement, 1500n])));
-    assert.notEqual(id, await contract.deferralId(tokenId, entitlement, 1501n));
-    assert.notEqual(id, await contract.deferralId(2n, entitlement, 1500n));
-  });
-
-  it("records a deferral without binding a beneficiary and is idempotent", async () => {
-    const id = await contract.deferEntitlement.staticCall(tokenId, entitlement, 1500n);
-    await contract.deferEntitlement(tokenId, entitlement, 1500n);
-    const record = await contract.deferral(id);
-    assert.equal(record.status, 1n);
-    assert.equal(record.beneficiary, ethers.ZeroAddress, "no address is determinable yet");
-    assert.equal(record.recordInstant, 1500n);
-    const receipt = await (await contract.connect(outsider).deferEntitlement(tokenId, entitlement, 1500n)).wait();
-    const names = receipt.logs.map((l) => { try { return contract.interface.parseLog(l)?.name; } catch { return undefined; } });
-    assert.equal(names.includes("EntitlementDeferred"), false, "the second call creates nothing");
-    assert.equal((await contract.deferral(id)).status, 1n);
-  });
-
-  it("rejects a deferral for a final instant, an instant before the first entry, and a zero entitlement", async () => {
-    await rejects(contract.deferEntitlement(tokenId, ethers.ZeroHash, 1500n), "InvalidDeferral");
-    await rejects(contract.deferEntitlement(tokenId, entitlement, 999n), "NoEntryAsOf");
-    await begin();
-    await finalize(await proof());
-    await rejects(contract.deferEntitlement(tokenId, entitlement, 1500n), "InstantAlreadyFinal");
-    await contract.deferEntitlement(tokenId, entitlement, 2500n);
-  });
-
-  it("refuses to resolve while the instant is not final, including after cancellation", async () => {
-    const id = await contract.deferEntitlement.staticCall(tokenId, entitlement, 1500n);
-    await contract.deferEntitlement(tokenId, entitlement, 1500n);
-    await rejects(contract.resolveDeferral(id), "InstantNotFinal");
-    await begin();
-    await rejects(contract.resolveDeferral(id), "InstantNotFinal");
-    await advance(4000);
-    await contract.connect(owner).cancelSettlement(settlementId, b32("abandoned"), "0x");
-    assert.equal(await contract.openGapOf(tokenId), ethers.ZeroHash);
-    // Cancelling settles nothing: a change the register already made can still arrive.
-    await rejects(contract.resolveDeferral(id), "InstantNotFinal");
-    await rejects(contract.deferral(b32("unknown")), "InvalidDeferral");
-  });
-
-  it("binds the beneficiary to the holder confirmed at the record instant, not at resolution", async () => {
-    const id = await contract.deferEntitlement.staticCall(tokenId, entitlement, 1500n);
-    await contract.deferEntitlement(tokenId, entitlement, 1500n);
-    await begin();
-    await finalize(await proof());
-    // owner held the register at 1500; buyer holds it from 2000 and the token now.
-    assert.equal(await contract.holderAsOf(tokenId, 1500n), owner.address);
-    assert.equal((await contract.currentEntry(tokenId)).holder, buyer.address);
-    await contract.connect(owner).transferFrom(owner.address, outsider.address, tokenId);
-
-    const resolved = await contract.connect(outsider).resolveDeferral.staticCall(id);
-    assert.equal(resolved, owner.address);
-    await contract.connect(outsider).resolveDeferral(id);
-    const record = await contract.deferral(id);
-    assert.equal(record.status, 2n);
-    assert.equal(record.beneficiary, owner.address, "credited to the party the register confirms");
-
-    await rejects(contract.resolveDeferral(id), "InvalidDeferral");
-    assert.equal((await contract.deferral(id)).beneficiary, owner.address);
   });
 });

@@ -19,7 +19,7 @@
 | pending 期间的转让 | 一律 revert | **不阻断**,`ownerOf` 照常移动 |
 | 两种所有权 | 合并 | `ownerOf` 是可交易头寸,投影是确认记录,刻意分开 |
 | 权利 | 未定义 | 不可回补的永久消灭(双方均不可行使);可回补的递延,落定后补记给该瞬间的确认持有人 |
-| 递延权利登记表 | 无 | **入标准**:`IDeferredEntitlement`,解析以终局为闸门 |
+| 递延权利登记表 | 无 | 仍为无。曾短暂入标准,后按 ADR-009 删除 —— `holderAsOf` + `isFinalAsOf` 已让欠付方自行绑定,登记表只是便利,不是能力 |
 | 终局性 | 未区分 | `isFinalAsOf`:t 终局 ⟺ t < 最新条目的 `effectiveAt` |
 | 可发现性 | 无 | `registerId` / `registerDescriptor` / `verificationProfile` |
 | 同持有人条目 | 拒绝为 no-op | 允许,且是静态持有人下唯一能让瞬间终局的手段 |
@@ -32,12 +32,12 @@
 | --- | --- | --- |
 | 官方 eipw | 本地编译 eipw 0.11.0,使用 `tools/eipw-official-config-snapshot.toml`(取自 ethereum/ERCs `config/eipw.toml`),并拉取 15 份被引提案原文供链接解析 | 退出码 0,**零诊断** |
 | eipw 有效性负向对照 | 故意破坏 CC0 行 | 立即报 `markdown-copyright`,退出码 65,证明配置生效 |
-| 参考实现测试 | 从 `assets/eip-xxxx` 的干净副本跑 `npm install && npm test` | **32 passing / 0 failing** |
+| 参考实现测试 | 从 `assets/eip-xxxx` 的干净副本跑 `npm install && npm test` | **27 passing / 0 failing** |
 | Solidity 编译告警 | 由测试自身断言 | **0** |
-| 接口 ID | selector XOR 独立复算,测试内断言,无选择器碰撞 | `0x3ce71a8d` / `0xfd0f6337` / `0x6d39b0a8` |
+| 接口 ID | selector XOR 独立复算,测试内断言,无选择器碰撞 | `0x3ce71a8d` / `0xfd0f6337` |
 | 包完整性 | `tools/verify-package.mjs` | PASS |
 
-冻结值:`IRegisterProjection` `0x3ce71a8d`,`IProjectionSettlement` `0xfd0f6337`,`IDeferredEntitlement` `0x6d39b0a8`。
+冻结值:`IRegisterProjection` `0x3ce71a8d`,`IProjectionSettlement` `0xfd0f6337`。**两个,不是三个。**
 
 ## 剩余一步(且仅此一步)
 
@@ -49,10 +49,11 @@
 
 ## 已决的设计问题
 
-1. 递延权利登记表 —— **入标准**(作者 2026-08-30 裁定)。新增 `IDeferredEntitlement`,`resolveDeferral` 以 `isFinalAsOf` 为闸门。登记表只记归属,不持有、不转移权益本身。
-2. 可发现性 —— **加**(同上)。`IRegisterProjection` 增 `registerId()` 与 `registerDescriptor()`,`IProjectionSettlement` 增 `verificationProfile()`。旧评审的 MAJOR-3 就此关闭。
+1. 可发现性 —— **加**(作者 2026-08-30 裁定)。`IRegisterProjection` 增 `registerId()` 与 `registerDescriptor()`,`IProjectionSettlement` 增 `verificationProfile()`。旧评审的 MAJOR-3 就此关闭。
+2. 递延权利登记表 —— **先入后删**。2026-08-30 裁定入标准,2026-08-31 按 ADR-009 的边界原则删除:`holderAsOf` + `isFinalAsOf` 已让欠付方自行完成同样的绑定,该接口提供的是便利与统一,不是能力,且它替所有人挑了一种政策。
+3. 标准的边界 —— 见 `review/ADR_009_SCOPE_AUTHORITY_NOT_RULES_ZH.md`:**厘清谁有权力,不替用户定规则;不代替 oracle,不证明它诚实,只固定它是谁、说过什么、什么时候说的。**
 
-这两项各自改变了对应接口的 ID,已在同一轮内一次性定案,见 `review/CHANGELOG_REWRITE_ZH.md`。
+变更过程见 `review/CHANGELOG_REWRITE_ZH.md` 与各 ADR。
 
 ## 已知架构局限(已在参考实现文件头声明)
 
