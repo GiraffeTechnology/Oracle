@@ -17,6 +17,49 @@
 > `verify-prd-v0.3` 报 23/24 工程侧已验证（仅 NFR-004 待外部证据），217 项测试通过。
 > 下文保留为整合前的记录。
 
+## 0. 整合后复审（2026-08-31，对 commit `0bb0d6d`）
+
+**第 6 节 B 类"真实功能缺失"三项已全部闭合**，本节据实更正 —— 下文第 1–7 节保留为整合前的记录。
+
+| 原 B 类缺口 | 整合后实际状态 | 证据 |
+| --- | --- | --- |
+| CONSUMER-007 `REDEEMED` 提货终止 | **已实现且已测** | `src/domain/consumer-state-machine.js`：`REDEEMED: new Set()` 无出边、`REDEEMED_TERMINAL` 抛错；测试验证 `REDEEMED → ACTIVE` 被拒 |
+| ORACLE-011 资产详情 UI | **已实现且已测** | `renderAssetDetailHtml` 渲染四种交易期状态（成交锁定／登记处理中／交割完成／交割失败·争议）；具名测试断言四种呈现 |
+| ORACLE-005 合规资格 | **已实现且已测** | `src/services/product-boundary.js`、`docs/openapi.yaml`；两项具名测试 |
+
+整合前"`REDEEMED` 全仓库 0 命中"的结论**已过时**，系当时 `feature` 分支尚未提交该状态机所致。
+
+### 0.1 新发现：需求—测试绑定的可引用性弱
+
+`config/prd-v0.3-acceptance.json` 绑定的测试**全部存在且通过**（无悬空引用），故 `verify-prd-v0.3`
+报 23/24 成立。但 **24 条需求中有 13 条，其绑定的测试名从不提及自身 ID**。多数只是命名描述性
+（如 ORACLE-001 绑定"requires a registered active source and approved schema"），审计员仍可阅读
+判断；但有一类更需注意：**绑定的测试其名称断言的是另一条需求**，包括 CONSUMER-007→CONSUMER-003、
+CONSUMER-008→CONSUMER-004/009、ORACLE-009→ORACLE-005/006、ORACLE-010→CONSUMER-004/009。
+
+依验收标准 §8.3（"每条主张必须引用文件路径、测试名"），这会削弱逐 ID 取证的可引用性。
+**机器检查只校验"具名测试存在且通过"，不校验"该测试确立了该需求"** —— 这是本次复审最重要的方法论发现。
+
+### 0.2 已修复的一处实质不符：CONSUMER-008
+
+其余 12 条属命名问题，CONSUMER-008 则是**证据与要求实质不符**：
+
+- 要求（验收 §4.2）：外部事件只能触发待验证 T+0 意图；**不存在订单簿／撮合／对手方／资金控制路径**；
+- 原绑定测试断言的是"无有效证明时 fail closed"与 pending 期操作封锁 —— **未证明任何"不存在"**。
+
+缺口本身确实成立（`orderbook`／`counterparty` 全仓库 0 命中；`matching` 的 4 处均为英文行文，
+如 "matching warehouse identities"；`custody` 的 3 处均为 `IN_CUSTODY` 仓储状态，非资金托管），
+但此前**没有任何测试会在该能力被加入时失败**。
+
+已补 `test/consumer-008-external-market-boundary.test.js`：对 `src/` 做标识符级扫描（避免误伤英文
+行文），并断言 `src/app.js` 的路由字面量不含交易或支付路径；已反向验证 —— 植入 `orderBook` 即失败。
+`config/prd-v0.3-acceptance.json` 中 CONSUMER-008 的绑定已改为指向该测试。
+
+**建议**：其余 12 条的绑定宜补具名测试或重命名，使每条需求都能被独立引用。这不影响当前
+`engineeringVerified=23`，属取证可审性改进。
+
+---
+
 ## 1. 首要结论：主要差距是结构性的，不是功能性的
 
 `feature/oracle-all-iterations` 已实现 PRD v0.3 绝大部分 L2 能力：34 个源模块、12 个测试
