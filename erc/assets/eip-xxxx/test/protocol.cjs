@@ -58,7 +58,6 @@ describe("Asynchronous register projection", function () {
   const snapshot = b32("snapshot-1");
   const settlementId = b32("settlement-1");
   const E1 = 1000n;
-  const DESCRIPTOR = "https://example.invalid/register/profile.json";
 
   let compiled, contract, admin, owner, buyer, outsider, validators, setHash, deadline;
 
@@ -72,7 +71,7 @@ describe("Asynchronous register projection", function () {
     setHash = ethers.keccak256(coder.encode(["address[]", "uint8"], [addresses, 2]));
     const artifact = compiled.RegisterProjectionReference;
     contract = await new ethers.ContractFactory(artifact.abi, `0x${artifact.evm.bytecode.object}`, admin)
-      .deploy(registerId, addresses, 2, DESCRIPTOR);
+      .deploy(registerId, addresses, 2);
     await contract.waitForDeployment();
     await contract.mint(owner.address, tokenId, c1, ref1, E1);
     deadline = BigInt((await ethers.provider.getBlock("latest")).timestamp + 3600);
@@ -142,7 +141,7 @@ describe("Asynchronous register projection", function () {
   it("exposes deterministic interface identifiers", async () => {
     const projection = interfaceId(compiled.IRegisterProjection.abi);
     const settlement = interfaceId(compiled.IProjectionSettlement.abi);
-    assert.equal(projection, "0x3ce71a8d");
+    assert.equal(projection, "0x6309e170");
     assert.equal(settlement, "0xfd0f6337");
     assert.notEqual(projection, settlement);
     assert.equal(await contract.supportsInterface("0x01ffc9a7"), true);
@@ -154,7 +153,6 @@ describe("Asynchronous register projection", function () {
 
   it("advertises a stable register and verification profile identity", async () => {
     assert.equal(await contract.registerId(), registerId);
-    assert.equal(await contract.registerDescriptor(), DESCRIPTOR);
     const profile = await contract.verificationProfile();
     assert.notEqual(profile, ethers.ZeroHash);
     await begin();

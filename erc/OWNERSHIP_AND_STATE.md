@@ -21,7 +21,7 @@
 | 权利 | 未定义 | 不可回补的永久消灭(双方均不可行使);可回补的递延,落定后补记给该瞬间的确认持有人 |
 | 递延权利登记表 | 无 | 仍为无。曾短暂入标准,后按 ADR-009 删除 —— `holderAsOf` + `isFinalAsOf` 已让欠付方自行绑定,登记表只是便利,不是能力 |
 | 终局性 | 未区分 | `isFinalAsOf`:t 终局 ⟺ t < 最新条目的 `effectiveAt` |
-| 可发现性 | 无 | `registerId` / `registerDescriptor` / `verificationProfile` |
+| 可发现性 | 无 | `registerId` / `verificationProfile`(两个 bytes32) |
 | 同持有人条目 | 拒绝为 no-op | 允许,且是静态持有人下唯一能让瞬间终局的手段 |
 | 新增不变量 | — | `effectiveAt` 严格递增;record commitment 在代币内唯一 |
 | ERC-8325 | 强制锚定 | MAY |
@@ -34,10 +34,10 @@
 | eipw 有效性负向对照 | 故意破坏 CC0 行 | 立即报 `markdown-copyright`,退出码 65,证明配置生效 |
 | 参考实现测试 | 从 `assets/eip-xxxx` 的干净副本跑 `npm install && npm test` | **27 passing / 0 failing** |
 | Solidity 编译告警 | 由测试自身断言 | **0** |
-| 接口 ID | selector XOR 独立复算,测试内断言,无选择器碰撞 | `0x3ce71a8d` / `0xfd0f6337` |
+| 接口 ID | selector XOR 独立复算,测试内断言,无选择器碰撞 | `0x6309e170` / `0xfd0f6337` |
 | 包完整性 | `tools/verify-package.mjs` | PASS |
 
-冻结值:`IRegisterProjection` `0x3ce71a8d`,`IProjectionSettlement` `0xfd0f6337`。**两个,不是三个。**
+冻结值:`IRegisterProjection` `0x6309e170`,`IProjectionSettlement` `0xfd0f6337`。**两个,不是三个。**
 
 ## 剩余一步(且仅此一步)
 
@@ -49,7 +49,7 @@
 
 ## 已决的设计问题
 
-1. 可发现性 —— **加**(作者 2026-08-30 裁定)。`IRegisterProjection` 增 `registerId()` 与 `registerDescriptor()`,`IProjectionSettlement` 增 `verificationProfile()`。旧评审的 MAJOR-3 就此关闭。
+1. 可发现性 —— **加**(作者 2026-08-30 裁定)。`IRegisterProjection` 增 `registerId()`,`IProjectionSettlement` 增 `verificationProfile()`。曾一并加入的 `registerDescriptor()` 于 2026-08-31 按作者裁定删除 —— 文档 URI 链上无法验证,由 Profile 自行发布。旧评审的 MAJOR-3 就此关闭。
 2. 递延权利登记表 —— **先入后删**。2026-08-30 裁定入标准,2026-08-31 按 ADR-009 的边界原则删除:`holderAsOf` + `isFinalAsOf` 已让欠付方自行完成同样的绑定,该接口提供的是便利与统一,不是能力,且它替所有人挑了一种政策。
 3. 标准的边界 —— 见 `review/ADR_009_SCOPE_AUTHORITY_NOT_RULES_ZH.md`:**厘清谁有权力,不替用户定规则;不代替 oracle,不证明它诚实,只固定它是谁、说过什么、什么时候说的。**
 
@@ -83,7 +83,9 @@
 
 ### 落地要点
 
-1. **把程序钉住。** Profile 应承诺抽取程序的代码哈希、输入的 commitment、输出的 commitment。只有钉住了,"可复算"才成立;不钉住的机械抽取,对外部而言与人工断言没有区别。`verificationProfile()` 与 `registerDescriptor()` 足以承载这些标识,规范无需增加任何东西。
+1. **把程序钉住。** Profile 应承诺抽取程序的代码哈希、输入的 commitment、输出的 commitment。只有钉住了,"可复算"才成立;不钉住的机械抽取,对外部而言与人工断言没有区别。
+
+   **注意**:`registerDescriptor()` 已于 2026-08-31 删除,链上只剩 `verificationProfile()` 这一个 `bytes32`。因此这些标识(代码哈希等)只能定义在该 Profile 标识所指向的**链下文档**里,链上留下的是"用的是哪一版 Profile"这一个不可变承诺。这是删除的直接后果,不是遗漏:文档 URI 本来链上也无法验证,放不放都要靠链下解析,少一个不定长 string 反而更干净。
 2. **"可审计"到哪一层。** 链上可审计的是:该方在某高度承诺了某个值,且该承诺处于终局。**链上不重跑抽取程序** —— 登记册内容本就不上链。可复算是**链下**的性质:持有输入的人能复算,链上留下的是不可篡改、不可覆盖的承诺序列。两者配合才有意义。
 3. **配额仍然需要,但理由变了。** 早先我写的理由(LLM 抽取不确定)基于错误前提,作废。真正的理由是:单一机械证明方仍有两个单点 —— **输入被投喂伪造快照**,以及**密钥被攻陷**。多个独立读取者各自取数可以防前者。
 4. **确定性让配额的分歧变得有意义。** 各方跑同一个钉住的程序时,签出不同的 root **只可能**是输入分歧,不可能是读取者之间的差异。这是一个明确信号,不是噪声。届时签名凑不满门限,条目进不来,缺口保持打开、瞬间保持被争议 —— **宁可不进,不可进错。**

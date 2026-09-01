@@ -3,11 +3,11 @@
   "status": "PREP_READY",
   "proposalTitle": "Asynchronous Register Projection for NFTs",
   "supersedes": "Proof-Verified Deferred Asset Settlement (V1-V9); rewritten around the register-projection axiom, see review/ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md",
-  "candidateSha256": "cdac78198c1436768976f64bae035569555f37d0ac259f3afb55b257e29ab8c5",
-  "referenceSha256": "cd35be944cfcdcf3e913730053497a518b77134e6715360b4692f2d8cb4e4009",
-  "testsSha256": "e58ed516049bafa53769833428aead5b9db5f736c1ba4226dc23f853e185df78",
+  "candidateSha256": "c1e7b63533615d21819cbd5179b0e2282c84591b28c6e322eaef417f2cb3cc57",
+  "referenceSha256": "96165dfa8541270dcdc11c626cfce02e98042e8f80f5a40f580c121c74207a29",
+  "testsSha256": "14107848616bad97bf4d9c4e2d8039d31cf7d4fe062b873ab7fb428adecc5e1b",
   "interfaceIds": {
-    "IRegisterProjection": "0x3ce71a8d",
+    "IRegisterProjection": "0x6309e170",
     "IProjectionSettlement": "0xfd0f6337"
   },
   "verification": {
@@ -26,7 +26,7 @@
     "registerProjectionAxiom": "ADR-007 adopted; transfer blocking removed, strict monotonicity and commitment uniqueness added as invariants",
     "finalityRule": "isFinalAsOf added; an instant is final iff it precedes the latest entry's effectiveAt, which follows from invariant 3",
     "deferredEntitlementRegistry": "REMOVED by the author under ADR-009; holderAsOf and isFinalAsOf already let the owing contract bind the beneficiary itself, so the interface was convenience rather than capability and picked one policy for everyone",
-    "discoverability": "registerId, registerDescriptor and verificationProfile added; MAJOR-3 closed",
+    "discoverability": "registerId and verificationProfile only; registerDescriptor removed by the author 2026-08-31 because a document URI cannot be verified on chain and the profile publishes one anyway. MAJOR-3 closed.",
     "confirmingEntries": "same-holder expectedHolder now permitted; it is what makes instants final on a static holder",
     "hkexRuleConformanceAudit": "COMPLETED / ex-entitlement misattribution corrected; H-1 (book closure) rejected by the author on the DAO-authority argument, see ADR-008",
     "perishableExerciseTrigger": "FIXED / trigger restored from isFinalAsOf-false to contested (an open gap covering the instant); the broadened form would have forbidden DAO voting at almost every moment",
@@ -34,7 +34,8 @@
     "scopeDiscipline": "ADR-009 applied / every normative statement tested against 'does it say who holds power, or what you must do'; the rights section went from 6 MUSTs to 2 and the spec from 34 to 30; no interface changed",
     "oracleBoundary": "CORRECTED / the Motivation had framed oracles as a path this ERC escapes; it does not. A register without consensus needs an attesting party, its contents often cannot be published, and the proof verifies that party's committed statements. Normative load unchanged at 30 MUSTs; reference header comment only, runtime bytecode byte-identical.",
     "attestationVsVerification": "CORRECTED / an earlier caution assumed an LLM extractor and is withdrawn; the profile definition no longer excludes constraining how a value is produced, since pinning a deterministic procedure is what makes a mechanical attester reproducible",
-    "finalEditorialPass": "COMPLETED 2026-08-31 / nine defects left by the edit rounds fixed in the spec, four in the Magicians post including a block lost to a range deletion, and the manual's Q&A rewritten to match the current design"
+    "finalEditorialPass": "COMPLETED 2026-08-31 / nine defects left by the edit rounds fixed in the spec, four in the Magicians post including a block lost to a range deletion, and the manual's Q&A rewritten to match the current design",
+    "settlementWindow": "H-5 CLOSED by the author 2026-08-31: an initiator-chosen deadline within the maximum is kept deliberately, since after the rewrite a gap affects neither trading nor finality. A deployment needing a fixed n constrains it in its profile."
   },
   "openDesignQuestions": [],
   "userPrinciples": {

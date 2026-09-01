@@ -139,7 +139,7 @@ Security Considerations 里那句一直是诚实的("A proof … does not establ
 | 测试项 | 32 | **27** |
 | 公开接口 | 3 | **2** |
 
-`0x3ce71a8d` 与 `0xfd0f6337` 均未变 —— 删除一个独立接口不影响另外两个的 selector XOR,测试内已断言。
+`0x3ce71a8d` 与 `0xfd0f6337` 均未变 —— 删除一个独立接口不影响另外两个的 selector XOR,测试内已断言。(*同日稍后按作者裁定删去 `registerDescriptor()`,`IRegisterProjection` 因此改为 `0x6309e170`;`0xfd0f6337` 仍未变。现行值见 `../OWNERSHIP_AND_STATE.md`。*)
 
 ### 记录
 

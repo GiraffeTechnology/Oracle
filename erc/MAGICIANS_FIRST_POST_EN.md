@@ -79,6 +79,6 @@ This is not a bridge. ICS-721 and xERC721-style designs escrow, burn or mint a r
 
 Draft. A CC0 reference implementation and 27 local-EVM tests accompany the proposal. The reference proof profile is deliberately minimal — a fixed validator set signing a domain-separated checkpoint, plus a Merkle membership proof — and its two limits are stated in the file header: validator equivocation is not detected and the validator set is immutable. Where the remote register is itself a ledger with consensus, production profiles should use its native light client. Many registers are not — a share registrar or a title office has no consensus and no state root — and there the validator set is an attestation quorum rather than a consensus, which the profile has to disclose.
 
-Interface identifiers are `0x3ce71a8d` (`IRegisterProjection`) and `0xfd0f6337` (`IProjectionSettlement`).
+Interface identifiers are `0x6309e170` (`IRegisterProjection`) and `0xfd0f6337` (`IProjectionSettlement`).
 
 Feedback welcome, particularly on the finality rule, on whether contestedness is the right condition for perishable exercises, and on the proof encoding profile.

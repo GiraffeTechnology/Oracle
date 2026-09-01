@@ -141,14 +141,12 @@ interface IRegisterProjection is IERC165 {
         external view returns (uint64 count);
 
     function registerId() external view returns (bytes32 identifier);
-
-    function registerDescriptor() external view returns (string memory uri);
 }
 ```
 
-The [ERC-165](./eip-165.md) identifier for `IRegisterProjection` is `0x3ce71a8d`.
+The [ERC-165](./eip-165.md) identifier for `IRegisterProjection` is `0x6309e170`.
 
-`registerId` MUST be a nonzero identifier of the remote register being projected and MUST NOT change. `registerDescriptor` MUST return a URI for a document describing that register, its commitment algorithm and its verification profile, or an empty string where none is published. A party with no relationship to the registrar otherwise cannot tell what a projection is a projection of, which is the position every third-party venue is in.
+`registerId` MUST be a nonzero identifier of the remote register being projected and MUST NOT change. A party with no relationship to the registrar otherwise cannot tell what a projection is a projection of, which is the position every third-party venue is in. Resolving that identifier to a description of the register and its profile is left to the profile, since a document reference cannot be verified on chain and each deployment publishes one differently.
 
 ### Trading is not blocked
 
@@ -246,7 +244,7 @@ The ERC-165 identifier for `IProjectionSettlement` is `0xfd0f6337`.
 
 ### Conformance levels
 
-A contract has **projection conformance** if it implements `IRegisterProjection`, advertises `0x3ce71a8d`, and satisfies the projection invariants and the finality rule.
+A contract has **projection conformance** if it implements `IRegisterProjection`, advertises `0x6309e170`, and satisfies the projection invariants and the finality rule.
 
 A contract has **settlement conformance** if it has projection conformance, implements `IProjectionSettlement`, advertises `0xfd0f6337`, and satisfies every settlement and proof requirement here.
 
@@ -306,7 +304,7 @@ This ERC is additive to ERC-721 and discoverable through ERC-165. It does not al
 
 Conforming implementations MUST satisfy at least the following.
 
-1. Interface identifiers are `0x3ce71a8d` for `IRegisterProjection` and `0xfd0f6337` for `IProjectionSettlement`.
+1. Interface identifiers are `0x6309e170` for `IRegisterProjection` and `0xfd0f6337` for `IProjectionSettlement`.
 2. An entry whose `effectiveAt` equals the preceding entry's is rejected.
 3. A repeated record commitment within a token is rejected.
 4. `entryAsOf` returns the covering entry for instants inside, at the start of, and after each interval, and reverts before the first entry.

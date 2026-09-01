@@ -87,7 +87,6 @@ interface IRegisterProjection is IERC165 {
     function isFinalAsOf(uint256 tokenId, uint64 instant) external view returns (bool settled);
     function entryCount(uint256 tokenId) external view returns (uint64 count);
     function registerId() external view returns (bytes32 identifier);
-    function registerDescriptor() external view returns (string memory uri);
 }
 
 interface IProjectionSettlement is IERC165 {
@@ -174,14 +173,7 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
     mapping(bytes32 => Settlement) private _settlements;
     mapping(uint256 => bytes32) private _openGap;
 
-    string private _descriptor;
-
-    constructor(
-        bytes32 remoteRegisterId_,
-        address[] memory validators_,
-        uint8 threshold_,
-        string memory descriptor_
-    ) {
+    constructor(bytes32 remoteRegisterId_, address[] memory validators_, uint8 threshold_) {
         if (remoteRegisterId_ == bytes32(0) || threshold_ == 0 || threshold_ > validators_.length) {
             revert InvalidProof();
         }
@@ -196,7 +188,6 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
             previous = validator;
         }
         validatorSetHash = keccak256(abi.encode(validators_, threshold_));
-        _descriptor = descriptor_;
     }
 
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
@@ -328,10 +319,6 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
 
     function registerId() external view returns (bytes32) {
         return remoteRegisterId;
-    }
-
-    function registerDescriptor() external view returns (string memory) {
-        return _descriptor;
     }
 
     // --- Settlement ---

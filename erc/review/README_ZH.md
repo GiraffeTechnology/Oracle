@@ -26,6 +26,6 @@
 
 `ADR_001_CONFORMANCE_TIERS.md`、`ADR_002_FINALIZATION_TRANSFER_SEMANTICS.md`、`ADR_003_NEUTRAL_PROTOCOL_NAMING.md`、`ADR_004_UNKNOWN_SETTLEMENT_SEMANTICS.md`、`ADR_005_PROOF_GATED_FINALIZATION.md`、`CHANGELOG_V9_ZH.md`、`V9_TEST_REPORT_ZH.md`、`FORMAT_AND_TEST_LOG_ZH.txt`、`GIRAFFE_ERC_FORMAL_ZH.txt`、`ERC_V2_NEW_FEEDBACK_CLOSURE_ZH.md`、`EXTERNAL_AUDIT_OPINION_CLOSURE_ZH.md`、`N_M_PROVENANCE_AND_CLOSURE_ZH.md`、`REVIEWER_PERSPECTIVE_ZH.md`。
 
-其中 `REVIEWER_PERSPECTIVE_ZH.md` 的 BLOCKER-1(持有人可在 deadline 前单方取消,搁置已在远端落定的记录)已修复,修复在重写中保留;MAJOR-3(无 Profile 可发现性)已由 `registerId` / `registerDescriptor` / `verificationProfile` 关闭;MAJOR-2 由 ADR-007 的重新框定取代。
+其中 `REVIEWER_PERSPECTIVE_ZH.md` 的 BLOCKER-1(持有人可在 deadline 前单方取消,搁置已在远端落定的记录)已修复,修复在重写中保留;MAJOR-3(无 Profile 可发现性)已由 `registerId` / `verificationProfile` 关闭(`registerDescriptor` 曾一并加入,2026-08-31 删除);MAJOR-2 由 ADR-007 的重新框定取代。
 
-上述文件中出现的 `IVersionedCertificate` `0xebaa86a0`、`IDeferredCertificateSettlement` `0x2773d4c9`、`VersionedCertificateReference.sol`、"39/41 passing" 等,均为重写前的值。现行值是 `IRegisterProjection` `0x3ce71a8d`、`IProjectionSettlement` `0xfd0f6337`(**两个接口**)、`RegisterProjectionReference.sol`、27 passing。中间还短暂存在过 `0x3e925bdc` / `0xbe360d3d`(仅 2026-08-30 当天的第一轮),同样不是现行值。
+上述文件中出现的 `IVersionedCertificate` `0xebaa86a0`、`IDeferredCertificateSettlement` `0x2773d4c9`、`VersionedCertificateReference.sol`、"39/41 passing" 等,均为重写前的值。现行值是 `IRegisterProjection` `0x6309e170`、`IProjectionSettlement` `0xfd0f6337`(**两个接口**)、`RegisterProjectionReference.sol`、27 passing。`IRegisterProjection` 的 ID 变动过三次(`0x3e925bdc` → `0x3ce71a8d` → `0x6309e170`),各 ADR 内记录的是当时的值,只有本行是现行值。

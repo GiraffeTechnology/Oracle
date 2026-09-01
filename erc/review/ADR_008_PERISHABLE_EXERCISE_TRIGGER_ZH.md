@@ -49,7 +49,7 @@ HKEX 审计(`HKEX_RULE_CONFORMANCE_AUDIT_ZH.md`)建议引入登记册封闭,使�
 - 规范正文小节改名为 "Exercising a right against the projection",新增"被争议"定义与三条规则;
 - Rationale 新增两段:为何两半闸门不同,以及外生权威在链上不存在;
 - 测试新增一项,证明"被争议"与"非终局"是两个可区分的状态,且取消缺口会结束争议但不产生终局;
-- **接口未变**,三个 interface ID 保持 `0x3ce71a8d` / `0xfd0f6337` / `0x6d39b0a8`。
+- **接口未变**,三个 interface ID 保持 `0x3ce71a8d` / `0xfd0f6337` / `0x6d39b0a8`(*本行为 2026-08-31 当时的值;此后 `IDeferredEntitlement` 被删除,`IRegisterProjection` 因删去 `registerDescriptor` 改为 `0x6309e170`。现行值见 `../OWNERSHIP_AND_STATE.md`*)。
 
 ## 未采纳的选项
 

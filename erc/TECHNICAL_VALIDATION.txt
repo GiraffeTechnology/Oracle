@@ -3,9 +3,9 @@ Proposal: Asynchronous Register Projection for NFTs
 Date: 2026-08-31
 Status: PREP_READY
 
-Authoritative candidate SHA-256: CDAC78198C1436768976F64BAE035569555F37D0AC259F3AFB55B257E29AB8C5
-Reference Solidity SHA-256:      CD35BE944CFCDCF3E913730053497A518B77134E6715360B4692F2D8CB4E4009
-Protocol tests SHA-256:          E58ED516049BAFA53769833428AEAD5B9DB5F736C1BA4226DC23F853E185DF78
+Authoritative candidate SHA-256: C1E7B63533615D21819CBD5179B0E2282C84591B28C6E322EAEF417F2CB3CC57
+Reference Solidity SHA-256:      96165DFA8541270DCDC11C626CFCE02E98042E8F80F5A40F580C121C74207A29
+Protocol tests SHA-256:          14107848616BAD97BF4D9C4E2D8039D31CF7D4FE062B873AB7FB428ADECC5E1B
 
 Node.js v22.22.2
 Hardhat 2.29.0
@@ -19,7 +19,7 @@ Submission static gate (tools/verify-package.mjs): PASS
 Official eipw 0.11.0 synthetic-substitution lint: PASS, 0 diagnostics, exit code 0
 eipw negative control: breaking the CC0 sentence reproduces markdown-copyright, exit code 65
 
-IRegisterProjection interface ID:   0x3ce71a8d
+IRegisterProjection interface ID:   0x6309e170
 IProjectionSettlement interface ID: 0xfd0f6337
 
 No discussion was published. No PR was created or submitted. The only remaining
