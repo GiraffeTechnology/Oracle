@@ -3,7 +3,7 @@
   "status": "PREP_READY",
   "proposalTitle": "Asynchronous Register Projection for NFTs",
   "supersedes": "Proof-Verified Deferred Asset Settlement (V1-V9); rewritten around the register-projection axiom, see review/ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md",
-  "candidateSha256": "4d6e29096d8780f01d06b2fb0c2c23a90a16e06ccd3df0433aee2a466deaeb28",
+  "candidateSha256": "d944f3a01ae7ad851d455692492737ec05a668575d3cc2ee088c2a98db63e151",
   "referenceSha256": "cd35be944cfcdcf3e913730053497a518b77134e6715360b4692f2d8cb4e4009",
   "testsSha256": "e58ed516049bafa53769833428aead5b9db5f736c1ba4226dc23f853e185df78",
   "interfaceIds": {
@@ -33,7 +33,8 @@
     "quiescence": "ADDED / an interval with no gap open at its start and none begun in it cannot admit an entry, so governance can constitute a register closure with no new primitive; the act constituting it cannot be protected by it, so the contested rule is the floor (ADR-008 addendum)",
     "scopeDiscipline": "ADR-009 applied / every normative statement tested against 'does it say who holds power, or what you must do'; the rights section went from 6 MUSTs to 2 and the spec from 34 to 30; no interface changed",
     "oracleBoundary": "CORRECTED / the Motivation had framed oracles as a path this ERC escapes; it does not. A register without consensus needs an attesting party, its contents often cannot be published, and the proof verifies that party's committed statements. Normative load unchanged at 30 MUSTs; reference header comment only, runtime bytecode byte-identical.",
-    "attestationVsVerification": "CLARIFIED / the determinism requirement now explicitly scopes to verification, so a non-deterministic attester such as a machine reader is admissible; how an attested value was arrived at is out of scope"
+    "attestationVsVerification": "CLARIFIED / the determinism requirement now explicitly scopes to verification, so a non-deterministic attester such as a machine reader is admissible; how an attested value was arrived at is out of scope",
+    "finalEditorialPass": "COMPLETED 2026-08-31 / nine defects left by the edit rounds fixed in the spec, four in the Magicians post including a block lost to a range deletion, and the manual's Q&A rewritten to match the current design"
   },
   "openDesignQuestions": [],
   "userPrinciples": {
