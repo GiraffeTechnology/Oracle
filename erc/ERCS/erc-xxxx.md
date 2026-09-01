@@ -59,7 +59,7 @@ An instant is **contested** when a projection gap is open on the token and that 
 
 An interval is **quiescent** for a token when no gap is open at its start and none is begun during it.
 
-A **verification profile** defines the remote-finality proof, light-client or validator rules, state-root commitment, membership-proof algorithm, validator-set evolution, canonical encoding and hash functions. Verification under it MUST be deterministic and domain separated. How an attested value was arrived at is outside the profile and outside this ERC.
+A **verification profile** defines the remote-finality proof, light-client or validator rules, state-root commitment, membership-proof algorithm, validator-set evolution, canonical encoding and hash functions. Verification under it MUST be deterministic and domain separated. This ERC does not constrain how an attested value is produced; a profile MAY.
 
 A **settlement period** is the implementation-defined interval within which a change is expected to be admitted. This ERC does not prescribe its length.
 
@@ -280,7 +280,11 @@ Proof submitters are untrusted so that admission depends on the remote consensus
 
 This does not replace an oracle, and the distinction is worth being exact about. A register that is not itself a ledger with consensus needs some party to commit to its contents on its behalf, and the proof path verifies that party's committed statements, not the world behind them. Some data is unsuited to the chain in the first place — confidential, personal, or simply not the registrar's to publish — which is why entries carry a commitment and a reference and never the record. What changes is not who is trusted but what that trust permits. Statements enter one append-only order per token, two cannot share an effective instant, none can be reused, and any past instant can be re-examined long afterwards. A source that contradicts itself leaves the contradiction on the record rather than overwriting it, and a third party with no relationship to the registrar can see that it did.
 
-This ERC therefore constrains verification and says nothing about attestation. An attesting party may be a light client, a quorum of signers, a registrar's own key or a machine that reads the register, and the profile names which; the requirement is that checking what it committed to be deterministic, not that arriving at the value was. Where a profile uses a quorum, attesters that read the register differently commit to different roots, their signatures do not aggregate, and no entry is admitted: the gap stays open and the instant stays contested, which is the correct outcome when the register's own readers disagree.
+This ERC therefore constrains verification and leaves attestation to the profile. An attesting party may be a light client, a quorum of signers, a registrar's own key, or a fixed procedure run over the register, and the profile names which; what this ERC requires is that checking a commitment be deterministic, not that arriving at the value was.
+
+A profile is free to require more of its attesters, and the useful thing to require is that the procedure itself be deterministic and pinned. An attestation then stands as a claim that a named procedure over named inputs yields a named output, which anyone holding those inputs can re-execute; a discrepancy becomes evidence rather than an accusation. A human attester cannot offer that, whatever controls surround the act, because a reading cannot be re-run. Dual authorization lowers the chance of an incorrect assertion; it does not make the assertion reproducible, and the two are different properties.
+
+Determinism also makes a quorum say something precise. Where a profile uses one, attesters that read the register differently commit to different roots, their signatures do not aggregate, and no entry is admitted. If each attester runs the same pinned procedure, disagreement can only mean their inputs diverged — an unambiguous signal, rather than variation between readers. The gap stays open and the instant stays contested, which is the correct outcome when the register's own readers do not agree.
 
 ### Prior art
 
