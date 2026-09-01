@@ -19,7 +19,7 @@
     "test:erc:hoodi-readonly": "node scripts/test-erc-hoodi-readonly-provider.cjs",
     "test:erc:submission-solidity": "node scripts/test-erc-submission-solidity.mjs",
     "scan": "node scripts/repository-scan.mjs && node scripts/product-boundary-scan.mjs",
-    "verify": "pnpm run format:check && pnpm run typecheck && pnpm run check:decisions && pnpm run check:scope-coverage && pnpm run check:no-financial-output && pnpm run check:hygiene && pnpm run check:erc-constants && node scripts/syntax-check.mjs && node scripts/repository-scan.mjs && node scripts/product-boundary-scan.mjs && pnpm run test",
+    "verify": "pnpm run format:check && pnpm run typecheck && pnpm run check:decisions && pnpm run check:layer-states && pnpm run check:scope-coverage && pnpm run check:no-financial-output && pnpm run check:hygiene && pnpm run check:erc-constants && node scripts/syntax-check.mjs && node scripts/repository-scan.mjs && node scripts/product-boundary-scan.mjs && pnpm run test",
     "verify:erc": "node scripts/run-erc-tests.mjs",
     "verify:prd": "node scripts/syntax-check.mjs && node --test \"test/*.test.js\" && node scripts/repository-scan.mjs && node scripts/product-boundary-scan.mjs && node scripts/verify-prd-v0.3.mjs",
     "format": "prettier --write .",
@@ -29,7 +29,8 @@
     "check:erc-constants": "node scripts/check-frozen-erc-constants.ts",
     "check:scope-coverage": "node scripts/check-scope-coverage.mjs",
     "check:hygiene": "node scripts/check-repository-hygiene.mjs",
-    "check:decisions": "node scripts/check-decision-consistency.mjs"
+    "check:decisions": "node scripts/check-decision-consistency.mjs",
+    "check:layer-states": "node scripts/check-layer-state-consistency.mjs"
   },
   "license": "UNLICENSED",
   "devDependencies": {

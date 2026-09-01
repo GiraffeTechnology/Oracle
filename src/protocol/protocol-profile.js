@@ -8,7 +8,7 @@ const ARTIFACT_KEYS = ["formalZhSha256", "formalEnSha256", "submissionCandidateS
 const INTERFACE_KEYS = ["versionedCertificate", "deferredSettlement", "assetBoundTokenId"];
 const EVENT_NAMES = ["CertificateInitialized", "CertificateSuperseded", "SettlementStarted", "SettlementFinalized", "SettlementCancelled", "Transfer"];
 const STATUS_CODES = Object.freeze({ NONE: 0, PENDING: 1, FINALIZED: 2, CANCELLED: 3 });
-const STATUS_MAPPING = Object.freeze({ NONE: OracleStatus.VALID, PENDING: OracleStatus.TRANSFER_PENDING, FINALIZED: OracleStatus.VALID, CANCELLED: OracleStatus.VALID });
+const STATUS_MAPPING = Object.freeze({ NONE: OracleStatus.VALID, PENDING: OracleStatus.TRANSFER_PENDING, FINALIZED: OracleStatus.VALID, CANCELLED: OracleStatus.REVIEW_REQUIRED });
 
 function exactKeys(value, keys, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${label}_INVALID`);

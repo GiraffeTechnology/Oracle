@@ -85,7 +85,7 @@ test("L3 finalize observation verifies atomic version and event set without rely
     certificateVersion: 9,
     events: ["CertificateSuperseded", "Transfer", "SettlementFinalized"],
   }), /PROTOCOL_FINALIZE_NOT_ATOMIC/);
-  assert.equal(mapProtocolSettlementStatus(profile, 3), "VALID");
+  assert.equal(mapProtocolSettlementStatus(profile, 3), "REVIEW_REQUIRED");
 });
 
 test("production assembly resolves every protected dependency and fails closed", async () => {

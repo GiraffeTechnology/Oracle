@@ -35,6 +35,40 @@ required external review and its publication status changes through a new versio
 may claim compatibility with the pinned Working Draft only—not ERC finality, Ethereum endorsement or
 production legal approval.
 
+## L1–L2–L3 settlement-state contract
+
+`config/layer-state-mapping.v1.json` is the mechanical contract between the Wenbao settlement outcome,
+the eight-value Oracle status vocabulary and the pinned L3 `SettlementStatus` encoding:
+
+| Settlement observation | Oracle status      | L3 status   |
+| ---------------------- | ------------------ | ----------- |
+| `PENDING`              | `TRANSFER_PENDING` | `PENDING`   |
+| `FINALIZED`            | `VALID`            | `FINALIZED` |
+| `CANCELLED`            | `REVIEW_REQUIRED`  | `CANCELLED` |
+| `DISPUTED`             | `REVIEW_REQUIRED`  | `CANCELLED` |
+| `TIMED_OUT`            | `REVIEW_REQUIRED`  | `CANCELLED` |
+| `NONE`                 | `VALID`            | `NONE`      |
+
+`NONE` only records that the protocol observer sees no incomplete settlement. It never grants an asset
+`VALID` status by itself: prerequisite Oracle evidence verification remains mandatory. While a settlement
+is pending, the owner must remain the recorded `from`, and transfer, redemption, pledge and relisting are
+all blocked. Finalization must atomically advance the certificate version by one and emit the certificate,
+transfer and settlement-finalized event set. Cancellation, dispute and timeout are fail-closed review
+outcomes; they never optimistically restore `VALID`.
+
+`config/external-consumer-state-contract.v1.json` is an external-consumer fixture, not proof that another
+repository implemented the contract. Its implementation status remains `NOT_VERIFIED_EXTERNAL`. The
+current Market Agent behavior is non-custodial: only a user wallet or Safe owners sign, and neither Oracle
+nor the consumer agent may hold private keys or sign on the user's behalf. Behavior b is prohibited.
+Behavior c is a future Exchange iteration and remains `NOT_IMPLEMENTED` and `NOT_AUTHORIZED`.
+
+Charity is a current Market Agent subprocess under the same non-custodial signing and state-consistency
+rules; it is neither the whole product nor an Exchange. Public marketplace listing, sale status and sale
+history are read-only consumer/index observations. Every such observation must identify its source or
+provider and remain separate from Oracle evidence because it is not an Oracle-authoritative state. The
+fixture creates no Oracle-to-consumer runtime, chain-writing, broadcasting, matching, pricing or custody
+path.
+
 ## Change control
 
 Any protocol text, ABI, interface ID, reference implementation, test-vector or authority encoding change

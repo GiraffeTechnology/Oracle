@@ -37,7 +37,7 @@
     "NONE": "VALID",
     "PENDING": "TRANSFER_PENDING",
     "FINALIZED": "VALID",
-    "CANCELLED": "VALID"
+    "CANCELLED": "REVIEW_REQUIRED"
   },
   "rules": {
     "ownerRemainsFromWhilePending": true,
