@@ -13,6 +13,8 @@
  *   3. No document declares a different network as the priority testnet.
  *   4. Both documents still state that the priority network is a test chain, not a
  *      production chain, and that passing on it releases no production gate.
+ *   5. D-006's repository boundary holds: src/ carries no ArtFi coupling and no
+ *      public-chain write path, both of which the decision record says do not exist here.
  */
 import { readFile, readdir } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
@@ -128,6 +130,56 @@ if (netMatch === null || chainMatch === null) {
     }
   }
   process.stdout.write(`  ok   ${REQUIRED_CLAUSES.length} required test-chain clauses present\n`);
+}
+
+// --- D-006: Oracle / ArtFi repository boundary ---------------------------------
+/**
+ * D-006 states two things about this repository that are cheap to assert and expensive to
+ * notice by eye once broken: it carries no ArtFi coupling, and it opens no public-chain
+ * write path. PRD section 0.1 forbids reusing ArtFi's contracts, database or token
+ * semantics; PRD section 5 puts chain writes in a different layer entirely. Both are the
+ * kind of boundary that erodes through an innocent-looking import.
+ *
+ * Scope is src/ only. Documentation necessarily names ArtFi to describe the boundary, and
+ * the Hoodi test plan labels its two test wallets ArtFi1 and ArtFi2.
+ */
+if (/\*\*ArtFi 是文保链上登记产品在公链交易的 agent\*\*/.test(decisions)) {
+  const COUPLING = [
+    { label: 'ArtFi reference', pattern: /\bartfi\b/i },
+    {
+      label: 'public-chain write path',
+      pattern:
+        /\b(sendTransaction|sendRawTransaction|eth_sendRawTransaction|broadcastTransaction)\b/,
+    },
+  ];
+  const sources = [];
+  const walkSrc = async (dir) => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) await walkSrc(full);
+      else if (/\.(?:js|mjs|cjs|ts|mts)$/.test(entry.name)) sources.push(full);
+    }
+  };
+  await walkSrc(join(root, 'src'));
+  const before = failures.length;
+
+  for (const file of sources) {
+    const text = await readFile(file, 'utf8');
+    text.split('\n').forEach((line, index) => {
+      for (const { label, pattern } of COUPLING) {
+        if (pattern.test(line)) {
+          failures.push(`${relative(root, file)}:${index + 1}: D-006 forbids ${label} in src/`);
+        }
+      }
+    });
+  }
+  if (failures.length === before) {
+    process.stdout.write(
+      `  ok   D-006 repository boundary: ${sources.length} source files carry no ArtFi coupling or chain write\n`,
+    );
+  }
+} else {
+  failures.push('D-006 does not state the ArtFi relationship it is relied on for');
 }
 
 if (failures.length > 0) {
