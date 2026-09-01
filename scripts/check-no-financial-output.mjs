@@ -9,6 +9,7 @@
  */
 import { readFile, readdir } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
+import { matchFinancialOutputLine } from './lib/financial-output-guard.mjs';
 
 const repoRoot = resolve(import.meta.dirname, '..');
 
@@ -28,46 +29,6 @@ const CODE_TARGETS = ['src'];
 const ENFORCEMENT_FILES = ['src/services/product-boundary.js'];
 const PROSE_TARGETS = ['README.md'];
 const SCAN_EXTENSIONS = ['.ts', '.mts', '.js', '.mjs', '.json', '.md'];
-
-const FORBIDDEN_PATTERNS = [
-  {
-    surface: 'code',
-    label: 'valuation output',
-    pattern: /\b(valuation|appraised_?value|appraisalValue)\b/i,
-  },
-  {
-    surface: 'code',
-    label: 'price output',
-    pattern: /\b(marketPrice|market_price|priceFeed|price_feed|quotePrice)\b/i,
-  },
-  {
-    surface: 'code',
-    label: 'collateral output',
-    pattern:
-      /\b(ltv|loanToValue|loan_to_value|collateralRatio|collateral_ratio|liquidationPrice)\b/i,
-  },
-  {
-    surface: 'code',
-    label: 'yield or rate output',
-    pattern: /\b(apr|apy|yieldRate|yield_rate|interestRate|interest_rate)\b/i,
-  },
-  {
-    surface: 'code',
-    label: 'credit output',
-    pattern: /\b(creditScore|credit_score|creditworthiness)\b/i,
-  },
-  {
-    surface: 'code',
-    label: 'investment advice',
-    pattern: /\b(investmentAdvice|investment_advice|suitableForInvestment)\b/i,
-  },
-  { surface: 'all', label: 'prohibited public claim', pattern: /\bsec[ -](approved|certified)\b/i },
-  {
-    surface: 'all',
-    label: 'prohibited public claim',
-    pattern: /\bguaranteed (return|liquidity|yield|appreciation)\b/i,
-  },
-];
 
 async function collectFiles(target) {
   const absolute = join(repoRoot, target);
@@ -94,14 +55,11 @@ for (const file of files) {
   if (ENFORCEMENT_FILES.some((allowed) => relative(repoRoot, file) === allowed)) {
     continue;
   }
-  const applicable = FORBIDDEN_PATTERNS.filter(
-    ({ surface }) => surface === 'all' || codeFileSet.has(file),
-  );
   contents.split('\n').forEach((line, index) => {
-    for (const { label, pattern } of applicable) {
-      if (pattern.test(line)) {
-        violations.push(`${relative(repoRoot, file)}:${index + 1}: ${label}: ${line.trim()}`);
-      }
+    for (const { label } of matchFinancialOutputLine(line, {
+      codeSurface: codeFileSet.has(file),
+    })) {
+      violations.push(`${relative(repoRoot, file)}:${index + 1}: ${label}: ${line.trim()}`);
     }
   });
 }

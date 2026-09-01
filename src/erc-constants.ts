@@ -159,3 +159,49 @@ export function parseInterfaceSignatures(source: string, interfaceName: string):
   }
   return signatures;
 }
+
+/** Named prose statements such as `IFoo` interface ID is `0x12345678`. */
+export function parseNamedInterfaceIds(source: string): ReadonlyMap<string, string> {
+  const named = new Map<string, string>();
+  const statement =
+    /(?:ERC-\d+\s+)?`([A-Za-z_][A-Za-z0-9_]*)`\s+interface ID is `(0x[0-9a-f]{8})`/g;
+  let match: RegExpExecArray | null = statement.exec(source);
+  while (match !== null) {
+    const name = match[1]!;
+    const id = match[2]!;
+    if (named.has(name)) {
+      throw new Error(`named interface ID is stated more than once: ${name}`);
+    }
+    named.set(name, id);
+    match = statement.exec(source);
+  }
+  return named;
+}
+
+/**
+ * Require an exact, unique interface-name to interface-ID inventory. A valid ID attached to
+ * the wrong interface is a failure, not merely another member of an allowed ID set.
+ */
+export function assertNamedInterfaceIds(
+  source: string,
+  expectedEntries: readonly (readonly [string, string])[],
+): ReadonlyMap<string, string> {
+  const actual = parseNamedInterfaceIds(source);
+  const expected = new Map(expectedEntries);
+  const actualNames = [...actual.keys()].sort();
+  const expectedNames = [...expected.keys()].sort();
+  if (JSON.stringify(actualNames) !== JSON.stringify(expectedNames)) {
+    throw new Error(
+      `named interface inventory mismatch: expected ${expectedNames.join(',')}; actual ${actualNames.join(',')}`,
+    );
+  }
+  for (const [name, expectedId] of expected) {
+    const actualId = actual.get(name);
+    if (actualId !== expectedId) {
+      throw new Error(
+        `named interface ID mismatch: ${name}: expected ${expectedId}; actual ${actualId ?? 'missing'}`,
+      );
+    }
+  }
+  return actual;
+}
