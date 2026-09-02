@@ -46,16 +46,16 @@
     "tradingMustNotBeBlockedDuringAGap": true,
     "everyPastInstantResolvesToExactlyOneConfirmedHolder": true,
     "independentEndorsementVerification": "out-of-band by consumers",
-    "deferredEntitlementRegistryInStandard": true,
     "registerAndProfileIdentityDiscoverable": true,
-    "registerClosureRequiresAnAuthorityOutsideTheRegister": true,
     "perishableExercisesAreCheckedAtTheMomentOfExercise": true,
     "addNothingThatCanBeLeftOut": true,
     "theStandardEstablishesWhoHoldsPowerNotWhatTheRulesAre": true,
     "theStandardDoesNotReplaceAnOracle": true,
     "attestingPartyPreference": "a deterministic rule-based AI oracle first (not an LLM), then human attestation under dual control, then existing oracles; a mechanical assertion always outranks a human one because it is reproducible, which dual control does not provide",
     "theStandardMapsOnChainToOffChainAndExplainsWhyPendingExists": true,
-    "identityLivesInTheOffChainRegisterAndTheChainCarriesTheReference": true
+    "identityLivesInTheOffChainRegisterAndTheChainCarriesTheReference": true,
+    "deferredEntitlementRegistry": "ruled in on 2026-08-30, ruled out on 2026-08-31 under ADR-009: holderAsOf plus isFinalAsOf already let the owing contract bind the beneficiary, so the interface was convenience rather than capability and picked one policy for everyone",
+    "registerClosure": "not in this ERC. First judged to need an authority outside the register, then corrected — governance can derive it, and needs no new primitive — then removed entirely with the rest of the governance material as outside what this ERC does"
   },
   "remainingUserInputs": [
     "ethereumMagiciansDiscussionUrl",
