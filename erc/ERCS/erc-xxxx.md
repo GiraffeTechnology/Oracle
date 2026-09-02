@@ -278,6 +278,8 @@ This ERC therefore constrains verification and leaves attestation to the profile
 
 ### Prior art
 
+[ERC-5805](./eip-5805.md), with the contract clock of [ERC-6372](./eip-6372.md), is the closest work on the projection side. It checkpoints voting weight and answers for a past timepoint, and it requires that answer to hold still: for any timepoint below the current clock the value SHOULD be constant, and past checkpoints SHOULD be immutable. It can require that because the chain writes those checkpoints and is itself the source of truth, so no later write can land behind an earlier one. This ERC projects a register the chain does not control, whose entries arrive after the instants they take effect at, so a past instant's answer is provisional until a later entry closes it. Finality is therefore decidable and worth exposing here, and vacuous there. ERC-6372 standardizes how a contract declares its own clock; the instants here are the register's, stated on the same scale so that the two can be compared.
+
 [ERC-7965](./eip-7965.md) is the closest work on the proof side. It standardizes proof-based verification of source-chain messages inside [ERC-7786](./eip-7786.md) gateways. Its broadcast semantics require one proof to serve many recipients, so it deliberately does not bind a proof to a destination field set, and it does not constrain the relationship between verification and execution. It proves a message; it does not build an ordered register whose past instants resolve. [ERC-5164](./eip-5164.md) and [ERC-6358](./eip-6358.md) likewise address execution and multi-chain token state rather than register history.
 
 This is not a bridge. ICS-721 and similar designs escrow, burn or mint a representation so that a token moves between chains. Here the token never leaves its chain and nothing is minted; a proof admits a record.
@@ -285,6 +287,8 @@ This is not a bridge. ICS-721 and similar designs escrow, burn or mint a represe
 [ERC-6997](./eip-6997.md) adds a validation stage to transfers, and holds cleared by a notary are long-established. All of them gate a transfer on an authorized party's word, and none maintains a time-resolvable record of who was confirmed when.
 
 [ERC-7765](./eip-7765.md) and [ERC-5496](./eip-5496.md) express whether a right may be exercised and allow rights to be separated from ownership. Neither ties the availability of an exercise to the state of an external register, nor lets a contract ask who was confirmed at a past instant and whether that answer is settled. [ERC-7943](./eip-7943.md) supplies transfer eligibility and freezing controls that compose with this ERC; [ERC-8325](./eip-8325.md) supplies asset anchoring that an implementation MAY use.
+
+Standards for tokenized real-world assets address eligibility rather than history. [ERC-3643](./eip-3643.md) verifies holders against an on-chain identity registry and keeps no time-indexed record of who held what when. [ERC-6065](./eip-6065.md) commits to an operating agreement by hash and states plainly that it needs a trusted party to keep the token mirroring its off-chain counterpart, which is the arrangement this ERC exists to replace with a checkable one.
 
 Off-chain credential and attestation systems can express issuance and revocation, but do not make a past instant resolve to one holder under an on-chain invariant.
 
