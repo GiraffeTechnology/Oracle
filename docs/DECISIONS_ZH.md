@@ -122,13 +122,25 @@ source/provider 并与 Oracle evidence 分层。`config/external-consumer-state-
 
 **引用规则**：PR #13 持续更新，因此本仓库任何引用 ERC 内容的文档或脚本
 **必须标注所依据的 commit**。未标注 commit 的引用视为失效，不得作为实现依据。
-当前已知状态锚定在 `386d6d4`。
+当前已知状态锚定在 `c22792a`（2026-09-02 复核；此前锚定 `386d6d4`）。
 
-**已知实质分歧（待产品裁决，工程侧不得自行选边）**：现行提案在 Motivation 中明确反对冻结
-模型，主张 token 在登记在途期间继续交易（`ownerOf` 为可交易头寸，投影为已确认记录）；
-而 PRD v0.3 前提 P7、§6 第 293 行、§7 第 427 行均要求冻结，`settlement-coordinator.js`
-与 `consumer-state-machine.js` 亦按冻结实现。旧提案用的是冻结模型，故本次重写是主动翻转
-立场。在裁决作出前：不得因 ERC 而改 Oracle 的冻结逻辑，也不得因 PRD 而改 PR #13。
+**已知实质分歧（待产品裁决，工程侧不得自行选边）**：这是一处**规范性正面冲突**，不是设计
+偏好之差 ——
+
+| | 要求 | 出处 |
+| --- | --- | --- |
+| 现行 ERC | 「Ordinary ERC-721 transfers **MUST NOT be blocked** while a projection gap is open.」 | `erc/ERCS/erc-xxxx.md` 规范章节（`c22792a` 第 157 行；`386d6d4` 时为第 153 行，措辞相同） |
+| PRD v0.3 | 「**阻止** NFT 转让和提货」；「置于协议托管或**不可转让**状态」；前提 P7 要求 T+0 冻结、完成后才恢复可交易 | §6 第 293 行、§7 第 427 行、§1 前提 P7 |
+
+即：ERC 规范禁止的，正是 PRD 规范要求的。`src/domain/settlement-coordinator.js` 与
+`src/domain/consumer-state-machine.js` 按 PRD 实现。被取代的旧提案用的是冻结模型
+（`ordinary ERC-721 transfers MUST NOT execute`），故本次重写是主动翻转立场。
+
+**更正记录**：本条初次记录时表述为「现行提案在 Motivation 中明确反对冻结模型」，据此把它
+定性为立场分歧。该表述过轻 —— 反对冻结不止写在 Motivation 的论证里，规范章节本身就是一条
+MUST NOT，且在 `386d6d4` 时即已如此，并非后续收紧。
+
+在裁决作出前：不得因 ERC 而改 Oracle 的冻结逻辑，也不得因 PRD 而改 PR #13。
 
 ## D-003 冲突裁决规则
 

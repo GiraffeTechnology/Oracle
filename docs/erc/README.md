@@ -7,6 +7,8 @@
 > 现行提案为 **_Asynchronous Register Projection for NFTs_**，位于 PR #13 的分支
 > `claude/erc-standard-feasibility-audit-90ypms`，**持续更新**。PR #3 已于 2026-09-02 关闭未合并。
 >
+> 下表内容依据 commit `c22792a`（依 D-007，引用 ERC 内容须标注 commit）。
+>
 > | | 本目录（旧） | PR #13（现行） |
 > | --- | --- | --- |
 > | 接口 | `IVersionedRWACertificate` `0xebaa86a0`<br>`IDeferredCertificateSettlement` `0x2773d4c9` | `IRegisterProjection` `0x6309e170`<br>`IProjectionSettlement` `0xfd0f6337` |
