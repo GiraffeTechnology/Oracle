@@ -320,7 +320,7 @@ Conforming implementations MUST satisfy at least the following.
 
 ## Reference Implementation
 
-A CC0 Solidity reference implementation and self-contained local-EVM tests accompany this draft under `assets/eip-xxxx/`, where `xxxx` MUST be replaced only after an editor assigns a number.
+A CC0 Solidity reference implementation and self-contained local-EVM tests accompany this proposal in its assets directory.
 
 ## Security Considerations
 

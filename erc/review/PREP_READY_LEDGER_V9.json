@@ -3,7 +3,7 @@
   "status": "PREP_READY",
   "proposalTitle": "Asynchronous Register Projection for NFTs",
   "supersedes": "Proof-Verified Deferred Asset Settlement (V1-V9); rewritten around the register-projection axiom, see review/ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md",
-  "candidateSha256": "1c89321f7b19289724b0f9514494746154d94e30c3d1b8032987e09ffed04ba4",
+  "candidateSha256": "0c7e314c4aa4a17992d6d2750b4519e5c43d1dcc7afbb125f2fce604c9b8f834",
   "referenceSha256": "96165dfa8541270dcdc11c626cfce02e98042e8f80f5a40f580c121c74207a29",
   "testsSha256": "7457317fb53ae72cdadca0aa22786e8292008a987cdcde4329d1c73dce5948c1",
   "interfaceIds": {
@@ -42,7 +42,9 @@
     "reviewOfTheRewrite": "2026-09-02 / SHOULD/MAY and the definition list were compared as well as MUSTs, then the text was read through. Four defects: snapshotHash was a bound leaf field with no definition anywhere, the same class as registryReference and missed when that one was fixed; the settlement period definition disagreed with both the accessor and beginSettlement and was never referenced; profile carried normative weight without being defined; one ambiguous antecedent. All fixed. Specification MUSTs 26 to 27.",
     "noveltyCurrentDraft": "HOLDS / no existing proposal resolves a past instant against a register the chain does not control, where entries arrive after the instants they take effect at. Not reachable by composition: ERC-5805's immutability requirement contradicts this ERC's premise rather than stacking with it.",
     "linkStatusCeiling": "MEASURED / Draft passes with 0 diagnostics. Review, Last Call and Final fail markdown-link-status on eip-5805 (Stagnant), eip-7965 and eip-7765 (Draft): 4, 9 and 11 diagnostics. No effect on submitting as Draft; recorded for whenever the status advances.",
-    "erc1400FamilyDoesNotExist": "VERIFIED by HTTP status: eip-1400, eip-1594, eip-1410 and eip-1643 all return 404. Published outside the EIP process and widely miscited as ERCs; this project once wrote ERC-1643 into a prior-art table as Final."
+    "erc1400FamilyDoesNotExist": "VERIFIED by HTTP status: eip-1400, eip-1594, eip-1410 and eip-1643 all return 404. Published outside the EIP process and widely miscited as ERCs; this project once wrote ERC-1643 into a prior-art table as Final.",
+    "numberedFormLints": "MEASURED / the placeholder form and the numbered form are now both linted. Substituting a real number made markdown-no-backticks fire on `assets/eip-<n>/`, because (?i)(eip|erc)-[0-9]+ inside backticks is forbidden and xxxx does not match the digit pattern — a defect invisible until submission day. Backticked path removed; both forms now exit 0.",
+    "placeholderCannotBeSubmitted": "VERIFIED against the official tooling: eip: XXXX fails preamble-eip, omitting the header fails preamble-req, and a filename of erc-XXXX.md makes eipw-action's path2number() throw before linting starts. Authors pick a real number themselves (ethereum/ERCs PR #1450 used 8118, PR #1337 used 8076 — not the PR number). Highest allocated on master as of 2026-09-02 is 8167."
   },
   "openDesignQuestions": [],
   "userPrinciples": {
