@@ -138,3 +138,47 @@ test("external consumer fixture fixes non-custodial market and charity boundarie
     /EXTERNAL_CONSUMER_MARKETPLACE_BOUNDARY_INVALID/,
   );
 });
+
+/**
+ * D-007: the mapping must keep saying which ERC revision it was built against. It encodes the
+ * PRD's freeze model against the superseded proposal, while the current one keeps the token
+ * trading — a disagreement the product has not settled. The label is what stops the mapping
+ * from being read as current, so dropping it must fail rather than pass quietly.
+ */
+test("D-007 layer state mapping declares the ERC revision it maps to", async () => {
+  const mapping = await loadLayerStateMapping(MAPPING_FILE);
+  const ref = mapping.ercRevisionRef;
+  assert.equal(ref.mappedProposalStatus, "SUPERSEDED");
+  assert.match(ref.supersededBy.commit, /^[0-9a-f]{40}$/);
+  assert.equal(ref.divergenceUnresolved, true);
+  assert.ok(
+    ref.supersededBy.settlementStatusEnum.includes("ADMITTED"),
+    "the current proposal's enum must be recorded so the difference is visible",
+  );
+});
+
+test("D-007 an undeclared or unpinned ERC revision is rejected", async () => {
+  const mapping = await loadLayerStateMapping(MAPPING_FILE);
+
+  const withoutRef = { ...mapping };
+  delete withoutRef.ercRevisionRef;
+  assert.throws(() => validateLayerStateMapping(withoutRef), /LAYER_STATE_MAPPING/);
+
+  const unpinned = {
+    ...mapping,
+    ercRevisionRef: {
+      ...mapping.ercRevisionRef,
+      supersededBy: { ...mapping.ercRevisionRef.supersededBy, commit: "386d6d4" },
+    },
+  };
+  assert.throws(() => validateLayerStateMapping(unpinned), /LAYER_ERC_SUPERSEDED_COMMIT_INVALID/);
+
+  const divergenceHidden = {
+    ...mapping,
+    ercRevisionRef: { ...mapping.ercRevisionRef, divergenceUnresolved: false },
+  };
+  assert.throws(
+    () => validateLayerStateMapping(divergenceHidden),
+    /LAYER_ERC_DIVERGENCE_MUST_BE_DECLARED/,
+  );
+});

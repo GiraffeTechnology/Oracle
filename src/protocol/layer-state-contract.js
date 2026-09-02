@@ -39,6 +39,52 @@ function freeze(value) {
   return value;
 }
 
+/**
+ * D-007 requires every reference to ERC content to name the commit it relies on, because the
+ * proposal lives on PR #13's branch and keeps moving.
+ *
+ * This mapping was built against the superseded proposal and encodes the PRD's freeze model.
+ * The current proposal reverses that position and carries a five-value status enum, so the
+ * mapping is knowingly out of date on a point the product has not yet decided. Recording that
+ * is the honest state; silently carrying an unlabelled mapping is not. The fields are
+ * validated so the label cannot be dropped, and so the day someone updates the mapping they
+ * must consciously restate what it maps to.
+ */
+function validateErcRevisionRef(ref) {
+  if (ref === null || typeof ref !== "object" || Array.isArray(ref)) {
+    throw new Error("LAYER_ERC_REVISION_REF_INVALID");
+  }
+  exactKeys(
+    ref,
+    [
+      "mappedProposalTitle",
+      "mappedProposalStatus",
+      "archivePath",
+      "supersededBy",
+      "divergenceUnresolved",
+      "divergenceNote",
+    ],
+    "LAYER_ERC_REVISION_REF",
+  );
+  if (ref.mappedProposalStatus !== "SUPERSEDED" && ref.mappedProposalStatus !== "CURRENT") {
+    throw new Error("LAYER_ERC_REVISION_STATUS_INVALID");
+  }
+  if (ref.mappedProposalStatus === "SUPERSEDED") {
+    const by = ref.supersededBy;
+    if (by === null || typeof by !== "object") throw new Error("LAYER_ERC_SUPERSEDED_BY_MISSING");
+    if (!/^[0-9a-f]{40}$/.test(by.commit ?? "")) {
+      throw new Error("LAYER_ERC_SUPERSEDED_COMMIT_INVALID");
+    }
+    if (!Array.isArray(by.settlementStatusEnum) || by.settlementStatusEnum.length === 0) {
+      throw new Error("LAYER_ERC_SUPERSEDED_ENUM_INVALID");
+    }
+    if (ref.divergenceUnresolved !== true) {
+      throw new Error("LAYER_ERC_DIVERGENCE_MUST_BE_DECLARED");
+    }
+  }
+  return ref;
+}
+
 export function validateLayerStateMapping(mapping) {
   exactKeys(
     mapping,
@@ -53,9 +99,11 @@ export function validateLayerStateMapping(mapping) {
       "noneSemantics",
       "wenbaoProfileRef",
       "l3ProfileRef",
+      "ercRevisionRef",
     ],
     "LAYER_STATE_MAPPING",
   );
+  validateErcRevisionRef(mapping.ercRevisionRef);
   if (mapping.schemaVersion !== 1 || mapping.contractId !== "giraffe-oracle/layer-state-mapping-v1") {
     throw new Error("LAYER_STATE_MAPPING_ID_INVALID");
   }

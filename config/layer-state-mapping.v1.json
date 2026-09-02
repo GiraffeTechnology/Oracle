@@ -45,17 +45,46 @@
   },
   "pendingRules": {
     "ownerRemainsFrom": true,
-    "blockedOperations": ["transfer", "redeem", "pledge", "relist"]
+    "blockedOperations": [
+      "transfer",
+      "redeem",
+      "pledge",
+      "relist"
+    ]
   },
   "finalizationRules": {
     "atomic": true,
     "certificateVersionIncrement": 1,
-    "requiredEvents": ["CertificateSuperseded", "Transfer", "SettlementFinalized"]
+    "requiredEvents": [
+      "CertificateSuperseded",
+      "Transfer",
+      "SettlementFinalized"
+    ]
   },
   "noneSemantics": {
     "meansNoIncompleteSettlementObserved": true,
     "prerequisiteOracleVerificationRequired": true
   },
   "wenbaoProfileRef": "config/settlement.wenbao-sandbox.json",
-  "l3ProfileRef": "config/l3.protocol.wd-0.1.1.json"
+  "l3ProfileRef": "config/l3.protocol.wd-0.1.1.json",
+  "ercRevisionRef": {
+    "mappedProposalTitle": "Versioned RWA Certificate Settlement",
+    "mappedProposalStatus": "SUPERSEDED",
+    "archivePath": "docs/erc/",
+    "supersededBy": {
+      "proposalTitle": "Asynchronous Register Projection for NFTs",
+      "pullRequest": 13,
+      "commit": "386d6d4012011c985290a46fe83fca0f3f58dc62",
+      "settlementStatusEnum": [
+        "NONE",
+        "OPEN",
+        "ADMITTED",
+        "CANCELLED",
+        "SUPERSEDED"
+      ],
+      "pendingTransfersBlocked": false
+    },
+    "divergenceUnresolved": true,
+    "divergenceNote": "This mapping encodes the PRD v0.3 freeze model (pendingRules.ownerRemainsFrom). The current ERC keeps the token trading and has a five-value GapStatus. The two disagree; the product decision is open, so neither side is changed here. See DECISIONS_ZH.md D-007."
+  }
 }
