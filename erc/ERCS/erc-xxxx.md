@@ -49,6 +49,8 @@ A **register entry** is one admitted change, identified by its effective time an
 
 A **record commitment** is a nonzero `bytes32` commitment to the register's content at that entry. An implementation profile MUST define its algorithm, canonicalization and domain separation.
 
+A **registry reference** is a `bytes32` locator for the register's own record of that entry. It is opaque here: this ERC never interprets it, and a profile MUST define how it is derived and whether zero means no locator was published. It is what lets a party that is entitled to read the register find the record a commitment commits to, which is where the holder's identity lives; the chain carries the reference, not the identity.
+
 A **confirmed holder** at an instant is the `holder` of the entry whose effective interval contains that instant. It is distinct from `ownerOf`, which is the tradeable position.
 
 An instant is **final** when no entry admitted in the future can change the confirmed holder for it. An answer that a later admission may supersede is **provisional**.
@@ -63,12 +65,14 @@ A **verification profile** defines the remote-finality proof, light-client or va
 
 A **settlement period** is the implementation-defined interval within which a change is expected to be admitted. This ERC does not prescribe its length.
 
+Every instant here — `effectiveAt`, `supersededAt`, `openedAt`, a deadline, and the `instant` arguments — is a count of seconds since the Unix epoch, on the same scale as `block.timestamp`. Register instants and chain instants are therefore comparable, which the definition of a contested instant relies on. A register whose effective times cannot be expressed on that scale cannot be projected through this interface.
+
 ### Projection invariants
 
 These four rules are what make an instant resolve uniquely. An implementation that relaxes any of them does not conform.
 
 1. The first entry MUST have version `1` and a zero `previousCommitment`, and MUST emit `RegisterInitialized`.
-2. Each admitted change MUST append version `n + 1`, link the prior commitment, set the prior entry's `supersededAt`, leave the new entry's `supersededAt` zero, and emit `RegisterSuperseded`.
+2. Each admitted change MUST append version `n + 1`, link the prior commitment, set the prior entry's `supersededAt` to the new entry's `effectiveAt`, leave the new entry's `supersededAt` zero, and emit `RegisterSuperseded`. The prior entry's effective interval is closed by the register, not by the moment the chain learned of it.
 3. `effectiveAt` MUST be **strictly greater** than that of the preceding entry. Equal effective times are forbidden, because an instant shared by two entries would have two answers.
 4. A record commitment MUST be unique within a token's own chain of entries. A repeated commitment is forbidden, because two entries that cannot be told apart cannot be resolved.
 
@@ -85,6 +89,8 @@ An instant is therefore final if and only if it is at or after the first entry's
 An instant at or after the latest entry's `effectiveAt` still resolves, but provisionally: a later admission may carry an earlier effective time and supersede the answer. A consumer that requires a settled answer MUST check `isFinalAsOf`, because `entryAsOf` does not distinguish the two cases. An open projection gap indicates that such an admission is expected, but finality does not depend on whether a gap is open, and closing a gap does not by itself make any instant final.
 
 ### Register interface
+
+These interfaces are implemented by the [ERC-721](./eip-721.md) contract itself. They identify a token by `tokenId` alone and carry no token contract address, and settlement authorization is that contract's own ERC-721 authorization.
 
 ```solidity
 // SPDX-License-Identifier: CC0-1.0
@@ -238,7 +244,7 @@ interface IProjectionSettlement is IERC165 {
 
 The ERC-165 identifier for `IProjectionSettlement` is `0xfd0f6337`.
 
-`settlement(unknownId)` MUST revert. `openGapOf` MUST return zero when no gap is open. `NONE` is the zero-value internal status and MUST NOT be returned by a successful query for an unknown identifier.
+`openedAt` MUST be the block timestamp at which `beginSettlement` succeeded; it is what bounds the interval a gap makes contested. `settlement(unknownId)` MUST revert. `openGapOf` MUST return zero when no gap is open. `NONE` is the zero-value internal status and MUST NOT be returned by a successful query for an unknown identifier.
 
 `verificationProfile` MUST return a nonzero identifier of the profile under which proofs are accepted and MUST NOT change, so that a party can tell whether it knows how to check what this contract accepts.
 
@@ -262,7 +268,7 @@ Register and profile identifiers are exposed for the same reason the projection 
 
 What a right does at a non-final or contested instant is left to the right's own terms, and that restraint is deliberate. This ERC settles who may move the register's answer and what that answer is at any instant; it does not also settle what a dividend or a ballot should do about it. Those are decisions the issuer, the DAO or the entitlement's own contract are entitled to make differently from one another, and a standard that fixed them would be legislating past the point where interoperability requires agreement.
 
-The following is guidance, not a requirement. Rights divide usefully by whether an exercise can be repeated. A distribution can be postponed at a cost of time alone, so finality is a natural condition for it: defer, and credit the party the register confirms for the instant, even if that party no longer holds the token. A vote cannot be repeated, so finality is the wrong condition for it — the present moment is at or after the latest entry's effective time and is therefore never final, and a design that waited for finality would forbid voting at almost every moment rather than occasionally. Contestedness is the condition that fits: it is bounded, visible before a ballot is scheduled into it, and avoidable. A right that declines to act while contested gives up an exercise it could not have attributed correctly; one that acts anyway should record the entry version it relied on, so the basis stays checkable if the register later disagrees.
+Three facts are exposed rather than one, and the reason is that different rights need different ones. A claim made against a past instant — a distribution being one — does not care who holds the token now; it needs `holderAsOf` for that instant, and it needs `isFinalAsOf` before it acts, because paying against an answer that a later admission may supersede pays the wrong party. An exercise that happens at a moment and cannot be repeated cannot wait for an answer to settle at all: the present moment is at or after the latest entry's effective time and so is never final. What it can see is whether a change is in flight right now, which is what an open gap reports. Collapsing these into a single accessor would leave every consumer guessing which of the three questions it had been answered, which is the failure this ERC exists to remove.
 
 A registered market does not face this, and the reason is worth stating because it does not carry over. There, the body that fixes the record is constituted outside the register: a board resolves to close the register, and its membership is known ahead of time and does not depend on what the register says about any holding. On-chain governance has no such body. The right to open a proposal and the right to vote both derive from holding, which is the very thing the projection exists to resolve, so there is no roll that can be consulted before the projection has answered. The only thing that can be checked is whether the power existed at the instant it was used, which is why this ERC exposes that instant's answer and whether it is settled, rather than attempting to fix an electorate in advance.
 
@@ -312,7 +318,7 @@ Conforming implementations MUST satisfy at least the following.
 6. Ordinary transfers succeed while a gap is open, and do not change the projection.
 7. Beginning a settlement while a gap is open supersedes it and leaves the projection unchanged.
 8. Admission is rejected after independent mutation of every bound field, for an incorrect register identity, for remote state not final under the profile, for a non-member record, for a stale height and for a replayed proof.
-9. A successful admission appends the entry and closes the gap atomically; a failure changes nothing.
+9. A successful admission appends the entry, sets the prior entry's `supersededAt` to the new entry's `effectiveAt`, and closes the gap, atomically; a failure changes nothing.
 10. Cancellation before the deadline is rejected; after the deadline it succeeds and leaves the projection unchanged.
 11. A proof finalized within the deadline succeeds after a rejected cancellation attempt.
 12. `isFinalAsOf` is false at and after the latest entry's `effectiveAt`, true for earlier instants covered by an entry, false before the first entry, and does not revert.
@@ -339,6 +345,10 @@ The deadline bounds how long a gap may stay open; an unbounded gap would make th
 Because trading is not blocked, integrators MUST NOT treat `ownerOf` as the confirmed holder. An integrator that needs the confirmed record MUST read the projection, one that needs to know whether a change is expected MUST check `openGapOf`, and one that needs a settled answer MUST check `isFinalAsOf`. Treating a provisional answer as final is the most likely integration error here, because `entryAsOf` returns an answer either way.
 
 Finality depends on a later entry existing, so a register that stops producing entries leaves recent instants permanently non-final, and anything a consumer holds back until they settle permanently unsettled. This is a liveness dependency on the register and its profile, not a safety defect, but a profile that offers no way to admit a confirming entry inherits it. Conversely, an authority that can produce entries at will can make instants final at will, so the ability to begin settlements is itself a privilege and MUST be scoped accordingly.
+
+The same privilege withholds as well as produces. Beginning a settlement while one is open supersedes it, and a superseded settlement can no longer be finalized, so a proof the register has already produced for it becomes unusable. Whoever may begin settlements can therefore keep a token's gap open indefinitely, leaving every recent instant non-final and contested. Nothing is misreported when this happens — the projection states exactly that the answer is unsettled — but the projection stops tracking the register, which is the one thing it exists to do. A profile that cannot bound this SHOULD restrict who may supersede, or when.
+
+Strict monotonicity also cuts the other way at the far end. An admitted effective time far in the future permanently ends the projection for that token, because no later entry can exceed it. Nothing here bounds how far ahead of the present an effective time may be, so a profile that cannot rule that out inherits an unrecoverable state.
 
 Entries, commitments, participants, instants and proof material are public. Commitments may leak information through low-entropy inputs or correlation. Profiles SHOULD use domain-separated commitments, avoid confidential plaintext, and publish only proof material necessary for verification. Deleting off-chain data does not delete commitments, logs, calldata or historical chain state.
 

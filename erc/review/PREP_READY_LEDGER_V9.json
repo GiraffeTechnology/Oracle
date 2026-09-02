@@ -3,7 +3,7 @@
   "status": "PREP_READY",
   "proposalTitle": "Asynchronous Register Projection for NFTs",
   "supersedes": "Proof-Verified Deferred Asset Settlement (V1-V9); rewritten around the register-projection axiom, see review/ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md",
-  "candidateSha256": "c1e7b63533615d21819cbd5179b0e2282c84591b28c6e322eaef417f2cb3cc57",
+  "candidateSha256": "751aef7e86978903464806680f7c511cf699b533b32a7cb50cf81dc0a91da99d",
   "referenceSha256": "96165dfa8541270dcdc11c626cfce02e98042e8f80f5a40f580c121c74207a29",
   "testsSha256": "14107848616bad97bf4d9c4e2d8039d31cf7d4fe062b873ab7fb428adecc5e1b",
   "interfaceIds": {
@@ -36,11 +36,9 @@
     "attestationVsVerification": "CORRECTED / an earlier caution assumed an LLM extractor and is withdrawn; the profile definition no longer excludes constraining how a value is produced, since pinning a deterministic procedure is what makes a mechanical attester reproducible",
     "finalEditorialPass": "COMPLETED 2026-08-31 / nine defects left by the edit rounds fixed in the spec, four in the Magicians post including a block lost to a range deletion, and the manual's Q&A rewritten to match the current design",
     "settlementWindow": "H-5 CLOSED by the author 2026-08-31: an initiator-chosen deadline within the maximum is kept deliberately, since after the rewrite a gap affects neither trading nor finality. A deployment needing a fixed n constrains it in its profile.",
-    "reviewerReviewPostRewrite": "COMPLETED 2026-09-02 / BLOCKER-1 open: any token holder can hold a token permanently contested by repeated supersession, and the Rationale's claim that contestedness is bounded, foreseeable and avoidable is false in that case. MAJOR-2/3/4 are omissions: no time base, registryReference undefined, supersededAt value unspecified. Nothing fixed yet, awaiting the author."
+    "reviewerReviewPostRewrite": "RESOLVED 2026-09-02 / BLOCKER-1 withdrawn: superseding requires owning the token, holding is not exercising, and the deferrable case has a retroactive claim path, so the griefing case is self-harm. MAJOR-2/3/4 and MINOR-5/6/7 fixed. The guidance paragraph was rewritten as explanation rather than deleted. DAO governance questions moved to issue #15."
   },
-  "openDesignQuestions": [
-    "BLOCKER-1: whether to restrict supersession, decouple beginSettlement from ownerOf, or disclose the vector and drop the falsifiable claim"
-  ],
+  "openDesignQuestions": [],
   "userPrinciples": {
     "tradingMustNotBeBlockedDuringAGap": true,
     "everyPastInstantResolvesToExactlyOneConfirmedHolder": true,
@@ -52,7 +50,9 @@
     "addNothingThatCanBeLeftOut": true,
     "theStandardEstablishesWhoHoldsPowerNotWhatTheRulesAre": true,
     "theStandardDoesNotReplaceAnOracle": true,
-    "attestingPartyPreference": "a deterministic rule-based AI oracle first (not an LLM), then human attestation under dual control, then existing oracles; a mechanical assertion always outranks a human one because it is reproducible, which dual control does not provide"
+    "attestingPartyPreference": "a deterministic rule-based AI oracle first (not an LLM), then human attestation under dual control, then existing oracles; a mechanical assertion always outranks a human one because it is reproducible, which dual control does not provide",
+    "theStandardMapsOnChainToOffChainAndExplainsWhyPendingExists": true,
+    "identityLivesInTheOffChainRegisterAndTheChainCarriesTheReference": true
   },
   "remainingUserInputs": [
     "ethereumMagiciansDiscussionUrl",
