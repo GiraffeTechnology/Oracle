@@ -16,6 +16,7 @@
 | `PREP_READY_LEDGER_V9.json` | 现行哈希、接口 ID 与验证状态(文件名沿用 V9,内容已更新) |
 | `EIPW_V0.11.0_RESULT.json` | 对现行正文的 eipw 运行记录与负向对照 |
 | `NOVELTY_INDEPENDENT_ASSESSMENT_ZH.md` | 独立查重与新颖性评估;结论仍成立,但新颖性依据已由"证明"移到"投影不变量" |
+| `REVIEWER_REVIEW_POST_REWRITE_ZH.md` | **重写后的评审视角全面审查(2026-09-02)**。1 项阻断、3 项重大、3 项中等,均在正文/实现中核实并给出行号;含"我确认没问题的部分" |
 | `PROOF_PATH_ADVERSARIAL_REVIEW_ZH.md` | 证明路径对抗性审查;结论仍成立(证明路径在重写中未改变),文中的接口/合约名是旧名 |
 | `ERC_PRIOR_ART_DUPLICATION_REVIEW_ZH.md` | prior-art 比对 |
 | `HKEX_RULE_CONFORMANCE_AUDIT_ZH.md` | 按 HKEX 官方规则原文核对本标准;含一处已修的事实错误与一项待作者裁定的重大缺口(H-1) |

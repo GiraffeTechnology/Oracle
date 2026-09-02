@@ -35,9 +35,12 @@
     "oracleBoundary": "CORRECTED / the Motivation had framed oracles as a path this ERC escapes; it does not. A register without consensus needs an attesting party, its contents often cannot be published, and the proof verifies that party's committed statements. Normative load unchanged at 30 MUSTs; reference header comment only, runtime bytecode byte-identical.",
     "attestationVsVerification": "CORRECTED / an earlier caution assumed an LLM extractor and is withdrawn; the profile definition no longer excludes constraining how a value is produced, since pinning a deterministic procedure is what makes a mechanical attester reproducible",
     "finalEditorialPass": "COMPLETED 2026-08-31 / nine defects left by the edit rounds fixed in the spec, four in the Magicians post including a block lost to a range deletion, and the manual's Q&A rewritten to match the current design",
-    "settlementWindow": "H-5 CLOSED by the author 2026-08-31: an initiator-chosen deadline within the maximum is kept deliberately, since after the rewrite a gap affects neither trading nor finality. A deployment needing a fixed n constrains it in its profile."
+    "settlementWindow": "H-5 CLOSED by the author 2026-08-31: an initiator-chosen deadline within the maximum is kept deliberately, since after the rewrite a gap affects neither trading nor finality. A deployment needing a fixed n constrains it in its profile.",
+    "reviewerReviewPostRewrite": "COMPLETED 2026-09-02 / BLOCKER-1 open: any token holder can hold a token permanently contested by repeated supersession, and the Rationale's claim that contestedness is bounded, foreseeable and avoidable is false in that case. MAJOR-2/3/4 are omissions: no time base, registryReference undefined, supersededAt value unspecified. Nothing fixed yet, awaiting the author."
   },
-  "openDesignQuestions": [],
+  "openDesignQuestions": [
+    "BLOCKER-1: whether to restrict supersession, decouple beginSettlement from ownerOf, or disclose the vector and drop the falsifiable claim"
+  ],
   "userPrinciples": {
     "tradingMustNotBeBlockedDuringAGap": true,
     "everyPastInstantResolvesToExactlyOneConfirmedHolder": true,
