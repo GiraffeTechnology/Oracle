@@ -65,6 +65,7 @@ function validateErcRevisionRef(ref) {
       "supersededBy",
       "divergenceUnresolved",
       "divergenceNote",
+      "verificationRule",
     ],
     "LAYER_ERC_REVISION_REF",
   );

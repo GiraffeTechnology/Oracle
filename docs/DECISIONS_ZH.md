@@ -124,7 +124,15 @@ source/provider 并与 Oracle evidence 分层。`config/external-consumer-state-
 
 **引用规则**：该分支持续更新，因此本仓库任何引用 ERC 内容的文档或脚本
 **必须标注所依据的 commit**。未标注 commit 的引用视为失效，不得作为实现依据。
-当前已知状态锚定在 `a5270ad`（2026-09-02 复核；历次：`386d6d4` → `c22792a` → `a5270ad`）。
+当前已知状态锚定在 `bdea8e0`（2026-09-02 复核；历次：`386d6d4` → `c22792a` → `a5270ad` → `bdea8e0`）。
+
+**重新锚定的触发条件是规范文件 `erc/ERCS/erc-xxxx.md` 发生变化，不是分支的任一提交。** 该分支
+同时承载内部审查台账（`erc/review/`）与文件索引清单，二者变动频繁且不可能影响 Oracle 侧的
+任何依赖 —— 例如 `a5270ad` → `bdea8e0` 只改了台账与索引，规范一字未动。锚定记录的是
+「四项属性最后一次被核验时所处的 commit」，不是对分支 head 的断言；两者不一致是正常的。
+
+被核验的四项属性：两个 interface ID 存在；`GapStatus` 为记录在案的五个取值；`RegisterEntry`
+为七个字段；规范仍写有 ordinary ERC-721 transfers MUST NOT be blocked。
 
 **已知实质分歧（待产品裁决，工程侧不得自行选边）**：这是一处**规范性正面冲突**，不是设计
 偏好之差 ——

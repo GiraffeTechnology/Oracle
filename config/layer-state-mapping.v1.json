@@ -74,7 +74,7 @@
     "supersededBy": {
       "proposalTitle": "Asynchronous Register Projection for NFTs",
       "pullRequest": 16,
-      "commit": "a5270ad2a4da334a588a4141487e82f5a20548f2",
+      "commit": "bdea8e02eb83b64e44b2aa53721514342677bbad",
       "settlementStatusEnum": [
         "NONE",
         "OPEN",
@@ -82,9 +82,16 @@
         "CANCELLED",
         "SUPERSEDED"
       ],
-      "pendingTransfersBlocked": false
+      "pendingTransfersBlocked": false,
+      "verifiedProperties": [
+        "both interface ids present",
+        "GapStatus has the five recorded values",
+        "RegisterEntry has seven fields",
+        "the specification still says ordinary ERC-721 transfers MUST NOT be blocked"
+      ]
     },
     "divergenceUnresolved": true,
-    "divergenceNote": "This mapping encodes the PRD v0.3 freeze model (pendingRules.ownerRemainsFrom). The current ERC keeps the token trading and has a five-value GapStatus. The two disagree; the product decision is open, so neither side is changed here. See DECISIONS_ZH.md D-007."
+    "divergenceNote": "This mapping encodes the PRD v0.3 freeze model (pendingRules.ownerRemainsFrom). The current ERC keeps the token trading and has a five-value GapStatus. The two disagree; the product decision is open, so neither side is changed here. See DECISIONS_ZH.md D-007.",
+    "verificationRule": "Re-anchor when erc/ERCS/erc-xxxx.md changes, not on every commit to the branch. The branch also carries an internal review ledger and a file index that move often and cannot affect this mapping. `commit` is the commit at which verifiedProperties were last checked, not a claim about the branch head."
   }
 }
