@@ -41,7 +41,9 @@ function freeze(value) {
 
 /**
  * D-007 requires every reference to ERC content to name the commit it relies on, because the
- * proposal lives on PR #13's branch and keeps moving.
+ * proposal lives on branch claude/erc-standard-feasibility-audit-90ypms and keeps moving.
+ * Its pull request number is only a view onto that branch and has already changed twice
+ * (#3, #13, #16), so the branch is what this pins against, not the number.
  *
  * This mapping was built against the superseded proposal and encodes the PRD's freeze model.
  * The current proposal reverses that position and carries a five-value status enum, so the

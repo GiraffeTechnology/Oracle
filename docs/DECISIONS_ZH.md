@@ -109,27 +109,29 @@ source/provider 并与 Oracle evidence 分层。`config/external-consumer-state-
 
 | 项目 | 内容 |
 | --- | --- |
-| 裁决 | **ERC 提案的权威位置是 PR #13 的分支 `claude/erc-standard-feasibility-audit-90ypms`，不在本仓库主干**；该 PR **会持续更新** |
+| 裁决 | **ERC 提案的权威位置是分支 `claude/erc-standard-feasibility-audit-90ypms`，不在本仓库主干**；该分支**会持续更新** |
+| 当前 PR | **#16**（PR 编号只是该分支的当前视图，会更换：#3 → #13 → #16；**引用请用分支名，不要用 PR 编号**） |
 | 现行提案 | _Asynchronous Register Projection for NFTs_（`erc/ERCS/erc-xxxx.md`） |
 | 日期 | 2026-09-02 |
 
-**取代关系**：PR #3 于 2026-09-02T00:04:00Z 关闭未合并，PR #13 于 24 秒后创建，指向同一分支
-同一 head，仅刷新了说明。`docs/erc/` 归档的旧提案 _Versioned RWA Certificate Settlement_
+**PR 编号会反复更换，不代表提案被放弃**：PR #3 于 2026-09-02T00:04:00Z 关闭未合并、#13 于 24 秒后
+创建；#13 又于 05:32:17Z 关闭、#16 于 33 秒后创建。三者指向同一分支，每次关闭时的 head 与新开时
+相同，仅刷新说明。因此看到「PR 已关闭」不应推断工作停止 —— 以分支 head 为准。`docs/erc/` 归档的旧提案 _Versioned RWA Certificate Settlement_
 **不再是规范源**，仅作历史记录保留。
 
-**PR #13 不得合并进 `main`。** 其目的地是 `ethereum/ERCs`；合并会把一份草案标准及其内部
+**该分支不得合并进 `main`。** 其目的地是 `ethereum/ERCs`；合并会把一份草案标准及其内部
 审查记录带进 Oracle 的产品历史，并破坏该分支存在的意义——一份不会漂移的副本。
 
-**引用规则**：PR #13 持续更新，因此本仓库任何引用 ERC 内容的文档或脚本
+**引用规则**：该分支持续更新，因此本仓库任何引用 ERC 内容的文档或脚本
 **必须标注所依据的 commit**。未标注 commit 的引用视为失效，不得作为实现依据。
-当前已知状态锚定在 `c22792a`（2026-09-02 复核；此前锚定 `386d6d4`）。
+当前已知状态锚定在 `a5270ad`（2026-09-02 复核；历次：`386d6d4` → `c22792a` → `a5270ad`）。
 
 **已知实质分歧（待产品裁决，工程侧不得自行选边）**：这是一处**规范性正面冲突**，不是设计
 偏好之差 ——
 
 | | 要求 | 出处 |
 | --- | --- | --- |
-| 现行 ERC | 「Ordinary ERC-721 transfers **MUST NOT be blocked** while a projection gap is open.」 | `erc/ERCS/erc-xxxx.md` 规范章节（`c22792a` 第 157 行；`386d6d4` 时为第 153 行，措辞相同） |
+| 现行 ERC | 「Ordinary ERC-721 transfers **MUST NOT be blocked** while a projection gap is open.」 | `erc/ERCS/erc-xxxx.md` 规范章节（`a5270ad` 第 157 行；`386d6d4`、`c22792a` 时措辞相同） |
 | PRD v0.3 | 「**阻止** NFT 转让和提货」；「置于协议托管或**不可转让**状态」；前提 P7 要求 T+0 冻结、完成后才恢复可交易 | §6 第 293 行、§7 第 427 行、§1 前提 P7 |
 
 即：ERC 规范禁止的，正是 PRD 规范要求的。`src/domain/settlement-coordinator.js` 与
@@ -140,7 +142,7 @@ source/provider 并与 Oracle evidence 分层。`config/external-consumer-state-
 定性为立场分歧。该表述过轻 —— 反对冻结不止写在 Motivation 的论证里，规范章节本身就是一条
 MUST NOT，且在 `386d6d4` 时即已如此，并非后续收紧。
 
-在裁决作出前：不得因 ERC 而改 Oracle 的冻结逻辑，也不得因 PRD 而改 PR #13。
+在裁决作出前：不得因 ERC 而改 Oracle 的冻结逻辑，也不得因 PRD 而改该分支。
 
 ## D-003 冲突裁决规则
 

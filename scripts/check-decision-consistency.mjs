@@ -188,7 +188,7 @@ if (/\*\*ArtFi 是文保链上登记产品在公链交易的 agent\*\*/.test(dec
 /**
  * docs/erc/ archives the older proposal. Its README once named the submission candidate
  * "the sole normative source", which was true within that archive and is now misleading
- * repository-wide: the current proposal lives on PR #13's branch, has different interface
+ * repository-wide: the current proposal lives on its own branch, has different interface
  * IDs, and reverses the freeze position. Someone reading the archive without the notice
  * would implement the wrong model, so the notice is load-bearing and its absence fails the
  * build rather than being noticed later.
