@@ -13,27 +13,23 @@ requires: 165, 721
 
 ## Abstract
 
-An off-chain register that records who holds an asset updates asynchronously. No on-chain design can remove that lag. Each register change does, however, have a unique identity: the instant it takes effect and a commitment to its content.
+An off-chain register that records who holds an asset updates asynchronously, and no on-chain design removes that lag. Each change the register makes does, however, carry a unique identity: the instant it takes effect, and a commitment to its content at that instant.
 
-This ERC uses that identity to build a verifiable, totally ordered projection of such a register onto an [ERC-721](./eip-721.md) token. Entries are append-only, their effective times strictly increase, and their commitments are unique within a token, so **any past instant resolves to exactly one confirmed holder** even while the chain lags the register.
+This ERC turns that identity into an ordered projection of the register onto an [ERC-721](./eip-721.md) token. Entries are append-only, their effective times strictly increase, and their commitments are unique within a token, so **every past instant resolves to exactly one confirmed holder** while the chain is still behind the register. Whether an instant's answer can still change is decidable from the same invariants.
 
-Whether an instant's answer can still change is decidable from the same invariants, so a right whose record instant is not yet settled can be postponed by the contract that owes it and later attributed to the party the register confirms for it.
-
-The token continues to trade throughout. `ownerOf` is the tradeable position; the projection is the confirmed record. Rights resolve against the projection, so a holder change that the register has not yet confirmed cannot silently redirect one.
-
-A change is admitted to the projection only on proof that the corresponding record exists in a finalized state of the remote register. Proof submitters are untrusted. The register's contents stay off chain; only commitments and references reach it.
+The token keeps trading throughout. `ownerOf` is the tradeable position; the projection is the confirmed record; the two are deliberately kept apart. A change enters the projection only on proof that the corresponding record exists in a finalized state of the remote register, and proof submitters are untrusted. The register's contents stay off chain: only commitments and references reach it.
 
 ## Motivation
 
-Applications that mirror an off-chain register on chain face a gap they cannot close. Registration completes when the registrar completes it. Meanwhile the token trades.
+A token that stands for something recorded elsewhere lives with a gap it cannot close. Registration completes when the registrar completes it, and meanwhile the token trades. Nothing on chain distinguishes a holder the register has confirmed from one it has not yet caught up to.
 
-A register of this kind usually cannot be published. Its contents may be confidential, may identify people, or may exist only as records the registrar is not free to disclose, so what reaches the chain is a commitment and a reference rather than the register. Something must therefore attest to what the register says, and **this ERC does not remove that party**. No standard can: data that cannot go on chain has to be attested by someone who can see it.
+The register usually cannot be published. Its contents may be confidential, may identify people, or may simply not be the registrar's to disclose, so what reaches the chain is a commitment and a reference rather than the record. Something must therefore attest to what the register says, and **this ERC does not remove that party**. No standard can: data that cannot go on chain has to be attested by someone who can see it.
 
-What can be removed is the latitude that party is usually given. An assertion delivered as a bare report is a single statement at a single moment. Nothing binds it to what the same source said before, nothing prevents two statements about one instant, and nothing lets an unrelated third party ask afterwards what was claimed at a given time. The alternative taken in practice is to freeze the token until registration finishes, which stops a market to solve a bookkeeping problem and destroys any right whose record instant falls inside the freeze.
+What can be removed is the latitude that party is usually given. An assertion delivered as a bare report is one statement at one moment. Nothing binds it to what the same source said before, nothing prevents two statements about one instant, and nothing lets an unrelated third party ask afterwards what was claimed at a given time. The alternative taken in practice is to freeze the token until registration finishes, which stops a market to solve a bookkeeping problem and destroys any right whose record instant falls inside the freeze.
 
-Neither the unaccountable report nor the freeze is necessary. The register's own change identity is enough. If every admitted change carries a strictly later effective time and a commitment unique to that token, the on-chain history is a total order, and a question of the form *who did the register record at this instant* has exactly one answer for every instant in the past.
+Neither the unaccountable report nor the freeze is necessary. The register's own change identity is enough. If every admitted change carries a strictly later effective time and a commitment unique to that token, the on-chain history is a total order, and the question *who did the register record at this instant* has exactly one answer for every instant in the past.
 
-That single property is what third parties need and cannot get today. A marketplace, a wallet, an indexer or a collateral system has no relationship with the registrar, yet must know whether the current holder is confirmed or merely provisional. A governance or distribution contract must know who was confirmed at a record instant that may have passed while the register was still catching up. `ownerOf` cannot answer either question, and an issuer that locks its own token cannot tell an unrelated venue why.
+That property is what third parties need and cannot get today. A marketplace, a wallet, an indexer or a collateral system has no relationship with the registrar, yet must know whether the current holder is confirmed or merely provisional. A distribution contract must know who was confirmed at a record instant that may have passed while the register was still catching up. `ownerOf` answers neither question, and an issuer that locks its own token cannot tell an unrelated venue why.
 
 Illustrative uses include a title registry that reissues a record after a transfer, a licensing ledger that records a replacement permit, and a custodian ledger that supersedes a holding record. These describe technical coordination only; they do not make the token, the proof or the remote record legally effective.
 
@@ -47,13 +43,13 @@ A **remote register** is the external ledger that records holders of the represe
 
 A **register entry** is one admitted change, identified by its effective time and its record commitment.
 
-A **record commitment** is a nonzero `bytes32` commitment to the register's content at that entry. An implementation profile MUST define its algorithm, canonicalization and domain separation.
+A **record commitment** is a nonzero `bytes32` commitment to the register's content at that entry. A profile MUST define its algorithm, canonicalization and domain separation.
 
-A **registry reference** is a `bytes32` locator for the register's own record of that entry. It is opaque here: this ERC never interprets it, and a profile MUST define how it is derived and whether zero means no locator was published. It is what lets a party that is entitled to read the register find the record a commitment commits to, which is where the holder's identity lives; the chain carries the reference, not the identity.
+A **registry reference** is a `bytes32` locator for the register's own record of that entry. This ERC never interprets it; a profile MUST define how it is derived and whether zero means no locator was published. It is how a party entitled to read the register finds the record a commitment commits to, which is where the holder's identity lives. The chain carries the reference, not the identity.
 
 A **confirmed holder** at an instant is the `holder` of the entry whose effective interval contains that instant. It is distinct from `ownerOf`, which is the tradeable position.
 
-An instant is **final** when no entry admitted in the future can change the confirmed holder for it. An answer that a later admission may supersede is **provisional**.
+An instant is **final** when no entry admitted in the future can change the confirmed holder for it. An answer a later admission may supersede is **provisional**.
 
 A **projection gap** is an interval in which a change is known to be in progress and not yet admitted. A pending settlement marks such a gap.
 
@@ -70,7 +66,7 @@ Every instant here — `effectiveAt`, `supersededAt`, `openedAt`, a deadline, an
 These four rules are what make an instant resolve uniquely. An implementation that relaxes any of them does not conform.
 
 1. The first entry MUST have version `1` and a zero `previousCommitment`, and MUST emit `RegisterInitialized`.
-2. Each admitted change MUST append version `n + 1`, link the prior commitment, set the prior entry's `supersededAt` to the new entry's `effectiveAt`, leave the new entry's `supersededAt` zero, and emit `RegisterSuperseded`. The prior entry's effective interval is closed by the register, not by the moment the chain learned of it.
+2. Each admitted change MUST append version `n + 1`, link the prior commitment, set the prior entry's `supersededAt` to the new entry's `effectiveAt`, leave the new entry's `supersededAt` zero, and emit `RegisterSuperseded`. The prior entry's interval is closed by the register, not by the moment the chain learned of it.
 3. `effectiveAt` MUST be **strictly greater** than that of the preceding entry. Equal effective times are forbidden, because an instant shared by two entries would have two answers.
 4. A record commitment MUST be unique within a token's own chain of entries. A repeated commitment is forbidden, because two entries that cannot be told apart cannot be resolved.
 
@@ -80,11 +76,11 @@ Entries MUST NOT be overwritten, deleted, reordered or skipped. Queries for a no
 
 ### Finality of a resolved instant
 
-Invariant 3 makes finality decidable with one comparison. Every admitted entry has an `effectiveAt` strictly greater than the latest entry's, so no entry admitted in the future can ever cover an instant that already precedes the latest entry's effective time.
+Invariant 3 makes finality decidable with one comparison. Every admitted entry has an `effectiveAt` strictly greater than the latest entry's, so no entry admitted in the future can cover an instant that already precedes the latest entry's effective time.
 
 An instant is therefore final if and only if it is at or after the first entry's `effectiveAt` and strictly before the latest entry's `effectiveAt`. `isFinalAsOf` MUST return `true` exactly for those instants, MUST return `false` otherwise, and MUST NOT revert for an instant preceding the first entry.
 
-An instant at or after the latest entry's `effectiveAt` still resolves, but provisionally: a later admission may carry an earlier effective time and supersede the answer. A consumer that requires a settled answer MUST check `isFinalAsOf`, because `entryAsOf` does not distinguish the two cases. An open projection gap indicates that such an admission is expected, but finality does not depend on whether a gap is open, and closing a gap does not by itself make any instant final.
+An instant at or after the latest entry's `effectiveAt` still resolves, but provisionally: a later admission may carry an earlier effective time and supersede the answer. A consumer that requires a settled answer MUST check `isFinalAsOf`, because `entryAsOf` does not distinguish the two cases. An open gap indicates that such an admission is expected, but finality does not depend on whether a gap is open, and closing one does not by itself make any instant final.
 
 ### Register interface
 
@@ -150,7 +146,7 @@ interface IRegisterProjection is IERC165 {
 
 The [ERC-165](./eip-165.md) identifier for `IRegisterProjection` is `0x6309e170`.
 
-`registerId` MUST be a nonzero identifier of the remote register being projected and MUST NOT change. A party with no relationship to the registrar otherwise cannot tell what a projection is a projection of, which is the position every third-party venue is in. Resolving that identifier to a description of the register and its profile is left to the profile, since a document reference cannot be verified on chain and each deployment publishes one differently.
+`registerId` MUST be a nonzero identifier of the remote register being projected and MUST NOT change. A party with no relationship to the registrar otherwise cannot tell what a projection is a projection of, which is the position every third-party venue is in. Resolving that identifier to a description of the register and its profile is left to the profile, since a document reference cannot be verified on chain.
 
 ### Trading is not blocked
 
@@ -168,7 +164,7 @@ This ERC does not decide what a right does with that answer. It establishes what
 - `isFinalAsOf` says whether a later admission can still change that answer.
 - `openGapOf` and the gap's `openedAt` say whether the instant is contested.
 
-Whether a right may be exercised at a non-final or contested instant, whether an exercise that cannot proceed is postponed or forfeited, who bears a forfeiture, and where a postponed claim is recorded, are decisions for the right's own terms. This ERC does not constrain them and supplies no registry of its own for them. What it removes is the excuse for deciding them blindly: the three facts above are available at the moment of exercise and remain checkable afterwards.
+Whether a right may be exercised at a non-final or contested instant, whether an exercise that cannot proceed is postponed or forfeited, and who bears a forfeiture, are decisions for the right's own terms. This ERC does not constrain them. What it removes is the excuse for deciding them blindly: the three facts are available at the moment of exercise and remain checkable afterwards.
 
 An entry admitted after an exercise has completed carries no authority over that exercise. This ERC defines when the register's answer changes; it does not give a later answer power to undo an act already performed under an earlier one.
 
@@ -256,27 +252,27 @@ A contract MUST NOT advertise an identifier whose requirements it does not satis
 
 ## Rationale
 
-The contribution is the projection, not the proof. Off-chain registration is asynchronous and no design removes that. What a register does provide is a unique identity per change, and this ERC turns that into a total order in which every past instant resolves to one confirmed holder. Strict monotonicity and commitment uniqueness are not tidiness rules; they are the minimum conditions for that property to hold, which is why they are stated as invariants rather than as guidance.
+The contribution is the projection, not the proof. Off-chain registration is asynchronous and no design removes that. What a register does supply is a unique identity per change, and this ERC turns that into a total order in which every past instant resolves to one confirmed holder. Strict monotonicity and commitment uniqueness are not tidiness rules; they are the minimum conditions for that property to hold, which is why they are stated as invariants.
 
-Two ownership notions are kept apart deliberately. `ownerOf` is the tradeable position and moves when the market moves. The confirmed holder moves only when the register is proven to have moved. Collapsing them forces a choice between freezing the market and lying about the record; keeping them apart makes the divergence explicit and, more importantly, resolvable.
+Two ownership notions are kept apart deliberately. `ownerOf` is the tradeable position and moves when the market moves. The confirmed holder moves only when the register is proven to have moved. Collapsing them forces a choice between freezing the market and misstating the record; keeping them apart makes the divergence explicit and, more importantly, resolvable.
 
-Finality is stated separately from resolution because they are different questions and only one of them is answered by reading an entry. An instant always resolves; whether it can still change is what a distribution needs to know, and invariant 3 reduces that to a single comparison against the latest entry's effective time. Exposing it as `isFinalAsOf` rather than leaving each integrator to derive it prevents the common error of treating a provisional answer as settled, which is exactly the error the asynchronous register makes easy. Finality deliberately does not depend on whether a gap is open, because a gap is a statement about what is expected, not about what can still arrive.
+Finality is stated separately from resolution because they are different questions, and only one of them is answered by reading an entry. An instant always resolves; whether the answer can still change is what a claim against a past instant needs to know, and invariant 3 reduces that to a single comparison. Exposing it as `isFinalAsOf` rather than leaving each integrator to derive it prevents the error the asynchronous register makes easy: treating a provisional answer as settled. Finality deliberately does not depend on whether a gap is open, because a gap says what is expected, not what can still arrive.
 
-Register and profile identifiers are exposed for the same reason the projection is exposed at all. The parties who need this are third parties with no relationship to the registrar; a projection they cannot attribute to a register, under a proof profile they cannot name, tells them very little.
+Three facts are exposed rather than one because different rights need different ones. A claim made against a past instant does not care who holds the token now; it needs `holderAsOf` for that instant, and `isFinalAsOf` before it acts, since acting on an answer a later admission may supersede acts for the wrong party. An exercise that happens at a moment and cannot be repeated cannot wait for an answer to settle at all: the present moment is at or after the latest entry's effective time and so is never final. What it can see is whether a change is in flight right now, which is what an open gap reports. Collapsing these into one accessor would leave every consumer guessing which of the three questions it had been answered.
 
-What a right does at a non-final or contested instant is left to the right's own terms, and that restraint is deliberate. This ERC settles who may move the register's answer and what that answer is at any instant; it does not also settle what a dividend or a ballot should do about it. Different rights answer that differently, and a standard that fixed the answers would be legislating past the point where interoperability requires agreement.
+What a right then does is left to its own terms, and that restraint is deliberate. This ERC settles who may move the register's answer and what that answer is at any instant; it does not also settle what any particular right should do about it. Different rights answer that differently, and a standard that fixed the answers would be legislating past the point where interoperability requires agreement.
 
-Three facts are exposed rather than one, and the reason is that different rights need different ones. A claim made against a past instant — a distribution being one — does not care who holds the token now; it needs `holderAsOf` for that instant, and it needs `isFinalAsOf` before it acts, because paying against an answer that a later admission may supersede pays the wrong party. An exercise that happens at a moment and cannot be repeated cannot wait for an answer to settle at all: the present moment is at or after the latest entry's effective time and so is never final. What it can see is whether a change is in flight right now, which is what an open gap reports. Collapsing these into a single accessor would leave every consumer guessing which of the three questions it had been answered, which is the failure this ERC exists to remove.
+Register and profile identifiers are exposed for the same reason the projection is. The parties who need this are third parties with no relationship to the registrar; a projection they cannot attribute to a register, under a proof profile they cannot name, tells them very little.
 
-Traditional infrastructure does not expose any of this, because it compensates for the lag instead of recording it. Where settlement takes a fixed number of days, a market can mark trades from an ex-entitlement date onward as not carrying the entitlement, so that the register at the record date matches the intended attribution. That arithmetic exists only because the question that can actually be asked is *who is on the register at the record date*, never *who was on the register at instant t* for a trade still in flight. This ERC answers the second question directly, so no ex-entitlement arithmetic is required: a party who buys after a record instant is simply not the confirmed holder at it.
+Traditional infrastructure does not expose any of this, because it compensates for the lag instead of recording it. Where settlement takes a fixed number of days, a market can mark trades from an ex-entitlement date onward as not carrying the entitlement, so the register at the record date matches the intended attribution. That arithmetic exists only because the question that can be asked is *who is on the register at the record date*, never *who was on the register at instant t* for a trade still in flight. This ERC answers the second question directly, so no such arithmetic is required: a party who buys after a record instant is simply not the confirmed holder at it.
 
-An entry that confirms the same holder is permitted rather than rejected as a no-op, because under these rules it is not one. A register that says nothing produces no entries, and a token whose holder never changes would then have no instant that ever becomes final, which would leave anything waiting on finality there waiting forever. A confirming entry is the register saying *still this holder, as of here*, and that statement is what closes the interval.
+An entry that confirms the same holder is permitted rather than rejected as a no-op, because under these rules it is not one. A register that says nothing produces no entries, and a token whose holder never changes would then have no instant that ever becomes final. A confirming entry is the register saying *still this holder, as of here*, and that statement is what closes the interval.
 
 Proof submitters are untrusted so that admission depends on the remote consensus rather than on a privileged reporter. Verification and admission are atomic so that no interval exists in which a proof has been accepted but the projection has not advanced.
 
-This does not replace an oracle, and the distinction is worth being exact about. A register that is not itself a ledger with consensus needs some party to commit to its contents on its behalf, and the proof path verifies that party's committed statements, not the world behind them. Some data is unsuited to the chain in the first place — confidential, personal, or simply not the registrar's to publish — which is why entries carry a commitment and a reference and never the record. What changes is not who is trusted but what that trust permits. Statements enter one append-only order per token, two cannot share an effective instant, none can be reused, and any past instant can be re-examined long afterwards. A source that contradicts itself leaves the contradiction on the record rather than overwriting it, and a third party with no relationship to the registrar can see that it did.
+This does not replace an oracle, and the distinction is worth being exact about. A register that is not itself a ledger with consensus needs some party to commit to its contents on its behalf, and the proof path verifies that party's committed statements, not the world behind them. Some data is unsuited to the chain in the first place, which is why entries carry a commitment and a reference and never the record. What changes is not who is trusted but what that trust permits: statements enter one append-only order per token, two cannot share an effective instant, none can be reused, and any past instant can be re-examined long afterwards. A source that contradicts itself leaves the contradiction on the record rather than overwriting it, and a third party with no relationship to the registrar can see that it did.
 
-This ERC therefore constrains verification and leaves attestation to the profile. An attesting party may be a light client, a quorum of signers, a registrar's own key, or a fixed procedure run over the register, and the profile names which; what this ERC requires is that checking a commitment be deterministic, not that arriving at the value was.
+This ERC therefore constrains verification and leaves attestation to the profile. An attesting party may be a light client, a quorum of signers, a registrar's own key, or a fixed procedure run over the register, and the profile names which; what is required is that checking a commitment be deterministic, not that arriving at the value was.
 
 ### Prior art
 
