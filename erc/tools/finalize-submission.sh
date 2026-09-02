@@ -36,9 +36,16 @@ sed -e "s|^eip: XXXX$|eip: ${N}|" \
     -e "s|assets/eip-xxxx/|assets/eip-${N}/|g" \
     "$HERE/ERCS/erc-xxxx.md" > "$OUT/ERCS/erc-${N}.md"
 cp -r "$HERE/assets/eip-xxxx" "$OUT/assets/eip-${N}"
+# The asset package names itself after the proposal too.
+find "$OUT/assets/eip-${N}" -type f \( -name '*.json' -o -name '*.md' -o -name '*.cjs' -o -name '*.sol' \) \
+  -exec sed -i "s|eip-xxxx|eip-${N}|g" {} +
 
 grep -q "REPLACE_WITH" "$OUT/ERCS/erc-${N}.md" && { echo "error: placeholder survived" >&2; exit 1; }
-grep -q "eip-xxxx" "$OUT/ERCS/erc-${N}.md" && { echo "error: xxxx path survived" >&2; exit 1; }
+if grep -rq "eip-xxxx\|REPLACE_WITH\|eip: XXXX" "$OUT"; then
+  echo "error: a placeholder survived in the generated tree:" >&2
+  grep -rln "eip-xxxx\|REPLACE_WITH\|eip: XXXX" "$OUT" >&2
+  exit 1
+fi
 
 echo "Submission tree written to: $OUT"
 echo
