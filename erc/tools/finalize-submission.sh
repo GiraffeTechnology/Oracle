@@ -38,7 +38,7 @@ sed -e "s|^eip: XXXX$|eip: ${N}|" \
 cp -r "$HERE/assets/eip-xxxx" "$OUT/assets/eip-${N}"
 # The asset package names itself after the proposal too.
 find "$OUT/assets/eip-${N}" -type f \( -name '*.json' -o -name '*.md' -o -name '*.cjs' -o -name '*.sol' \) \
-  -exec sed -i "s|eip-xxxx|eip-${N}|g" {} +
+  -exec sed -i -e "s|eip-xxxx|eip-${N}|g" -e "s|erc-xxxx|erc-${N}|g" {} +
 
 grep -q "REPLACE_WITH" "$OUT/ERCS/erc-${N}.md" && { echo "error: placeholder survived" >&2; exit 1; }
 if grep -rq "eip-xxxx\|REPLACE_WITH\|eip: XXXX" "$OUT"; then
