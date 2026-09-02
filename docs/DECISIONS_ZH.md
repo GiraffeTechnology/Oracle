@@ -107,6 +107,31 @@ ORACLE-009 约束的是 Giraffe 自身。PRD 第 11 行载明产品主体为 Gir
 与 ArtFi 为同一主体，故前提 P8 中「第三方链上金融机构可独立使用 NFT」的免责路径不适用。
 本条不作合规结论，仅记录判别标准，待产品与法务答复后追加条目。
 
+## D-007 ERC 提案的权威位置与引用规则
+
+| 项目 | 内容 |
+| --- | --- |
+| 裁决 | **ERC 提案的权威位置是 PR #13 的分支 `claude/erc-standard-feasibility-audit-90ypms`，不在本仓库主干**；该 PR **会持续更新** |
+| 现行提案 | _Asynchronous Register Projection for NFTs_（`erc/ERCS/erc-xxxx.md`） |
+| 日期 | 2026-09-02 |
+
+**取代关系**：PR #3 于 2026-09-02T00:04:00Z 关闭未合并，PR #13 于 24 秒后创建，指向同一分支
+同一 head，仅刷新了说明。`docs/erc/` 归档的旧提案 _Versioned RWA Certificate Settlement_
+**不再是规范源**，仅作历史记录保留。
+
+**PR #13 不得合并进 `main`。** 其目的地是 `ethereum/ERCs`；合并会把一份草案标准及其内部
+审查记录带进 Oracle 的产品历史，并破坏该分支存在的意义——一份不会漂移的副本。
+
+**引用规则**：PR #13 持续更新，因此本仓库任何引用 ERC 内容的文档或脚本
+**必须标注所依据的 commit**。未标注 commit 的引用视为失效，不得作为实现依据。
+当前已知状态锚定在 `386d6d4`。
+
+**已知实质分歧（待产品裁决，工程侧不得自行选边）**：现行提案在 Motivation 中明确反对冻结
+模型，主张 token 在登记在途期间继续交易（`ownerOf` 为可交易头寸，投影为已确认记录）；
+而 PRD v0.3 前提 P7、§6 第 293 行、§7 第 427 行均要求冻结，`settlement-coordinator.js`
+与 `consumer-state-machine.js` 亦按冻结实现。旧提案用的是冻结模型，故本次重写是主动翻转
+立场。在裁决作出前：不得因 ERC 而改 Oracle 的冻结逻辑，也不得因 PRD 而改 PR #13。
+
 ## D-003 冲突裁决规则
 
 出现冲突时，按以下顺序取用：

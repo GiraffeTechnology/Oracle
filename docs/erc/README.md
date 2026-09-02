@@ -1,5 +1,30 @@
 # ERC 提交前归档（参考资料，非本仓库实现范围）
 
+> ## ⛔ 本目录已被取代（2026-09-02）
+>
+> **本目录归档的是旧提案 _Versioned RWA Certificate Settlement_，它不再是现行 ERC 提案。**
+>
+> 现行提案为 **_Asynchronous Register Projection for NFTs_**，位于 PR #13 的分支
+> `claude/erc-standard-feasibility-audit-90ypms`，**持续更新**。PR #3 已于 2026-09-02 关闭未合并。
+>
+> | | 本目录（旧） | PR #13（现行） |
+> | --- | --- | --- |
+> | 接口 | `IVersionedRWACertificate` `0xebaa86a0`<br>`IDeferredCertificateSettlement` `0x2773d4c9` | `IRegisterProjection` `0x6309e170`<br>`IProjectionSettlement` `0xfd0f6337` |
+> | requires | `165, 712, 721, 1271, 8325` | `165, 721` |
+> | 状态枚举 | `SettlementStatus { NONE, PENDING, FINALIZED, CANCELLED }` | `GapStatus { NONE, OPEN, ADMITTED, CANCELLED, SUPERSEDED }` |
+> | 登记在途期间 | **冻结**，转账 MUST NOT 执行 | **继续交易**；`ownerOf` 为可交易头寸，投影为已确认记录 |
+>
+> 最后一行是**设计立场的翻转**，不是措辞差异。现行提案的 Motivation 明确反对冻结模型。
+> 该立场与 Oracle PRD v0.3 的前提 P7 及 §6/§7 的冻结要求存在实质分歧，**待产品裁决**，
+> 详见 issue #14 与 `DECISIONS_ZH.md` D-007。
+>
+> **不得据本目录实现任何下游合约。** 下文所述的"唯一规范源"仅在本目录内部有效
+> （用于判定这批归档文件之间的效力顺序），**不代表项目的现行规范**。
+>
+> 本目录保留为历史归档而非删除，因为 `scripts/check-frozen-erc-constants.ts` 仍在守其
+> 五个文件的哈希；删除需连同该守卫一并处理。
+
+
 本目录是独立 ERC 任务在发布前移交的文件归档。按 `docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md`
 第 0 节，L3 ERC 提案及其参考合约不属于本 Oracle 仓库的实现范围：本仓库不自定 ERC 编号、
 不提交 ERC 提案，也不把任何 NFT 合约实现列为 Oracle 完成条件。这些文件在此仅作为下游协议

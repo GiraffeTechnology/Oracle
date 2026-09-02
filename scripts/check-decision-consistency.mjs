@@ -15,6 +15,8 @@
  *      production chain, and that passing on it releases no production gate.
  *   5. D-006's repository boundary holds: src/ carries no ArtFi coupling and no
  *      public-chain write path, both of which the decision record says do not exist here.
+ *   6. D-007's supersession notice still stands on docs/erc/README.md, so the archived
+ *      older proposal cannot be mistaken for the current one.
  */
 import { readFile, readdir } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
@@ -180,6 +182,42 @@ if (/\*\*ArtFi 是文保链上登记产品在公链交易的 agent\*\*/.test(dec
   }
 } else {
   failures.push('D-006 does not state the ArtFi relationship it is relied on for');
+}
+
+// --- D-007: the superseded ERC archive must say so ----------------------------
+/**
+ * docs/erc/ archives the older proposal. Its README once named the submission candidate
+ * "the sole normative source", which was true within that archive and is now misleading
+ * repository-wide: the current proposal lives on PR #13's branch, has different interface
+ * IDs, and reverses the freeze position. Someone reading the archive without the notice
+ * would implement the wrong model, so the notice is load-bearing and its absence fails the
+ * build rather than being noticed later.
+ */
+{
+  const REQUIRED = [
+    '本目录已被取代',
+    '不得据本目录实现任何下游合约',
+    'Asynchronous Register Projection for NFTs',
+  ];
+  const readme = join(root, 'docs', 'erc', 'README.md');
+  try {
+    const text = await readFile(readme, 'utf8');
+    const missing = REQUIRED.filter((clause) => !text.includes(clause));
+    for (const clause of missing) {
+      failures.push(`docs/erc/README.md is missing the D-007 supersession clause: ${clause}`);
+    }
+    if (missing.length === 0) {
+      process.stdout.write(
+        `  ok   D-007 supersession notice: ${REQUIRED.length} clauses present on docs/erc/README.md\n`,
+      );
+    }
+  } catch {
+    // The archive may legitimately be removed once the frozen-constants guard stops
+    // covering it; D-007 only requires the notice while the directory exists.
+    process.stdout.write(
+      '  ok   D-007: docs/erc/ archive absent, supersession notice not required\n',
+    );
+  }
 }
 
 if (failures.length > 0) {
