@@ -3,7 +3,7 @@
   "status": "PREP_READY",
   "proposalTitle": "Asynchronous Register Projection for NFTs",
   "supersedes": "Proof-Verified Deferred Asset Settlement (V1-V9); rewritten around the register-projection axiom, see review/ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md",
-  "candidateSha256": "7e9478e939161b830ce6d6635147514291b6f50461475baaef98deb9e09ba332",
+  "candidateSha256": "d9cce53f04afc51cbc2e646cd654bbb08fbda146a4e47c849318084c7e20c3a5",
   "referenceSha256": "96165dfa8541270dcdc11c626cfce02e98042e8f80f5a40f580c121c74207a29",
   "testsSha256": "7457317fb53ae72cdadca0aa22786e8292008a987cdcde4329d1c73dce5948c1",
   "interfaceIds": {
@@ -38,7 +38,8 @@
     "settlementWindow": "H-5 CLOSED by the author 2026-08-31: an initiator-chosen deadline within the maximum is kept deliberately, since after the rewrite a gap affects neither trading nor finality. A deployment needing a fixed n constrains it in its profile.",
     "reviewerReviewPostRewrite": "RESOLVED 2026-09-02 / BLOCKER-1 withdrawn: superseding requires owning the token, holding is not exercising, and the deferrable case has a retroactive claim path, so the griefing case is self-harm. MAJOR-2/3/4 and MINOR-5/6/7 fixed. The guidance paragraph was rewritten as explanation rather than deleted. DAO governance questions moved to issue #15.",
     "scopeCleanup": "2026-09-02 / material that accumulated while the discussion drifted was removed: three Rationale paragraphs on boards, electorates and the regress of constituting a closure; two on attester quality; the named term quiescent; and the closure question in the manual. What remains is the mapping and why a pending state exists. Interfaces untouched.",
-    "rewriteAsFirstDraft": "2026-09-02 / the specification was written again from scratch rather than patched further. Settled decisions were held fixed and the two Solidity blocks were carried over byte-identically, so both interface ids are unchanged. The 39 MUST phrases in the old text and the new one form the same multiset: no normative content was lost or added. 5031 words to 4886."
+    "rewriteAsFirstDraft": "2026-09-02 / the specification was written again from scratch rather than patched further. Settled decisions were held fixed and the two Solidity blocks were carried over byte-identically, so both interface ids are unchanged. The 39 MUST phrases in the old text and the new one form the same multiset: no normative content was lost or added. 5031 words to 4886.",
+    "reviewOfTheRewrite": "2026-09-02 / SHOULD/MAY and the definition list were compared as well as MUSTs, then the text was read through. Four defects: snapshotHash was a bound leaf field with no definition anywhere, the same class as registryReference and missed when that one was fixed; the settlement period definition disagreed with both the accessor and beginSettlement and was never referenced; profile carried normative weight without being defined; one ambiguous antecedent. All fixed. Specification MUSTs 26 to 27."
   },
   "openDesignQuestions": [],
   "userPrinciples": {

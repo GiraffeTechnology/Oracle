@@ -210,3 +210,43 @@
 | 接口 / ID | 2 个 | **未动** |
 
 剩下的 11 段 Rationale,逐段都能对上"映射"或"为什么会有 pending":投影而非证明是贡献所在、两种所有权刻意分开、终局与解析是两个问题、登记册与 Profile 身份、范围边界、为何暴露三个事实而非一个、传统基础设施用除权日补偿而本标准如实记录、同持有人条目为何不是 no-op、证明提交者不可信、不代替 oracle、约束验证而非证明。
+
+---
+
+# 重写稿的评审(2026-09-02)
+
+重写后按评审视角重读。上一轮我只比对了 Specification 的 MUST 多重集(39 条一致),**那只覆盖强制项**;这次补验了 SHOULD/MAY(各 6 条,一致)与定义项清单(一致),再逐段读。
+
+## R-1(重大):`snapshotHash` 从未定义
+
+它是 `REMOTE_ENTRY_LEAF_TYPEHASH` 里**被证明绑定的叶字段**(参考实现 L147、L410),`beginSettlement` 要求它非零,出现在接口、事件和结构体里——**全文没有一处说它是什么**。
+
+第二个实现者不知道该往里放什么,远端不知道该复现什么,而叶的构造直接决定互操作。
+
+这与上一轮的 MAJOR-3(`registryReference` 未定义)是**同一类缺陷**。我上次修了那一个,漏了这一个。
+
+已补定义:**settlement snapshot** —— 对"变更所声称的起始登记状态"的非零 `bytes32` 承诺;它把一次结算钉在一个起点上,因此为某个起点开启的结算所产出的证明,不能被准入到从另一个起点开启的结算。推导方式由 Profile 定义。
+
+## R-2(中):`settlement period` 的定义与实际语义三处不一致
+
+| 出处 | 说法 |
+| --- | --- |
+| 定义 | "变更**预期**被准入的区间" |
+| `settlementPeriod()` | 返回 `maximumInterval`(**上限**) |
+| `beginSettlement` | "不得超过一个**实现定义的最大值**" |
+
+而且该定义在正文里**从未被引用**,是个孤儿。已统一为"开着的缺口可持续的实现定义**上限**,由 `settlementPeriod` 报告,并在 `beginSettlement` 接受的 deadline 上强制",`beginSettlement` 一段改为直接引用该术语。
+
+## R-3(中):`profile` 作规范性简称却未定义
+
+正文有 `A profile MUST define…`、`a profile SHOULD provide…`、`A profile MAY forbid…` 共 5 处,但定义的术语是 **verification profile**,裸词 `profile` 从未定义。已在定义处加上"called a **profile** below"。
+
+## R-4(编辑):Abstract 指代含混
+
+"only commitments and references reach **it**" —— `it` 的最近先行词是 register,而本意是 chain。已改为 "reach the chain"。
+
+## 影响
+
+Specification 的 MUST 由 26 增至 **27**(R-1 新增"Profile 须定义 snapshot 的推导方式")。这是**如实增加**,不是把上一轮"零新增"的说法推翻——上一轮比的是重写前后,这一轮是评审后的修正。
+
+接口两个 Solidity 块仍与重写前逐字一致,两个 ID 未动。

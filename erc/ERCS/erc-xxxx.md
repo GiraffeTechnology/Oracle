@@ -17,7 +17,7 @@ An off-chain register that records who holds an asset updates asynchronously, an
 
 This ERC turns that identity into an ordered projection of the register onto an [ERC-721](./eip-721.md) token. Entries are append-only, their effective times strictly increase, and their commitments are unique within a token, so **every past instant resolves to exactly one confirmed holder** while the chain is still behind the register. Whether an instant's answer can still change is decidable from the same invariants.
 
-The token keeps trading throughout. `ownerOf` is the tradeable position; the projection is the confirmed record; the two are deliberately kept apart. A change enters the projection only on proof that the corresponding record exists in a finalized state of the remote register, and proof submitters are untrusted. The register's contents stay off chain: only commitments and references reach it.
+The token keeps trading throughout. `ownerOf` is the tradeable position; the projection is the confirmed record; the two are deliberately kept apart. A change enters the projection only on proof that the corresponding record exists in a finalized state of the remote register, and proof submitters are untrusted. The register's contents stay off chain; only commitments and references reach the chain.
 
 ## Motivation
 
@@ -47,6 +47,8 @@ A **record commitment** is a nonzero `bytes32` commitment to the register's cont
 
 A **registry reference** is a `bytes32` locator for the register's own record of that entry. This ERC never interprets it; a profile MUST define how it is derived and whether zero means no locator was published. It is how a party entitled to read the register finds the record a commitment commits to, which is where the holder's identity lives. The chain carries the reference, not the identity.
 
+A **settlement snapshot** is a nonzero `bytes32` commitment to the register state a change is asserted to start from. It pins a settlement to one starting point, so a proof produced for a settlement opened from one state cannot be admitted into another opened from a different one. A profile MUST define how it is derived.
+
 A **confirmed holder** at an instant is the `holder` of the entry whose effective interval contains that instant. It is distinct from `ownerOf`, which is the tradeable position.
 
 An instant is **final** when no entry admitted in the future can change the confirmed holder for it. An answer a later admission may supersede is **provisional**.
@@ -55,9 +57,9 @@ A **projection gap** is an interval in which a change is known to be in progress
 
 An instant is **contested** when a projection gap is open on the token and that gap opened at or before the instant. A contract offering no settlement interface has no gaps and no contested instants.
 
-A **verification profile** defines the remote-finality proof, light-client or validator rules, state-root commitment, membership-proof algorithm, validator-set evolution, canonical encoding and hash functions. Verification under it MUST be deterministic and domain separated. This ERC does not constrain how an attested value is produced; a profile MAY.
+A **verification profile**, called a **profile** below, defines the remote-finality proof, light-client or validator rules, state-root commitment, membership-proof algorithm, validator-set evolution, canonical encoding and hash functions. Verification under it MUST be deterministic and domain separated. This ERC does not constrain how an attested value is produced; a profile MAY.
 
-A **settlement period** is the implementation-defined interval within which a change is expected to be admitted. This ERC does not prescribe its length.
+A **settlement period** is the implementation-defined maximum an open gap may run for, reported by `settlementPeriod` and enforced on the deadline `beginSettlement` accepts. This ERC does not prescribe its length.
 
 Every instant here — `effectiveAt`, `supersededAt`, `openedAt`, a deadline, and the `instant` arguments — is a count of seconds since the Unix epoch, on the same scale as `block.timestamp`. Register instants and chain instants are therefore comparable, which the definition of a contested instant relies on. A register whose effective times cannot be expressed on that scale cannot be projected through this interface.
 
@@ -174,7 +176,7 @@ Cancelling a settlement ends the contest but settles nothing. The preceding entr
 
 ### Settlement and proof-verified admission
 
-`beginSettlement` MUST require an existing token, a nonzero unused `settlementId`, a nonzero snapshot, an authorized ERC-721 caller, and a future deadline whose distance from the current block timestamp MUST NOT exceed an implementation-defined maximum. It MUST emit `SettlementStarted`.
+`beginSettlement` MUST require an existing token, a nonzero unused `settlementId`, a nonzero snapshot, an authorized ERC-721 caller, and a future deadline whose distance from the current block timestamp MUST NOT exceed the settlement period. It MUST emit `SettlementStarted`.
 
 An `expectedHolder` equal to the current confirmed holder MUST be permitted. It admits a **confirming entry**: an entry asserting that the register still records the same holder at a later effective time. Confirming entries are how instants become final on a token whose holder is not changing, so a profile SHOULD provide a way to produce them. Without them, instants at or after the latest entry's effective time never become final, and anything that waits on finality at those instants waits indefinitely.
 
