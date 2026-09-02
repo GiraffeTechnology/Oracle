@@ -419,9 +419,8 @@ describe("Asynchronous register projection", function () {
   });
 
   it("cannot advance the projection while no gap is open", async () => {
-    // Quiescence rests on this: an entry enters only through an open gap, so a
-    // window with no gap open and none begun is a window the projection cannot
-    // move in. That is what closing a register buys, with no new primitive.
+    // An entry enters only through an open gap, so a window with no gap open
+    // and none begun is a window the projection cannot move in at all.
     const data = await proof();
     await rejects(finalize(data), "InvalidSettlement");
     assert.equal(await contract.openGapOf(tokenId), ethers.ZeroHash);

@@ -3,9 +3,9 @@
   "status": "PREP_READY",
   "proposalTitle": "Asynchronous Register Projection for NFTs",
   "supersedes": "Proof-Verified Deferred Asset Settlement (V1-V9); rewritten around the register-projection axiom, see review/ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md",
-  "candidateSha256": "751aef7e86978903464806680f7c511cf699b533b32a7cb50cf81dc0a91da99d",
+  "candidateSha256": "78edf1b5070a45e358baef25f187b119a68aace1c44313ba33227fd3a9bdb469",
   "referenceSha256": "96165dfa8541270dcdc11c626cfce02e98042e8f80f5a40f580c121c74207a29",
-  "testsSha256": "14107848616bad97bf4d9c4e2d8039d31cf7d4fe062b873ab7fb428adecc5e1b",
+  "testsSha256": "7457317fb53ae72cdadca0aa22786e8292008a987cdcde4329d1c73dce5948c1",
   "interfaceIds": {
     "IRegisterProjection": "0x6309e170",
     "IProjectionSettlement": "0xfd0f6337"
@@ -36,7 +36,8 @@
     "attestationVsVerification": "CORRECTED / an earlier caution assumed an LLM extractor and is withdrawn; the profile definition no longer excludes constraining how a value is produced, since pinning a deterministic procedure is what makes a mechanical attester reproducible",
     "finalEditorialPass": "COMPLETED 2026-08-31 / nine defects left by the edit rounds fixed in the spec, four in the Magicians post including a block lost to a range deletion, and the manual's Q&A rewritten to match the current design",
     "settlementWindow": "H-5 CLOSED by the author 2026-08-31: an initiator-chosen deadline within the maximum is kept deliberately, since after the rewrite a gap affects neither trading nor finality. A deployment needing a fixed n constrains it in its profile.",
-    "reviewerReviewPostRewrite": "RESOLVED 2026-09-02 / BLOCKER-1 withdrawn: superseding requires owning the token, holding is not exercising, and the deferrable case has a retroactive claim path, so the griefing case is self-harm. MAJOR-2/3/4 and MINOR-5/6/7 fixed. The guidance paragraph was rewritten as explanation rather than deleted. DAO governance questions moved to issue #15."
+    "reviewerReviewPostRewrite": "RESOLVED 2026-09-02 / BLOCKER-1 withdrawn: superseding requires owning the token, holding is not exercising, and the deferrable case has a retroactive claim path, so the griefing case is self-harm. MAJOR-2/3/4 and MINOR-5/6/7 fixed. The guidance paragraph was rewritten as explanation rather than deleted. DAO governance questions moved to issue #15.",
+    "scopeCleanup": "2026-09-02 / material that accumulated while the discussion drifted was removed: three Rationale paragraphs on boards, electorates and the regress of constituting a closure; two on attester quality; the named term quiescent; and the closure question in the manual. What remains is the mapping and why a pending state exists. Interfaces untouched."
   },
   "openDesignQuestions": [],
   "userPrinciples": {
