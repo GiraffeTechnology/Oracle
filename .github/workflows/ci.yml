@@ -159,6 +159,8 @@ jobs:
           node-version-file: .nvmrc
       - name: Decision consistency (DECISIONS_ZH.md)
         run: node scripts/check-decision-consistency.mjs
+      - name: Layer state consistency (L1 / L2 / L3)
+        run: node scripts/check-layer-state-consistency.mjs
       - name: Scope coverage (acceptance 8.4)
         run: node scripts/check-scope-coverage.mjs
       - name: Financial output gate (ORACLE-006)

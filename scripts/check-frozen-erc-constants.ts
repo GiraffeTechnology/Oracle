@@ -15,6 +15,7 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import {
+  assertNamedInterfaceIds,
   formatSelector,
   functionSelector,
   interfaceId,
@@ -95,18 +96,14 @@ check(
 );
 
 /**
- * The document also states these IDs in prose, in the interface sections and again in Test
- * Cases. Every stated ID must be one of the three derived values, so prose cannot drift away
- * from the ABI it describes.
+ * The Test Cases inventory is the named prose authority. Bind each interface name to its
+ * exact derived ID; swapping two otherwise valid IDs must fail.
  */
-const derivedIds = new Set([...FROZEN_INTERFACE_IDS.map(([, id]) => id), ERC8325_INTERFACE_ID]);
-const statedIds = [...candidate.matchAll(/interface ID is `(0x[0-9a-f]{8})`/g)].map((m) => m[1]!);
-const unknownIds = statedIds.filter((id) => !derivedIds.has(id));
-check('every ID stated in prose is derived', String(unknownIds.length), '0');
-if (statedIds.length === 0) {
-  failures.push('no interface ID is stated in prose; the guard would pass vacuously');
-}
-process.stdout.write(`  ok   ${statedIds.length} prose statements checked\n`);
+const namedInterfaceIds = assertNamedInterfaceIds(candidate, [
+  ...FROZEN_INTERFACE_IDS,
+  ['IAssetBoundTokenId', ERC8325_INTERFACE_ID],
+]);
+process.stdout.write(`  ok   ${namedInterfaceIds.size} named interface statements checked\n`);
 
 process.stdout.write('\nEIP-712 canonical types: specification vs reference implementation\n');
 for (const type of EIP712_TYPES) {

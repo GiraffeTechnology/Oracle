@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "contractId": "giraffe-oracle/external-consumer-state-contract-v1",
+  "consumerClass": "EXTERNAL_CHAIN_AGENT",
+  "implementationStatus": "NOT_VERIFIED_EXTERNAL",
+  "agentBehaviorSelection": "A_NON_CUSTODIAL_USER_SIGNED",
+  "signingAuthority": "USER_WALLET_OR_SAFE_OWNERS_ONLY",
+  "privateKeyCustody": false,
+  "delegatedSigning": false,
+  "prohibitedAgentBehavior": "B_CUSTODIAL_OR_DELEGATED_SIGNING",
+  "futureExchange": {
+    "agentBehavior": "C_EXCHANGE",
+    "implementationStatus": "NOT_IMPLEMENTED",
+    "authorizationStatus": "NOT_AUTHORIZED"
+  },
+  "currentSubprocesses": {
+    "charity": {
+      "parent": "MARKET_AGENT",
+      "custody": "NON_CUSTODIAL",
+      "signingAuthority": "USER_WALLET_OR_SAFE_OWNERS_ONLY",
+      "stateConsistencyRequired": true
+    }
+  },
+  "marketplaceObservation": {
+    "access": "READ_ONLY_PUBLIC",
+    "observations": ["LISTING_STATUS", "SALE_STATUS", "SALE_HISTORY"],
+    "oracleAuthority": false,
+    "sourceProviderRequired": true,
+    "separateFromOracleEvidence": true
+  },
+  "oracleRuntimeCoupling": false,
+  "verificationBoundary": "READ_ONLY_SDK_AND_PROOF_FORMAT",
+  "stateMappingRef": "config/layer-state-mapping.v1.json",
+  "pendingBlockedOperations": ["transfer", "redeem", "pledge", "relist"]
+}

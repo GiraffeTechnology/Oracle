@@ -90,22 +90,20 @@ L2 只做查询、核验、签名证明、状态同步、撤销和审计。本�
 合约、数据库、Token 语义或验证数据集」中，合约、数据库与代码复用由仓库边界保证，并由
 `scripts/check-decision-consistency.mjs` 机械校验（`src/` 中出现 ArtFi 耦合即构建失败）。
 
-**仍未关闭的部分**：仓库边界不解决 **Token 语义**层面的互斥。PRD §0.1 记录的份额化冲突是
-产品结构问题，与代码放在哪个仓库无关 —— 若本产品线的 NFT 在 ArtFi 侧进入 Vault 并发行
-ERC-20 份额，CONSUMER-001「一物一证一 NFT」即在下游被破坏，而 Oracle 无法从证明侧阻止。
-撮合同理：CONSUMER-008 约束的是 Oracle 不建订单簿，不能约束下游。
-
-需要产品与法务确认的是 ArtFi 在**本产品线**上的行为范围，而非重新裁决 §0.1：
+**产品语义已裁决，跨仓实现仍待核验**：Oracle 只机械记录以下外部消费边界，不为 ArtFi 增加
+运行时代码、链写、签名、广播、撮合、定价或托管能力：
 
 | 层次 | ArtFi 的行为 | 与本 PRD 的关系 |
 | --- | --- | --- |
-| a | 仅广播用户已签名的交易 | 无冲突 |
-| b | 代用户签署并提交转让交易（持有或托管密钥） | 触及 ORACLE-009「代用户提交、签署或托管金融交易」 |
-| c | 撮合买卖双方、定价、结算 | 触及 CONSUMER-008 及 PRD §0 不包含列表中的「做市、定价、撮合及金融结算」 |
+| a | 当前交付：非托管交易 Agent，仅由用户钱包或 Safe owners 签署 | 允许；ArtFi 不持有/托管私钥、不代签 |
+| b | 代用户签署、持有或托管密钥 | **禁止** |
+| c | Exchange：撮合、定价、结算 | 后续迭代；`NOT_IMPLEMENTED`、`NOT_AUTHORIZED` |
 
-ORACLE-009 约束的是 Giraffe 自身。PRD 第 11 行载明产品主体为 Giraffe ArtFi Corp.，
-与 ArtFi 为同一主体，故前提 P8 中「第三方链上金融机构可独立使用 NFT」的免责路径不适用。
-本条不作合规结论，仅记录判别标准，待产品与法务答复后追加条目。
+Charity 是当前 Market Agent 的交付子流程，必须遵守同一非托管、仅用户钱包/Safe owners 签署
+和状态一致性边界；它既不是 ArtFi 整体交付目标，也不得扩张为 Exchange。ArtFi 消费/索引层
+可实时只读公开市场的 NFT 挂牌、成交状态与交易历史，但这些观察不是 Oracle 权威状态，必须带
+source/provider 并与 Oracle evidence 分层。`config/external-consumer-state-contract.v1.json` 只记录
+合同与 `NOT_VERIFIED_EXTERNAL` 跨仓状态，不声称 ArtFi 仓库已经实现或验证这些边界。
 
 ## D-007 ERC 提案的权威位置与引用规则
 
@@ -147,7 +145,7 @@ ORACLE-009 约束的是 Giraffe 自身。PRD 第 11 行载明产品主体为 Gir
 
 | 事项 | 性质 | 出处 |
 | --- | --- | --- |
-| ArtFi 三项结构性互斥（份额化、撮合、慈善版数据集） | 业务裁决 | PRD §0.1 |
+| ArtFi 跨仓实现及证据 | 外部工程与验收；产品语义由 D-006 固定 | PRD §0.1、D-006 |
 | 范围与排期契约签署 | 商务 | PRD §0.2 |
 | PREMISE-P1~P8 前提取证 | 取证工作 | PRD §1、验收 §4.4 |
 | 主网/真实资产/真实资金的法务 go/no-go | 法律门禁，状态 `PENDING-GATE` | 验收 §2.1 |
