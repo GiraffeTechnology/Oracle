@@ -30,4 +30,4 @@
 
 其中 `REVIEWER_PERSPECTIVE_ZH.md` 的 BLOCKER-1(持有人可在 deadline 前单方取消,搁置已在远端落定的记录)已修复,修复在重写中保留;MAJOR-3(无 Profile 可发现性)已由 `registerId` / `verificationProfile` 关闭(`registerDescriptor` 曾一并加入,2026-08-31 删除);MAJOR-2 由 ADR-007 的重新框定取代。
 
-上述文件中出现的 `IVersionedCertificate` `0xebaa86a0`、`IDeferredCertificateSettlement` `0x2773d4c9`、`VersionedCertificateReference.sol`、"39/41 passing" 等,均为重写前的值。现行值是 `IRegisterProjection` `0x6309e170`、`IProjectionSettlement` `0xfd0f6337`(**两个接口**)、`RegisterProjectionReference.sol`、27 passing。`IRegisterProjection` 的 ID 变动过三次(`0x3e925bdc` → `0x3ce71a8d` → `0x6309e170`),各 ADR 内记录的是当时的值,只有本行是现行值。
+上述文件中出现的 `IVersionedCertificate` `0xebaa86a0`、`IDeferredCertificateSettlement` `0x2773d4c9`、`VersionedCertificateReference.sol`、"39/41 passing" 等,均为重写前的值。现行值是 `IRegisterProjection` `0x6309e170`、`IProjectionSettlement` `0xf4a7d71b`(**两个接口**)、`RegisterProjectionReference.sol`、31 passing。`IRegisterProjection` 的 ID 变动过三次(`0x3e925bdc` → `0x3ce71a8d` → `0x6309e170`),各 ADR 内记录的是当时的值,只有本行是现行值。

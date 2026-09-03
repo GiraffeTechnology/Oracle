@@ -28,39 +28,18 @@ discussions-to: https://ethereum-magicians.org/t/REPLACE_WITH_DISCUSSION_SLUG
 
 **顺序不能反** —— 先有帖子,再填 URL,再提 PR。
 
-### 2. `eip` 编号与文件名(**此前写错,已更正**)
+### 2. `eip` 编号与文件名
 
-本文件早前写过"`eip: XXXX` 保持占位提交是正确做法"。**用官方工具实测,这是错的**,两条都过不去:
+`eip: XXXX` 保持占位提交是**正确做法**,编号由 ERC 编辑分配。常见做法是用 PR 号临时填入,编辑会指定最终号。编辑给号后需同步改三处:
 
-| 做法 | 实测结果 |
-| --- | --- |
-| `eip: XXXX` | `error[preamble-eip]: preamble header \`eip\` must be an unsigned integer` |
-| 删掉 `eip:` 整行 | `error[preamble-req]: preamble is missing header(s): \`eip\`` |
-| 文件名 `erc-XXXX.md` | `eipw-action` 的 `path2number()` 抛 `file name "erc-xxxx" not in correct format`,**在 lint 开始前就让 CI job 崩掉** |
-
-真实做法(取自 ethereum/ERCs 两个真实 PR):**作者自己挑一个真实编号**,不是 PR 号。
-
-- PR #1450 → `ERCS/erc-8118.md`,`eip: 8118`
-- PR #1337 → `ERCS/erc-8076.md`,`eip: 8076`
-
-而且 Magicians 帖子的 slug 按惯例带同一个编号,所以**先定编号,再发帖**。
-
-截至 2026-09-02 实测,`ethereum/ERCs` master 上已占用的最大编号是 **8167**,下一个空档从 **8168** 起。提交前重新探测一次:
-
-```
-for n in $(seq 8160 8200); do
-  curl -s -o /dev/null -w "%s %s\n" "$n" "$(curl -s -o /dev/null -w '%{http_code}' \
-    https://raw.githubusercontent.com/ethereum/ERCs/master/ERCS/erc-$n.md)"
-done
-```
-
-assets 目录仍用 `assets/eip-<编号>/`(**不是** `erc-`)—— 已核对 ERC-7943、6551、7786 三例,ERCs 仓库里一律是 `eip-`。
+- `ERCS/erc-xxxx.md` → `ERCS/erc-<号>.md`
+- `assets/eip-xxxx/` → `assets/eip-<号>/`
+- 正文 Reference Implementation 段中 `assets/eip-xxxx/` 的路径描述
 
 ## 三、提交步骤
 
-0. **先定编号 N,再发 Magicians 帖**(标题含 ERC-N),拿到真实 URL;
-1. 跑 `tools/finalize-submission.sh <N> <URL>` 生成可提交树 —— 它会改 preamble、重命名文件、改写 assets 路径,并拒绝任何占位符残留;
-2. fork `ethereum/ERCs`,从 `master` 开新分支,把生成的 `ERCS/` 与 `assets/` 按同名路径放进 fork;
+1. fork `ethereum/ERCs`,从 `master` 开新分支;
+2. 把本目录 `ERCS/` 与 `assets/` 的内容按同名路径放进 fork;
 3. 本地跑一次官方 lint(可选但建议):
    ```
    cargo install eipw --version 0.11.0
@@ -76,8 +55,8 @@ assets 目录仍用 `assets/eip-<编号>/`(**不是** `erc-`)—— 已核对 ER
 | --- | --- | --- |
 | 官方 eipw 0.11.0 | **0 诊断,退出码 0** | 本地编译 eipw,使用 `tools/eipw-official-config-snapshot.toml`,补齐 15 份被引提案原文供链接解析 |
 | lint 有效性 | 负向对照通过 | 故意破坏 CC0 行会立即报 `markdown-copyright`,退出码 65,证明配置在生效 |
-| 参考实现测试 | **27 passing / 0 failing** | `npm install && npx hardhat test` |
-| 接口 ID | `0x6309e170` / `0xfd0f6337` | selector XOR 独立复算,并在测试内断言,无碰撞 |
+| 参考实现测试 | **31 passing / 0 failing** | `npm install && npx hardhat test` |
+| 接口 ID | `0x6309e170` / `0xf4a7d71b` | selector XOR 独立复算,并在测试内断言,无碰撞 |
 
 ## 五、提交后会被问到的问题(准备好答案)
 

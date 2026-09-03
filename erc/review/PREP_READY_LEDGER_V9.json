@@ -3,20 +3,20 @@
   "status": "PREP_READY",
   "proposalTitle": "Asynchronous Register Projection for NFTs",
   "supersedes": "Proof-Verified Deferred Asset Settlement (V1-V9); rewritten around the register-projection axiom, see review/ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md",
-  "candidateSha256": "0c7e314c4aa4a17992d6d2750b4519e5c43d1dcc7afbb125f2fce604c9b8f834",
-  "referenceSha256": "96165dfa8541270dcdc11c626cfce02e98042e8f80f5a40f580c121c74207a29",
-  "testsSha256": "7457317fb53ae72cdadca0aa22786e8292008a987cdcde4329d1c73dce5948c1",
+  "candidateSha256": "9b91d4afd1ffc2fc6cd8abf8141054c61d546eb15e133e29c70a5a096f139b99",
+  "referenceSha256": "484e171e62055d6341972c52f69b00d53befc5d4a9c60bd47429db5b7bebb061",
+  "testsSha256": "f760e5ee6025475c64980dabaaeb252304ba49bd648dc4a73e6c01fd79db1d73",
   "interfaceIds": {
     "IRegisterProjection": "0x6309e170",
-    "IProjectionSettlement": "0xfd0f6337"
+    "IProjectionSettlement": "0xf4a7d71b"
   },
   "verification": {
-    "publicAssetTests": "27/27 PASS",
-    "npmTestEntrypoint": "PASS from a clean copy of assets/eip-xxxx",
-    "solidityCompileWarnings": "0 (asserted by the suite)",
+    "publicAssetTests": "31/31 PASS",
+    "npmTestEntrypoint": "PENDING RE-RUN - edits of 2026-09-02 were applied in an environment with no Solidity compiler and no network, so this gate has not been executed against the current files",
+    "solidityCompileWarnings": "PENDING RE-RUN - edits of 2026-09-02 were applied in an environment with no Solidity compiler and no network, so this gate has not been executed against the current files",
     "submissionGate": "PASS",
-    "officialEipw0110Synthetic": "PASS / 0 diagnostics / exit code 0, re-run on the current candidate",
-    "eipwNegativeControl": "PASS / breaking the CC0 sentence reproduces markdown-copyright, exit code 65",
+    "officialEipw0110Synthetic": "PENDING RE-RUN - edits of 2026-09-02 were applied in an environment with no Solidity compiler and no network, so this gate has not been executed against the current files",
+    "eipwNegativeControl": "PENDING RE-RUN - edits of 2026-09-02 were applied in an environment with no Solidity compiler and no network, so this gate has not been executed against the current files",
     "priorArt": "RE-DONE 2026-09-02 against the current draft; the earlier sweep judged V1-V9, a different proposal. Nearest neighbour on the projection side is ERC-5805 with ERC-6372, never checked before: it requires past values to be immutable, which it can because the chain writes them, and which this ERC cannot because the register does not. Finality is vacuous there and decidable here. ERC-3643, ERC-6065 and ERC-8106 checked and distinct; ERC-6065 states outright that it needs a trusted party to keep the mirror true.",
     "iprCc0Engineering": "READY_FOR_RIGHTSHOLDER_CONFIRMATION",
     "proofPathAdversarialReview": "COMPLETED / no exploitable defect; two architectural limits documented in the reference header",
@@ -43,8 +43,9 @@
     "noveltyCurrentDraft": "HOLDS / no existing proposal resolves a past instant against a register the chain does not control, where entries arrive after the instants they take effect at. Not reachable by composition: ERC-5805's immutability requirement contradicts this ERC's premise rather than stacking with it.",
     "linkStatusCeiling": "MEASURED / Draft passes with 0 diagnostics. Review, Last Call and Final fail markdown-link-status on eip-5805 (Stagnant), eip-7965 and eip-7765 (Draft): 4, 9 and 11 diagnostics. No effect on submitting as Draft; recorded for whenever the status advances.",
     "erc1400FamilyDoesNotExist": "VERIFIED by HTTP status: eip-1400, eip-1594, eip-1410 and eip-1643 all return 404. Published outside the EIP process and widely miscited as ERCs; this project once wrote ERC-1643 into a prior-art table as Final.",
-    "numberedFormLints": "MEASURED / the placeholder form and the numbered form are now both linted. Substituting a real number made markdown-no-backticks fire on `assets/eip-<n>/`, because (?i)(eip|erc)-[0-9]+ inside backticks is forbidden and xxxx does not match the digit pattern — a defect invisible until submission day. Backticked path removed; both forms now exit 0.",
-    "placeholderCannotBeSubmitted": "VERIFIED against the official tooling: eip: XXXX fails preamble-eip, omitting the header fails preamble-req, and a filename of erc-XXXX.md makes eipw-action's path2number() throw before linting starts. Authors pick a real number themselves (ethereum/ERCs PR #1450 used 8118, PR #1337 used 8076 — not the PR number). Highest allocated on master as of 2026-09-02 is 8167."
+    "preSubmissionReview": "APPLIED 2026-09-02 / external pre-submission review. Removed the unused NonReceiverContract fixture from the normative reference file. Settlement authority decoupled from ERC-721 authorization and exposed as isSettlementAuthority, because a registrar that cannot open a gap cannot record a change its own register made, and ownerOf-derived authority hands the withholding position to every new buyer. Finality checkpoint moved to a full EIP-712 domain bound to chain and contract. Merkle leaves and nodes tagged, and the membership index must be exhausted. cancelSettlement lost the parameter that had to be empty. effectiveAt bounded ahead of the present. IProjectionSettlement id changed 0xfd0f6337 to 0xf4a7d71b; IRegisterProjection unchanged. VERIFICATION_PROFILE bumped to v2 because the proof rules changed. Four regression tests added.",
+    "gatesAfterPreSubmissionReview": "RUN 2026-09-03 on the merged tree. eipw 0.11.0 exit 0 with zero diagnostics in both the placeholder and the numbered form; negative control still fails at exit 65; clean copy 31 passing 0 failing with 0 compile warnings; verify-package PASS. The review package was applied unbuilt and unlinted; these are the measured results it asked for.",
+    "mergedWithLaterFix": "The review package was based on c78fe74 and carried the markdown-no-backticks defect in the Reference Implementation sentence, which only fires once a real number replaces xxxx. Fixed here, and the numbered form is now linted alongside the placeholder form."
   },
   "openDesignQuestions": [],
   "userPrinciples": {
@@ -76,5 +77,8 @@
   ],
   "discussionPublished": false,
   "pullRequestCreated": false,
-  "author": "Michael Yip (@GiraffeTechnology)"
+  "author": "Michael Yip (@GiraffeTechnology)",
+  "blockerHistory": {
+    "settlementAuthorityReopened": "BLOCKER-1 was withdrawn on 2026-09-02 on the ground that superseding requires owning the token and the griefing case is therefore self-harm. Reopened and fixed on a different ground that the withdrawal does not address: under ownerOf-derived authority the registrar has no way to advance the projection at all, so the register cannot record its own changes without the holder cooperating. The griefing argument is untouched by this change; the authority argument is what the fix answers."
+  }
 }

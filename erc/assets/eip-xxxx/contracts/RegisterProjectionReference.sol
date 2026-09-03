@@ -18,6 +18,13 @@ pragma solidity ^0.8.20;
 // 3. siblings and signatures are unbounded. Oversized input costs the
 //    submitter gas only; the strictly increasing signer rule caps the number
 //    of accepted signatures at the validator set size.
+// 4. The settlement authority is a single immutable registrar address. It is
+//    the party that can advance the projection, and equally the party that can
+//    withhold it by holding a gap open. A production profile SHOULD scope this
+//    to the party responsible for the remote register and SHOULD bound
+//    supersession. It is deliberately NOT derived from ownerOf: the projection
+//    records the register's holder, and a registrar that cannot open a gap
+//    cannot record its own changes.
 //
 // Where the remote register is itself a ledger with consensus, production
 // profiles SHOULD use its native light client and validator-set transition
@@ -111,9 +118,10 @@ interface IProjectionSettlement is IERC165 {
     function openGapOf(uint256 tokenId) external view returns (bytes32 settlementId);
     function settlementPeriod() external view returns (uint64 maximumInterval);
     function verificationProfile() external view returns (bytes32 identifier);
+    function isSettlementAuthority(uint256 tokenId, address account) external view returns (bool authorized);
     function beginSettlement(uint256 tokenId, bytes32 settlementId, address expectedHolder, bytes32 snapshotHash, uint64 deadline) external;
     function finalizeSettlement(bytes32 settlementId, bytes32 recordCommitment, bytes32 registryReference, uint64 effectiveAt, bytes calldata proofData) external;
-    function cancelSettlement(bytes32 settlementId, bytes32 reasonHash, bytes calldata proofData) external;
+    function cancelSettlement(bytes32 settlementId, bytes32 reasonHash) external;
 }
 
 contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectionSettlement {
@@ -133,6 +141,7 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
     error ProofAlreadyUsed();
     error StaleRemoteHeight();
     error UnsafeRecipient();
+    error EffectiveAtTooFar();
 
     bytes4 private constant _ERC165_ID = 0x01ffc9a7;
     bytes4 private constant _ERC721_ID = 0x80ac58cd;
@@ -149,15 +158,38 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
 
     uint64 public constant MAX_SETTLEMENT_PERIOD = 30 days;
 
+    // An effective time far ahead of the present permanently ends the projection
+    // for a token, because effectiveAt strictly increases and no later entry
+    // could exceed it. The reference profile bounds it; a profile MAY differ.
+    uint64 public constant MAX_EFFECTIVE_AHEAD = 30 days;
+
+    // Merkle domain separation. Without distinct tags an internal node and a
+    // leaf share a preimage shape, which is the classic second-preimage case.
+    bytes1 private constant _LEAF_TAG = 0x00;
+    bytes1 private constant _NODE_TAG = 0x01;
+
+    bytes32 private constant _EIP712_DOMAIN_TYPEHASH = keccak256(
+        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+    );
+    bytes32 private constant _EIP712_NAME_HASH = keccak256("AsynchronousRegisterProjection");
+    bytes32 private constant _EIP712_VERSION_HASH = keccak256("1");
+
     // Identifies the proof rules this contract accepts, so that a party can tell
     // whether it knows how to check them. It changes when those rules change.
     bytes32 public constant VERIFICATION_PROFILE =
-        keccak256("erc-xxxx/reference-profile/fixed-validator-set+keccak-merkle/v1");
+        keccak256("erc-xxxx/reference-profile/fixed-validator-set+eip712+tagged-keccak-merkle/v2");
 
     address public immutable administrator;
+    // The settlement authority. Deliberately distinct from ownerOf: see the
+    // header note. A profile defines the policy; this reference uses one
+    // immutable address for the whole contract.
+    address public immutable registrar;
     bytes32 public immutable remoteRegisterId;
     bytes32 public immutable validatorSetHash;
     uint8 public immutable finalityThreshold;
+
+    uint256 private immutable _cachedChainId;
+    bytes32 private immutable _cachedDomainSeparator;
 
     mapping(address => bool) public isFinalityValidator;
     mapping(uint256 => uint64) public lastRemoteHeight;
@@ -173,11 +205,13 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
     mapping(bytes32 => Settlement) private _settlements;
     mapping(uint256 => bytes32) private _openGap;
 
-    constructor(bytes32 remoteRegisterId_, address[] memory validators_, uint8 threshold_) {
+    constructor(bytes32 remoteRegisterId_, address registrar_, address[] memory validators_, uint8 threshold_) {
         if (remoteRegisterId_ == bytes32(0) || threshold_ == 0 || threshold_ > validators_.length) {
             revert InvalidProof();
         }
+        if (registrar_ == address(0)) revert InvalidAddress();
         administrator = msg.sender;
+        registrar = registrar_;
         remoteRegisterId = remoteRegisterId_;
         finalityThreshold = threshold_;
         address previous;
@@ -188,6 +222,21 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
             previous = validator;
         }
         validatorSetHash = keccak256(abi.encode(validators_, threshold_));
+        _cachedChainId = block.chainid;
+        _cachedDomainSeparator = _buildDomainSeparator();
+    }
+
+    // EIP-712 domain, rebuilt if the chain id changes under the contract.
+    function DOMAIN_SEPARATOR() public view returns (bytes32) {
+        return block.chainid == _cachedChainId ? _cachedDomainSeparator : _buildDomainSeparator();
+    }
+
+    function _buildDomainSeparator() private view returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                _EIP712_DOMAIN_TYPEHASH, _EIP712_NAME_HASH, _EIP712_VERSION_HASH, block.chainid, address(this)
+            )
+        );
     }
 
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
@@ -207,6 +256,7 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
         if (msg.sender != administrator) revert Unauthorized();
         if (to == address(0)) revert InvalidAddress();
         if (_owners[tokenId] != address(0) || recordCommitment == bytes32(0)) revert InvalidEntry();
+        if (effectiveAt > block.timestamp + MAX_EFFECTIVE_AHEAD) revert EffectiveAtTooFar();
 
         _owners[tokenId] = to;
         _balances[to] += 1;
@@ -341,6 +391,14 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
         return _openGap[tokenId];
     }
 
+    // Who may open a gap on this token. A third party can read it, which is the
+    // point: a projection whose authority is unknown tells an unrelated venue
+    // very little about who can move the answer.
+    function isSettlementAuthority(uint256 tokenId, address account) public view returns (bool) {
+        ownerOf(tokenId);
+        return account == registrar;
+    }
+
     function beginSettlement(
         uint256 tokenId,
         bytes32 id,
@@ -348,8 +406,7 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
         bytes32 snapshot,
         uint64 deadline
     ) external {
-        ownerOf(tokenId);
-        if (!_isAuthorized(msg.sender, tokenId)) revert Unauthorized();
+        if (!isSettlementAuthority(tokenId, msg.sender)) revert Unauthorized();
         if (id == bytes32(0) || snapshot == bytes32(0)) revert InvalidSettlement();
         if (_settlements[id].status != GapStatus.NONE) revert SettlementExists();
         // An expectedHolder equal to the confirmed holder is deliberately allowed:
@@ -386,6 +443,7 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
         RegisterEntry[] storage list = _entries[item.tokenId];
         RegisterEntry storage previous = list[list.length - 1];
         if (effectiveAt <= previous.effectiveAt) revert EffectiveAtNotIncreasing();
+        if (effectiveAt > block.timestamp + MAX_EFFECTIVE_AHEAD) revert EffectiveAtTooFar();
         if (_commitmentUsed[item.tokenId][recordCommitment]) revert CommitmentReused();
 
         uint64 nextVersion = uint64(list.length) + 1;
@@ -399,7 +457,7 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
         ) = abi.decode(proofData, (uint64, bytes32, bytes32, uint256, bytes32[], bytes[]));
         if (height <= lastRemoteHeight[item.tokenId]) revert StaleRemoteHeight();
 
-        bytes32 leaf = keccak256(
+        bytes32 leafStruct = keccak256(
             abi.encode(
                 REMOTE_ENTRY_LEAF_TYPEHASH,
                 block.chainid,
@@ -415,9 +473,18 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
                 effectiveAt
             )
         );
+        bytes32 leaf = keccak256(abi.encodePacked(_LEAF_TAG, leafStruct));
         if (!_verifyMembership(leaf, leafIndex, siblings, root)) revert InvalidProof();
         bytes32 finality = keccak256(
-            abi.encode(REMOTE_FINALITY_TYPEHASH, remoteRegisterId, height, blockHash, root, validatorSetHash)
+            abi.encodePacked(
+                hex"1901",
+                DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        REMOTE_FINALITY_TYPEHASH, remoteRegisterId, height, blockHash, root, validatorSetHash
+                    )
+                )
+            )
         );
         _verifyFinality(finality, signatures);
         bytes32 proofId = keccak256(abi.encode(finality, leaf));
@@ -447,10 +514,10 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
         emit SettlementFinalized(id, item.tokenId, recordCommitment, nextVersion, effectiveAt);
     }
 
-    function cancelSettlement(bytes32 id, bytes32 reason, bytes calldata proofData) external {
+    function cancelSettlement(bytes32 id, bytes32 reason) external {
         Settlement storage item = _settlements[id];
         if (item.status != GapStatus.OPEN) revert InvalidSettlement();
-        if (msg.sender != item.initiator || proofData.length != 0) revert Unauthorized();
+        if (msg.sender != item.initiator) revert Unauthorized();
         // The window up to the deadline belongs to the proof. Cancelling earlier
         // would let the initiator strand a record the remote register already
         // finalized, leaving the projection permanently unresolvable for that gap.
@@ -483,11 +550,13 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
         bytes32 value = leaf;
         for (uint256 i; i < siblings.length; ++i) {
             value = index & 1 == 0
-                ? keccak256(abi.encodePacked(value, siblings[i]))
-                : keccak256(abi.encodePacked(siblings[i], value));
+                ? keccak256(abi.encodePacked(_NODE_TAG, value, siblings[i]))
+                : keccak256(abi.encodePacked(_NODE_TAG, siblings[i], value));
             index >>= 1;
         }
-        return value == root;
+        // Index bits beyond the path length must be zero, otherwise several
+        // (index, siblings) pairs verify against the same root.
+        return index == 0 && value == root;
     }
 
     function _verifyFinality(bytes32 digest, bytes[] memory signatures) private view {
@@ -517,5 +586,3 @@ contract RegisterProjectionReference is IERC721, IRegisterProjection, IProjectio
         if (signer == address(0)) revert InvalidProof();
     }
 }
-
-contract NonReceiverContract {}

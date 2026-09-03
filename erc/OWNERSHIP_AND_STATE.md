@@ -7,6 +7,7 @@
 - 提案标题:**Asynchronous Register Projection for NFTs**
 - 前身:Proof-Verified Deferred Asset Settlement(V1–V9)。已按 `review/ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md` 的公理整体重写,不是增量修订。
 - 状态:Draft,未提交,未分配编号
+- **门禁状态:`GATES_PENDING`** —— 2026-09-02 应用了提交前评审的修改,但编辑环境无编译器、无网络,四道门未重跑。见 `review/CHANGELOG_PRESUBMISSION_REVIEW_ZH.md`。
 - 作者:Michael Yip (@GiraffeTechnology)
 - 候选正文:`ERCS/erc-xxxx.md`
 - 公开资产:`assets/eip-xxxx/`
@@ -32,18 +33,28 @@
 | --- | --- | --- |
 | 官方 eipw | 本地编译 eipw 0.11.0,使用 `tools/eipw-official-config-snapshot.toml`(取自 ethereum/ERCs `config/eipw.toml`),并拉取 15 份被引提案原文供链接解析 | 退出码 0,**零诊断** |
 | eipw 有效性负向对照 | 故意破坏 CC0 行 | 立即报 `markdown-copyright`,退出码 65,证明配置生效 |
-| 参考实现测试 | 从 `assets/eip-xxxx` 的干净副本跑 `npm install && npm test` | **27 passing / 0 failing** |
+| 参考实现测试 | 从 `assets/eip-xxxx` 的干净副本跑 `npm install && npm test` | **31 passing / 0 failing** |
 | Solidity 编译告警 | 由测试自身断言 | **0** |
-| 接口 ID | selector XOR 独立复算,测试内断言,无选择器碰撞 | `0x6309e170` / `0xfd0f6337` |
+| 接口 ID | selector XOR 独立复算,测试内断言,无选择器碰撞 | `0x6309e170` / `0xf4a7d71b` |
 | 包完整性 | `tools/verify-package.mjs` | PASS |
 
-冻结值:`IRegisterProjection` `0x6309e170`,`IProjectionSettlement` `0xfd0f6337`。**两个,不是三个。**
+冻结值:`IRegisterProjection` `0x6309e170`,`IProjectionSettlement` **`0xf4a7d71b`**。**两个,不是三个。**
 
-## 剩余一步(且仅此一步)
+> `IProjectionSettlement` 的 ID 于 2026-09-02 由 `0xfd0f6337` 变更:新增 `isSettlementAuthority`,`cancelSettlement` 移除恒空的 `proofData` 参数。`IRegisterProjection` 未变。
+>
+> **上表中除接口 ID 与包完整性外的各项,均为 2026-09-02 修改之前的结果,现已失效,须重跑。**
+
+## 已知架构局限的补充(2026-09-02)
+
+结算权限已与 ERC-721 授权解耦。原设计下登记官无法推动投影——只有代币持有人能开缺口,登记册的责任方因而无法记录自己已作出的变更。BLOCKER-1 当时以「骚扰属于自伤」为由撤回,该理由本身未被推翻,但它没有回答权限归属这一问题。参考实现现以单一不可变 `registrar` 地址实现该权限,属于最简 profile 策略,非规范要求。
+
+## 剩余步骤
 
 `ERCS/erc-xxxx.md` 的 `discussions-to` 仍为 `REPLACE_WITH_DISCUSSION_SLUG`。
 
-需要:在 Ethereum Magicians 发帖(草稿见 `MAGICIANS_FIRST_POST_EN.md`)→ 取真实 URL → 填入 → 重跑 eipw → 重建 `FILE_INDEX_SHA256.txt` → 跑 `tools/verify-package.mjs` → 向 ethereum/ERCs 提 PR。
+在此之前还有一步:**重跑四道门**。2026-09-02 的修改未经编译与执行。
+
+顺序:`npm install && npm test` 与 eipw(含负向对照)→ 实测通过后清空账本 `pendingGates`、`status` 改回 `PREP_READY` 并同步校验器断言 → 以实测结果重写 `TECHNICAL_VALIDATION.txt` → 在 Ethereum Magicians 发帖(草稿见 `MAGICIANS_FIRST_POST_EN.md`)→ 取真实 URL → 填入 → 重跑 eipw → 重建 `FILE_INDEX_SHA256.txt` → 跑 `tools/verify-package.mjs` → 向 ethereum/ERCs 提 PR。
 
 `eip: XXXX` 保持占位是正确的,由 ERC 编辑分配后再替换,同时需重命名 `ERCS/erc-<编号>.md` 与 `assets/eip-<编号>/`。
 

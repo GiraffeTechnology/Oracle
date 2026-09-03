@@ -1,27 +1,35 @@
 Giraffe ERC technical validation
 Proposal: Asynchronous Register Projection for NFTs
-Date: 2026-09-02
+Date: 2026-09-03
 Status: PREP_READY
 
-Authoritative candidate SHA-256: 0C7E314C4AA4A17992D6D2750B4519E5C43D1DCC7AFBB125F2FCE604C9B8F834
-Reference Solidity SHA-256:      96165DFA8541270DCDC11C626CFCE02E98042E8F80F5A40F580C121C74207A29
-Protocol tests SHA-256:          7457317FB53AE72CDADCA0AA22786E8292008A987CDCDE4329D1C73DCE5948C1
+Authoritative candidate SHA-256: 9B91D4AFD1FFC2FC6CD8ABF8141054C61D546EB15E133E29C70A5A096F139B99
+Reference Solidity SHA-256:      484E171E62055D6341972C52F69B00D53BEFC5D4A9C60BD47429DB5B7BEBB061
+Protocol tests SHA-256:          F760E5EE6025475C64980DABAAEB252304BA49BD648DC4A73E6C01FD79DB1D73
 
 Node.js v22.22.2
 Hardhat 2.29.0
 ethers 6.17.0
 solc 0.8.26
 
-Packaged public assets suite: 27 passing, 0 failing
-Clean-copy `npm test` entrypoint: PASS
-Solidity compile warnings: 0 (asserted inside the suite)
-Submission static gate (tools/verify-package.mjs): PASS
-Official eipw 0.11.0 synthetic-substitution lint: PASS, 0 diagnostics, exit code 0
-eipw negative control: breaking the CC0 sentence reproduces markdown-copyright, exit code 65
+MEASURED, not asserted:
+
+  Official eipw 0.11.0 with the ethereum/ERCs config snapshot
+    placeholder form            exit 0, zero diagnostics
+    numbered form (8168)        exit 0, zero diagnostics
+    eipw   sha256 ae1b2f651f8c8e8534a37e6eac093031c13381e0dc565ce45a28efdd4641d595
+    config sha256 575e0cf5f4f93c924616e3e4ab0ba49b5910b0d78e95c333fad043548a7a2357
+  eipw negative control (CC0 line broken)   markdown-copyright, exit 65
+  Clean copy npm install && npm test        31 passing, 0 failing
+  Solidity compile warnings                 0 (asserted inside the suite)
+  Runtime bytecode                          under EIP-170 (asserted inside the suite)
+  Submission static gate                    PASS
 
 IRegisterProjection interface ID:   0x6309e170
-IProjectionSettlement interface ID: 0xfd0f6337
+IProjectionSettlement interface ID: 0xf4a7d71b
 
-No discussion was published. No PR was created or submitted. The only remaining
-user inputs are the Ethereum Magicians discussion URL and explicit publication
-authorization including IPR/CC0 confirmation.
+Both recomputed by independent selector XOR; the method first reproduced the
+previously frozen values from the previous interface definitions.
+
+The only remaining user input is the Ethereum Magicians discussion URL, plus
+publication authorization including IPR/CC0 confirmation.

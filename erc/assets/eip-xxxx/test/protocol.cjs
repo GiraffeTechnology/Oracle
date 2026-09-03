@@ -59,22 +59,24 @@ describe("Asynchronous register projection", function () {
   const settlementId = b32("settlement-1");
   const E1 = 1000n;
 
-  let compiled, contract, admin, owner, buyer, outsider, validators, setHash, deadline;
+  let compiled, contract, admin, owner, buyer, outsider, registrar, validators, setHash, deadline;
+  let domainSeparator;
 
   before(() => { compiled = compile(); });
 
   beforeEach(async () => {
-    [admin, owner, buyer, outsider] = await ethers.getSigners();
+    [admin, owner, buyer, outsider, registrar] = await ethers.getSigners();
     validators = [ethers.Wallet.createRandom(), ethers.Wallet.createRandom(), ethers.Wallet.createRandom()]
       .sort((a, b) => a.address.toLowerCase().localeCompare(b.address.toLowerCase()));
     const addresses = validators.map((v) => v.address);
     setHash = ethers.keccak256(coder.encode(["address[]", "uint8"], [addresses, 2]));
     const artifact = compiled.RegisterProjectionReference;
     contract = await new ethers.ContractFactory(artifact.abi, `0x${artifact.evm.bytecode.object}`, admin)
-      .deploy(registerId, addresses, 2);
+      .deploy(registerId, registrar.address, addresses, 2);
     await contract.waitForDeployment();
     await contract.mint(owner.address, tokenId, c1, ref1, E1);
     deadline = BigInt((await ethers.provider.getBlock("latest")).timestamp + 3600);
+    domainSeparator = await contract.DOMAIN_SEPARATOR();
   });
 
   async function rejects(promise, name) {
@@ -83,7 +85,7 @@ describe("Asynchronous register projection", function () {
     catch (error) { assert.ok(JSON.stringify(error).toLowerCase().includes(selector.slice(2)), `expected ${name}, got ${error.message}`); }
   }
 
-  const begin = (id = settlementId, holder = buyer.address, snap = snapshot, dl = deadline, signer = owner) =>
+  const begin = (id = settlementId, holder = buyer.address, snap = snapshot, dl = deadline, signer = registrar) =>
     contract.connect(signer).beginSettlement(tokenId, id, holder, snap, dl);
 
   async function proof(o = {}) {
@@ -101,27 +103,29 @@ describe("Asynchronous register projection", function () {
       version: o.version ?? 2n,
       effectiveAt: o.effectiveAt ?? 2000n
     };
-    const leaf = ethers.keccak256(coder.encode(
+    const leafStruct = ethers.keccak256(coder.encode(
       ["bytes32", "uint256", "address", "uint256", "bytes32", "address", "bytes32", "bytes32", "bytes32", "bytes32", "uint64", "uint64"],
       [LEAF_TYPE, v.chainId, v.target, v.tokenId, v.settlementId, v.holder, v.snapshot, v.previous, v.commitment, v.reference, v.version, v.effectiveAt]
     ));
+    const leaf = ethers.keccak256(ethers.concat(["0x00", leafStruct]));
     const siblings = o.siblings || [];
     let index = o.index || 0n;
     let root = leaf;
     let walk = index;
     for (const s of siblings) {
       root = (walk & 1n) === 0n
-        ? ethers.keccak256(ethers.concat([root, s]))
-        : ethers.keccak256(ethers.concat([s, root]));
+        ? ethers.keccak256(ethers.concat(["0x01", root, s]))
+        : ethers.keccak256(ethers.concat(["0x01", s, root]));
       walk >>= 1n;
     }
     root = o.root ?? root;
     const height = o.height ?? 10n;
     const blockHash = o.blockHash ?? b32("remote-block-10");
-    const digest = ethers.keccak256(coder.encode(
+    const structHash = ethers.keccak256(coder.encode(
       ["bytes32", "bytes32", "uint64", "bytes32", "bytes32", "bytes32"],
       [FINALITY_TYPE, o.digestRegisterId ?? registerId, height, blockHash, root, o.digestSetHash ?? setHash]
     ));
+    const digest = ethers.keccak256(ethers.concat(["0x1901", o.domain ?? domainSeparator, structHash]));
     const signers = o.signers || validators.slice(0, 2);
     const signatures = signers.map((w) => ethers.Signature.from(w.signingKey.sign(digest)).serialized);
     return coder.encode(
@@ -142,7 +146,7 @@ describe("Asynchronous register projection", function () {
     const projection = interfaceId(compiled.IRegisterProjection.abi);
     const settlement = interfaceId(compiled.IProjectionSettlement.abi);
     assert.equal(projection, "0x6309e170");
-    assert.equal(settlement, "0xfd0f6337");
+    assert.equal(settlement, "0xf4a7d71b");
     assert.notEqual(projection, settlement);
     assert.equal(await contract.supportsInterface("0x01ffc9a7"), true);
     assert.equal(await contract.supportsInterface("0x80ac58cd"), true);
@@ -214,7 +218,7 @@ describe("Asynchronous register projection", function () {
   it("supersedes an open gap when a later settlement begins", async () => {
     await begin();
     const replacement = b32("settlement-2");
-    await contract.connect(owner).beginSettlement(tokenId, replacement, outsider.address, b32("snapshot-2"), deadline);
+    await contract.connect(registrar).beginSettlement(tokenId, replacement, outsider.address, b32("snapshot-2"), deadline);
     assert.equal((await contract.settlement(settlementId)).status, 4n);
     assert.equal(await contract.openGapOf(tokenId), replacement);
     assert.equal((await contract.currentEntry(tokenId)).version, 1n);
@@ -267,7 +271,7 @@ describe("Asynchronous register projection", function () {
     await begin();
     const data = await proof();
     await finalize(data);
-    await contract.connect(owner).beginSettlement(tokenId, b32("settlement-3"), outsider.address, b32("snapshot-3"), deadline);
+    await contract.connect(registrar).beginSettlement(tokenId, b32("settlement-3"), outsider.address, b32("snapshot-3"), deadline);
     await rejects(
       contract.finalizeSettlement(b32("settlement-3"), b32("commitment-v3"), ref2, 3000n, await proof({ settlementId: b32("settlement-3"), holder: outsider.address, snapshot: b32("snapshot-3"), previous: c2, commitment: b32("commitment-v3"), version: 3n, effectiveAt: 3000n, height: 5n })),
       "StaleRemoteHeight"
@@ -282,9 +286,9 @@ describe("Asynchronous register projection", function () {
 
   it("rejects cancellation before the deadline and accepts it after", async () => {
     await begin();
-    await rejects(contract.connect(owner).cancelSettlement(settlementId, b32("abandon"), "0x"), "DeadlineNotPassed");
+    await rejects(contract.connect(registrar).cancelSettlement(settlementId, b32("abandon")), "DeadlineNotPassed");
     await advance(7200);
-    await contract.connect(owner).cancelSettlement(settlementId, b32("timeout"), "0x");
+    await contract.connect(registrar).cancelSettlement(settlementId, b32("timeout"));
     assert.equal((await contract.settlement(settlementId)).status, 3n);
     assert.equal((await contract.currentEntry(tokenId)).version, 1n);
     assert.equal(await contract.openGapOf(tokenId), ethers.ZeroHash);
@@ -292,7 +296,7 @@ describe("Asynchronous register projection", function () {
 
   it("admits a proof within the deadline after a rejected cancellation attempt", async () => {
     await begin();
-    await rejects(contract.connect(owner).cancelSettlement(settlementId, b32("abandon"), "0x"), "DeadlineNotPassed");
+    await rejects(contract.connect(registrar).cancelSettlement(settlementId, b32("abandon")), "DeadlineNotPassed");
     await finalize(await proof());
     assert.equal((await contract.currentEntry(tokenId)).holder, buyer.address);
     assert.equal((await contract.settlement(settlementId)).status, 2n);
@@ -300,8 +304,7 @@ describe("Asynchronous register projection", function () {
 
   it("rejects finalization after the deadline and cancellation by others", async () => {
     await begin();
-    await rejects(contract.connect(outsider).cancelSettlement(settlementId, b32("x"), "0x"), "Unauthorized");
-    await rejects(contract.connect(owner).cancelSettlement(settlementId, b32("x"), "0x01"), "Unauthorized");
+    await rejects(contract.connect(outsider).cancelSettlement(settlementId, b32("x")), "Unauthorized");
     await advance(7200);
     await rejects(finalize(await proof()), "DeadlinePassed");
   });
@@ -338,7 +341,7 @@ describe("Asynchronous register projection", function () {
       const id = b32(`chain-${i}`);
       const next = b32(`chain-commitment-${i}`);
       const to = i % 2 === 0 ? buyer.address : outsider.address;
-      await contract.connect(owner).beginSettlement(tokenId, id, to, b32(`chain-snapshot-${i}`), BigInt((await ethers.provider.getBlock("latest")).timestamp + 3600));
+      await contract.connect(registrar).beginSettlement(tokenId, id, to, b32(`chain-snapshot-${i}`), BigInt((await ethers.provider.getBlock("latest")).timestamp + 3600));
       const version = BigInt(i + 2);
       const effectiveAt = 2000n + BigInt(i) * 1000n;
       await contract.finalizeSettlement(id, next, ref2, effectiveAt, await proof({
@@ -382,7 +385,7 @@ describe("Asynchronous register projection", function () {
     assert.equal(await contract.isFinalAsOf(tokenId, 1500n), true);
     const settled = await contract.holderAsOf(tokenId, 1500n);
     // Authorization follows the ERC-721 owner, which the projection has not moved.
-    await contract.connect(owner).beginSettlement(tokenId, b32("later"), outsider.address, b32("later-snapshot"), deadline);
+    await contract.connect(registrar).beginSettlement(tokenId, b32("later"), outsider.address, b32("later-snapshot"), deadline);
     await contract.finalizeSettlement(b32("later"), b32("commitment-v3"), ref2, 2500n, await proof({
       settlementId: b32("later"), holder: outsider.address, snapshot: b32("later-snapshot"),
       previous: c2, commitment: b32("commitment-v3"), version: 3n, effectiveAt: 2500n, height: 11n
@@ -413,7 +416,7 @@ describe("Asynchronous register projection", function () {
     assert.equal(await contestedAt(opened - 1n), false, "the contest does not reach before the gap opened");
 
     await advance(4000);
-    await contract.connect(owner).cancelSettlement(settlementId, b32("abandoned"), "0x");
+    await contract.connect(registrar).cancelSettlement(settlementId, b32("abandoned"));
     assert.equal(await contestedAt(await now()), false, "cancelling ends the contest");
     assert.equal(await contract.isFinalAsOf(tokenId, await now()), false, "but settles nothing");
   });
@@ -432,7 +435,7 @@ describe("Asynchronous register projection", function () {
     await rejects(finalize(await proof()), "InvalidSettlement");
     await begin(b32("to-cancel"), outsider.address);
     await advance(4000);
-    await contract.connect(owner).cancelSettlement(b32("to-cancel"), b32("done"), "0x");
+    await contract.connect(registrar).cancelSettlement(b32("to-cancel"), b32("done"));
     await rejects(finalize(await proof(), { id: b32("to-cancel") }), "InvalidSettlement");
     await begin(b32("first"), outsider.address, b32("s-a"), BigInt((await ethers.provider.getBlock("latest")).timestamp + 3600));
     await begin(b32("second"), outsider.address, b32("s-b"), BigInt((await ethers.provider.getBlock("latest")).timestamp + 3600));
@@ -441,5 +444,56 @@ describe("Asynchronous register projection", function () {
     const after = await contract.currentEntry(tokenId);
     assert.equal(after.version, settled.version);
     assert.equal(after.recordCommitment, settled.recordCommitment);
+  });
+
+  it("scopes settlement authority to the registrar, not to ownerOf", async () => {
+    // The projection records the register's holder. Deriving the authority from
+    // ownerOf would leave the registrar unable to record its own changes, and
+    // would hand the ability to hold a gap open to whoever last bought in.
+    assert.equal(await contract.isSettlementAuthority(tokenId, registrar.address), true);
+    assert.equal(await contract.isSettlementAuthority(tokenId, owner.address), false);
+    assert.equal(await contract.isSettlementAuthority(tokenId, outsider.address), false);
+    await rejects(
+      contract.connect(owner).beginSettlement(tokenId, settlementId, buyer.address, snapshot, deadline),
+      "Unauthorized"
+    );
+    await contract.connect(owner).transferFrom(owner.address, buyer.address, tokenId);
+    assert.equal(await contract.isSettlementAuthority(tokenId, buyer.address), false);
+    await rejects(
+      contract.connect(buyer).beginSettlement(tokenId, settlementId, buyer.address, snapshot, deadline),
+      "Unauthorized"
+    );
+    await begin();
+    assert.equal(await contract.openGapOf(tokenId), settlementId);
+  });
+
+  it("rejects an effective time too far ahead of the present", async () => {
+    await begin();
+    const now = BigInt((await ethers.provider.getBlock("latest")).timestamp);
+    const tooFar = now + 60n * 24n * 3600n;
+    await rejects(
+      finalize(await proof({ effectiveAt: tooFar }), { effectiveAt: tooFar }),
+      "EffectiveAtTooFar"
+    );
+    await finalize(await proof());
+    assert.equal((await contract.currentEntry(tokenId)).version, 2n);
+  });
+
+  it("binds the finality signature to this contract through the EIP-712 domain", async () => {
+    await begin();
+    const foreign = b32("some-other-domain-separator");
+    assert.notEqual(foreign, domainSeparator);
+    await rejects(finalize(await proof({ domain: foreign })), "InvalidProof");
+    await finalize(await proof());
+    assert.equal((await contract.currentEntry(tokenId)).holder, buyer.address);
+  });
+
+  it("rejects a membership index carrying bits beyond the path length", async () => {
+    // Without exhausting the index, several (index, siblings) pairs verify
+    // against one root.
+    await begin();
+    await rejects(finalize(await proof({ index: 4n })), "InvalidProof");
+    await finalize(await proof());
+    assert.equal((await contract.currentEntry(tokenId)).version, 2n);
   });
 });

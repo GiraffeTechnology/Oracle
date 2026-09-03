@@ -59,6 +59,8 @@ An instant is **contested** when a projection gap is open on the token and that 
 
 A **verification profile**, called a **profile** below, defines the remote-finality proof, light-client or validator rules, state-root commitment, membership-proof algorithm, validator-set evolution, canonical encoding and hash functions. Verification under it MUST be deterministic and domain separated. This ERC does not constrain how an attested value is produced; a profile MAY.
 
+A **settlement authority** for a token is an account that may open a gap on it, as reported by `isSettlementAuthority`. A profile MUST define the policy.
+
 A **settlement period** is the implementation-defined maximum an open gap may run for, reported by `settlementPeriod` and enforced on the deadline `beginSettlement` accepts. This ERC does not prescribe its length.
 
 Every instant here — `effectiveAt`, `supersededAt`, `openedAt`, a deadline, and the `instant` arguments — is a count of seconds since the Unix epoch, on the same scale as `block.timestamp`. Register instants and chain instants are therefore comparable, which the definition of a contested instant relies on. A register whose effective times cannot be expressed on that scale cannot be projected through this interface.
@@ -69,7 +71,7 @@ These four rules are what make an instant resolve uniquely. An implementation th
 
 1. The first entry MUST have version `1` and a zero `previousCommitment`, and MUST emit `RegisterInitialized`.
 2. Each admitted change MUST append version `n + 1`, link the prior commitment, set the prior entry's `supersededAt` to the new entry's `effectiveAt`, leave the new entry's `supersededAt` zero, and emit `RegisterSuperseded`. The prior entry's interval is closed by the register, not by the moment the chain learned of it.
-3. `effectiveAt` MUST be **strictly greater** than that of the preceding entry. Equal effective times are forbidden, because an instant shared by two entries would have two answers.
+3. `effectiveAt` MUST be **strictly greater** than that of the preceding entry. Equal effective times are forbidden, because an instant shared by two entries would have two answers. Because strict monotonicity also means no later entry can undercut an admitted effective time, an implementation SHOULD reject an `effectiveAt` further ahead of the current block timestamp than its profile allows; an unbounded one ends the projection for that token permanently.
 4. A record commitment MUST be unique within a token's own chain of entries. A repeated commitment is forbidden, because two entries that cannot be told apart cannot be resolved.
 
 Entries MUST NOT be overwritten, deleted, reordered or skipped. Queries for a nonexistent token or version MUST revert.
@@ -86,7 +88,7 @@ An instant at or after the latest entry's `effectiveAt` still resolves, but prov
 
 ### Register interface
 
-These interfaces are implemented by the [ERC-721](./eip-721.md) contract itself. They identify a token by `tokenId` alone and carry no token contract address, and settlement authorization is that contract's own ERC-721 authorization.
+These interfaces are implemented by the [ERC-721](./eip-721.md) contract itself. They identify a token by `tokenId` alone and carry no token contract address. Who may open a gap is a separate question from who owns the token, and is answered by `isSettlementAuthority` rather than by ERC-721 authorization; see **Settlement authority** below.
 
 ```solidity
 // SPDX-License-Identifier: CC0-1.0
@@ -174,9 +176,19 @@ In a settlement-conforming implementation an entry can be admitted only into an 
 
 Cancelling a settlement ends the contest but settles nothing. The preceding entry remains in force, so the provisional answer reverts to the holder confirmed before the gap opened, but the instant does not thereby become final. A change the register already made, and this chain has not yet seen, can still be admitted afterwards.
 
+### Settlement authority
+
+`isSettlementAuthority` MUST report whether an account may open a gap on a token, and MUST revert for a nonexistent token. A profile MUST define the policy it reports.
+
+Two properties of the projection depend on that policy, in opposite directions. An account that may open gaps can advance the projection; the same account can hold one open indefinitely by superseding, leaving every recent instant non-final and contested. A projection whose authority cannot act stops tracking its register, and a projection whose authority is adverse stops tracking it just as effectively.
+
+A profile therefore SHOULD grant this authority to the party responsible for the remote register, and SHOULD NOT derive it from `ownerOf` alone: the projection records the register's holder rather than the tradeable position, and a registrar unable to open a gap cannot record a change its own register has already made. A profile SHOULD additionally bound supersession, since a superseded settlement can no longer be finalized and a proof already produced for it becomes unusable.
+
+An implementation MUST expose the authority through `isSettlementAuthority` rather than leaving it implicit, because the parties who rely on the projection are third parties with no relationship to the registrar, and an authority they cannot check tells them nothing about who can move the answer.
+
 ### Settlement and proof-verified admission
 
-`beginSettlement` MUST require an existing token, a nonzero unused `settlementId`, a nonzero snapshot, an authorized ERC-721 caller, and a future deadline whose distance from the current block timestamp MUST NOT exceed the settlement period. It MUST emit `SettlementStarted`.
+`beginSettlement` MUST require an existing token, a nonzero unused `settlementId`, a nonzero snapshot, a caller for which `isSettlementAuthority` returns true, and a future deadline whose distance from the current block timestamp MUST NOT exceed the settlement period. It MUST emit `SettlementStarted`.
 
 An `expectedHolder` equal to the current confirmed holder MUST be permitted. It admits a **confirming entry**: an entry asserting that the register still records the same holder at a later effective time. Confirming entries are how instants become final on a token whose holder is not changing, so a profile SHOULD provide a way to produce them. Without them, instants at or after the latest entry's effective time never become final, and anything that waits on finality at those instants waits indefinitely.
 
@@ -188,7 +200,7 @@ Before admission the verifier MUST establish that the proof belongs to the pinne
 
 On success the implementation MUST, in one transaction, consume the proof, record the new remote height, append the entry under the invariants above, close the gap, and emit `RegisterSuperseded` and `SettlementFinalized`. Any failure MUST revert every effect.
 
-The recorded initiator MAY cancel an open gap using empty `proofData`, but only after the deadline has passed. Cancellation before the deadline MUST revert, so that a record already finalized remotely cannot be stranded by unilateral abandonment. Cancellation MUST NOT change the projection.
+The recorded initiator MAY cancel an open gap, but only after the deadline has passed. Cancellation before the deadline MUST revert, so that a record already finalized remotely cannot be stranded by unilateral abandonment. Cancellation MUST NOT change the projection.
 
 ### Settlement interface
 
@@ -230,15 +242,18 @@ interface IProjectionSettlement is IERC165 {
     function verificationProfile()
         external view returns (bytes32 identifier);
 
+    function isSettlementAuthority(uint256 tokenId, address account)
+        external view returns (bool authorized);
+
     function beginSettlement(uint256 tokenId, bytes32 settlementId, address expectedHolder, bytes32 snapshotHash, uint64 deadline) external;
 
     function finalizeSettlement(bytes32 settlementId, bytes32 recordCommitment, bytes32 registryReference, uint64 effectiveAt, bytes calldata proofData) external;
 
-    function cancelSettlement(bytes32 settlementId, bytes32 reasonHash, bytes calldata proofData) external;
+    function cancelSettlement(bytes32 settlementId, bytes32 reasonHash) external;
 }
 ```
 
-The ERC-165 identifier for `IProjectionSettlement` is `0xfd0f6337`.
+The ERC-165 identifier for `IProjectionSettlement` is `0xf4a7d71b`.
 
 `openedAt` MUST be the block timestamp at which `beginSettlement` succeeded; it is what bounds the interval a gap makes contested. `settlement(unknownId)` MUST revert. `openGapOf` MUST return zero when no gap is open. `NONE` is the zero-value internal status and MUST NOT be returned by a successful query for an unknown identifier.
 
@@ -248,7 +263,7 @@ The ERC-165 identifier for `IProjectionSettlement` is `0xfd0f6337`.
 
 A contract has **projection conformance** if it implements `IRegisterProjection`, advertises `0x6309e170`, and satisfies the projection invariants and the finality rule.
 
-A contract has **settlement conformance** if it has projection conformance, implements `IProjectionSettlement`, advertises `0xfd0f6337`, and satisfies every settlement and proof requirement here.
+A contract has **settlement conformance** if it has projection conformance, implements `IProjectionSettlement`, advertises `0xf4a7d71b`, and satisfies every settlement and proof requirement here.
 
 A contract MUST NOT advertise an identifier whose requirements it does not satisfy. A projection may be maintained by means other than the settlement interface, so the two are discovered separately.
 
@@ -263,6 +278,8 @@ Finality is stated separately from resolution because they are different questio
 Three facts are exposed rather than one because different rights need different ones. A claim made against a past instant does not care who holds the token now; it needs `holderAsOf` for that instant, and `isFinalAsOf` before it acts, since acting on an answer a later admission may supersede acts for the wrong party. An exercise that happens at a moment and cannot be repeated cannot wait for an answer to settle at all: the present moment is at or after the latest entry's effective time and so is never final. What it can see is whether a change is in flight right now, which is what an open gap reports. Collapsing these into one accessor would leave every consumer guessing which of the three questions it had been answered.
 
 What a right then does is left to its own terms, and that restraint is deliberate. This ERC settles who may move the register's answer and what that answer is at any instant; it does not also settle what any particular right should do about it. Different rights answer that differently, and a standard that fixed the answers would be legislating past the point where interoperability requires agreement.
+
+The authority to open a gap is exposed, and kept apart from `ownerOf`, for the same reason the two ownership notions are kept apart. Reusing ERC-721 authorization would be the smaller specification, and it is the wrong one twice over: it leaves the registrar — the party whose register this projects — unable to record a change it has already made, and it hands the ability to hold a gap open to whoever last bought the token. Neither follows from owning a tradeable position. What a third party needs is not a fixed answer about who the authority is, which differs by deployment, but the ability to ask.
 
 Register and profile identifiers are exposed for the same reason the projection is. The parties who need this are third parties with no relationship to the registrar; a projection they cannot attribute to a register, under a proof profile they cannot name, tells them very little.
 
@@ -300,7 +317,9 @@ This ERC is additive to ERC-721 and discoverable through ERC-165. It does not al
 
 Conforming implementations MUST satisfy at least the following.
 
-1. Interface identifiers are `0x6309e170` for `IRegisterProjection` and `0xfd0f6337` for `IProjectionSettlement`.
+1. Interface identifiers are `0x6309e170` for `IRegisterProjection` and `0xf4a7d71b` for `IProjectionSettlement`.
+1. `isSettlementAuthority` reports the authority, reverts for an unknown token, and is not satisfied by `ownerOf`: a token owner who is not the authority cannot begin a settlement, and transferring the token does not confer the authority.
+1. An `effectiveAt` further ahead of the current block timestamp than the profile allows is rejected.
 2. An entry whose `effectiveAt` equals the preceding entry's is rejected.
 3. A repeated record commitment within a token is rejected.
 4. `entryAsOf` returns the covering entry for instants inside, at the start of, and after each interval, and reverts before the first entry.
@@ -317,6 +336,7 @@ Conforming implementations MUST satisfy at least the following.
 15. `registerId` and `verificationProfile` are nonzero and unchanged across admissions.
 16. A contested instant and a merely non-final instant are distinguishable: while a gap is open, `openGapOf` identifies it and its `openedAt` bounds the contested interval; once the gap closes by admission or cancellation, no instant is contested even though instants at or after the latest entry remain non-final.
 17. No entry can be admitted while no gap is open: an otherwise valid proof is rejected when its settlement is absent, already admitted, cancelled or superseded.
+1. A membership path whose index carries bits beyond the path length is rejected, so that only one `(index, siblings)` pair verifies against a given root.
 
 ## Reference Implementation
 
@@ -334,9 +354,9 @@ The deadline bounds how long a gap may stay open; an unbounded gap would make th
 
 Because trading is not blocked, integrators MUST NOT treat `ownerOf` as the confirmed holder. An integrator that needs the confirmed record MUST read the projection, one that needs to know whether a change is expected MUST check `openGapOf`, and one that needs a settled answer MUST check `isFinalAsOf`. Treating a provisional answer as final is the most likely integration error here, because `entryAsOf` returns an answer either way.
 
-Finality depends on a later entry existing, so a register that stops producing entries leaves recent instants permanently non-final, and anything a consumer holds back until they settle permanently unsettled. This is a liveness dependency on the register and its profile, not a safety defect, but a profile that offers no way to admit a confirming entry inherits it. Conversely, an authority that can produce entries at will can make instants final at will, so the ability to begin settlements is itself a privilege and MUST be scoped accordingly.
+Finality depends on a later entry existing, so a register that stops producing entries leaves recent instants permanently non-final, and anything a consumer holds back until they settle permanently unsettled. This is a liveness dependency on the register and its profile, not a safety defect, but a profile that offers no way to admit a confirming entry inherits it. Conversely, an authority that can produce entries at will can make instants final at will, so the ability to begin settlements is itself a privilege and MUST be scoped accordingly. `isSettlementAuthority` makes the current scope readable, but reading it is not the same as approving it: a consumer that relies on the projection MUST decide whether it accepts that authority, exactly as it must decide whether it accepts the verification profile.
 
-The same privilege withholds as well as produces. Beginning a settlement while one is open supersedes it, and a superseded settlement can no longer be finalized, so a proof the register has already produced for it becomes unusable. Whoever may begin settlements can therefore keep a token's gap open indefinitely, leaving every recent instant non-final and contested. Nothing is misreported when this happens — the projection states exactly that the answer is unsettled — but the projection stops tracking the register, which is the one thing it exists to do. A profile that cannot bound this SHOULD restrict who may supersede, or when.
+The same privilege withholds as well as produces. Beginning a settlement while one is open supersedes it, and a superseded settlement can no longer be finalized, so a proof the register has already produced for it becomes unusable. Whoever may begin settlements can therefore keep a token's gap open indefinitely, leaving every recent instant non-final and contested. Nothing is misreported when this happens — the projection states exactly that the answer is unsettled — but the projection stops tracking the register, which is the one thing it exists to do. A profile that cannot bound this SHOULD restrict who may supersede, or when. Deriving the authority from `ownerOf` makes this worse rather than better, because it grants the withholding position to any party willing to acquire the token, and grants it afresh on every transfer.
 
 Strict monotonicity also cuts the other way at the far end. An admitted effective time far in the future permanently ends the projection for that token, because no later entry can exceed it. Nothing here bounds how far ahead of the present an effective time may be, so a profile that cannot rule that out inherits an unrecoverable state.
 
