@@ -79,7 +79,7 @@ jobs:
         with: { persist-credentials: false }
       - uses: actions/setup-node@v4
         with: { node-version-file: .nvmrc }
-      - run: node --test --test-reporter=spec test/prd-v0.3-acceptance.test.js test/control-plane.test.js test/l2-l3-configuration.test.js
+      - run: node --test --test-reporter=spec test/prd-v0.4-acceptance.test.js test/control-plane.test.js test/l2-l3-configuration.test.js
 
   mysql-migrate-backup-restore:
     runs-on: ubuntu-latest

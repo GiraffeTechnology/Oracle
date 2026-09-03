@@ -21,7 +21,7 @@
     "scan": "node scripts/repository-scan.mjs && node scripts/product-boundary-scan.mjs",
     "verify": "pnpm run format:check && pnpm run typecheck && pnpm run check:decisions && pnpm run check:layer-states && pnpm run check:scope-coverage && pnpm run check:no-financial-output && pnpm run check:hygiene && pnpm run check:erc-constants && node scripts/syntax-check.mjs && node scripts/repository-scan.mjs && node scripts/product-boundary-scan.mjs && pnpm run test",
     "verify:erc": "node scripts/run-erc-tests.mjs",
-    "verify:prd": "node scripts/syntax-check.mjs && node --test \"test/*.test.js\" && node scripts/repository-scan.mjs && node scripts/product-boundary-scan.mjs && node scripts/verify-prd-v0.3.mjs",
+    "verify:prd": "node scripts/syntax-check.mjs && node --test \"test/*.test.js\" && node scripts/repository-scan.mjs && node scripts/product-boundary-scan.mjs && node scripts/verify-prd-v0.4.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",

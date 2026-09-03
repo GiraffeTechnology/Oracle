@@ -14,7 +14,7 @@
 > **更新（2026-08-28，issue #5 已处理）**：本节所述的结构性差距**已通过分支整合关闭**。
 > 实现、需求、验收、CI 现处于同一 commit；I0–I12 与 ORACLE/CONSUMER/NFR 的追溯映射见
 > `TRACEABILITY_ZH.md`，并由 `scripts/check-scope-coverage.mjs` 强制。整合后本地实测：
-> `verify-prd-v0.3` 报 23/24 工程侧已验证（仅 NFR-004 待外部证据），217 项测试通过。
+> `verify-prd-v0.4` 报 23/24 工程侧已验证（仅 NFR-004 待外部证据），217 项测试通过。
 > 下文保留为整合前的记录。
 
 ## 0. 整合后复审（2026-08-31，对 commit `0bb0d6d`）
@@ -31,7 +31,7 @@
 
 ### 0.1 新发现：需求—测试绑定的可引用性弱
 
-`config/prd-v0.3-acceptance.json` 绑定的测试**全部存在且通过**（无悬空引用），故 `verify-prd-v0.3`
+`config/prd-v0.4-acceptance.json` 绑定的测试**全部存在且通过**（无悬空引用），故 `verify-prd-v0.4`
 报 23/24 成立。但 **24 条需求中有 13 条，其绑定的测试名从不提及自身 ID**。多数只是命名描述性
 （如 ORACLE-001 绑定"requires a registered active source and approved schema"），审计员仍可阅读
 判断；但有一类更需注意：**绑定的测试其名称断言的是另一条需求**，包括 CONSUMER-007→CONSUMER-003、
@@ -53,7 +53,7 @@ CONSUMER-008→CONSUMER-004/009、ORACLE-009→ORACLE-005/006、ORACLE-010→CON
 
 已补 `test/consumer-008-external-market-boundary.test.js`：对 `src/` 做标识符级扫描（避免误伤英文
 行文），并断言 `src/app.js` 的路由字面量不含交易或支付路径；已反向验证 —— 植入 `orderBook` 即失败。
-`config/prd-v0.3-acceptance.json` 中 CONSUMER-008 的绑定已改为指向该测试。
+`config/prd-v0.4-acceptance.json` 中 CONSUMER-008 的绑定已改为指向该测试。
 
 **建议**：其余 12 条的绑定宜补具名测试或重命名，使每条需求都能被独立引用。这不影响当前
 `engineeringVerified=23`，属取证可审性改进。

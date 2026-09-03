@@ -6,8 +6,8 @@
 
 1. `docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md`；
 2. `docs/ACCEPTANCE_RWA_ORACLE_ZH.md`；
-3. `config/prd-v0.3-acceptance.json`；
-4. `scripts/verify-prd-v0.3.mjs`；
+3. `config/prd-v0.4-acceptance.json`；
+4. `scripts/verify-prd-v0.4.mjs`；
 5. `docs/STATUS.md`。
 
 旧 `PRD_RWA_ORACLE_PROTOCOL_L2_L3_ZH.md` 仅保留历史审计，不得覆盖新基线。I0–I12 仍作为交付分解使用，但 `config/iteration-acceptance.json` 与 `verify-iterations.mjs` 已强制绑定 v0.3 的 ORACLE/CONSUMER/NFR 编号；任何遗漏、未知编号或版本漂移均失败关闭。
@@ -21,10 +21,10 @@ node --test --test-reporter=spec "test/*.test.js"
 node scripts/repository-scan.mjs
 node scripts/product-boundary-scan.mjs
 node scripts/verify-release.mjs
-node scripts/verify-prd-v0.3.mjs
+node scripts/verify-prd-v0.4.mjs
 ```
 
-`verify-prd-v0.3.mjs` 在任何适用门禁未满足时必须非零退出。当前工程候选预期为 ORACLE-001~011、CONSUMER-001~009、NFR-001~003 本地验证通过；NFR-004 和 Stage A/D/F 保持 `PENDING-GATE`，`allComplete=false`。
+`verify-prd-v0.4.mjs` 在任何适用门禁未满足时必须非零退出。当前工程候选预期为 ORACLE-001~011、CONSUMER-001~009、NFR-001~003 本地验证通过；NFR-004 和 Stage A/D/F 保持 `PENDING-GATE`，`allComplete=false`。
 
 ## 必查项
 

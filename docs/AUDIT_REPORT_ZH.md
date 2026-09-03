@@ -6,7 +6,7 @@
 | 审计日期 | 2026-09-03 |
 | 权威需求 | `PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` v0.3（依 D-001、D-005） |
 | 权威验收 | `ACCEPTANCE_RWA_ORACLE_ZH.md` v0.3 |
-| 方法 | 机器核验（`verify-prd-v0.3`、`verify-iterations`、6 道 CI 守卫、238 项测试）+ 人工复核绑定强度与文档时效 |
+| 方法 | 机器核验（`verify-prd-v0.4`、`verify-iterations`、6 道 CI 守卫、238 项测试）+ 人工复核绑定强度与文档时效 |
 
 > 依验收标准 §2，「完成」「交付」「通过」「可上生产」为保留词，仅当同一 commit 上全部适用
 > 验收项均为 `VERIFIED` 时方可使用。**本报告不满足该条件，全文不使用上述表述。**
@@ -91,7 +91,7 @@
 
 | 检查 | 结果 |
 | --- | --- |
-| `verify-prd-v0.3` | **23 / 24 工程侧已验证**，仅 `NFR-004` 待外部证据 |
+| `verify-prd-v0.4` | **23 / 24 工程侧已验证**，仅 `NFR-004` 待外部证据 |
 | `verify-iterations` | **I0–I11 completed，I12 blocked** |
 | 测试套件 | **238 项通过 / 0 失败** |
 | 阶段门 | B、C、E = `VERIFIED`；**A、D、F = `PENDING-GATE`** |
@@ -127,7 +127,7 @@
 
 | # | 过期记录 | 实际 |
 | --- | --- | --- |
-| A1 | `PRODUCTION_READINESS_ZH.md` §3 表判定「本 commit 无 token 绑定实现；CONSUMER-001 为 `NOT-IMPLEMENTED`」「无来源适配器接入」「24 条中 3 条 `VERIFIED`」 | 均为**整合前**快照。整合后 `verify-prd-v0.3` 报 23/24 |
+| A1 | `PRODUCTION_READINESS_ZH.md` §3 表判定「本 commit 无 token 绑定实现；CONSUMER-001 为 `NOT-IMPLEMENTED`」「无来源适配器接入」「24 条中 3 条 `VERIFIED`」 | 均为**整合前**快照。整合后 `verify-prd-v0.4` 报 23/24 |
 | A2 | `STATUS.md` 与 `PRODUCTION_READINESS_ZH.md` 均写「CI 目前因 issue #4 全部作业失败，故上述任何一项不得记为已清除」 | **CI 早已恢复**，`ec07cd0` 上 13 个 job 全绿。该前提不再成立 |
 | A3 | `STATUS.md` 写「验收 §6 三类必需作业缺失：契约测试、合成消费者集成、数据库迁移循环」 | 三者**均已存在**：`contract`、`consumer-integration`、`mysql-migrate-backup-restore` |
 
@@ -137,7 +137,7 @@
 
 | # | 差距 | 说明 |
 | --- | --- | --- |
-| B1 | **12 项需求的证据绑定经不起追问** | `verify-prd-v0.3` 验证的是「具名测试存在且通过」，不是「该测试确立了该需求」。24 项中 **12 项**绑定的测试名从未提及自身 ID：`ORACLE-001/004/008/009/010`、`CONSUMER-005/006/007`、`NFR-001/002/003/004`。其中 **4 项**绑定的测试名断言的是**另一条需求**：`ORACLE-009`→ORACLE-005、`ORACLE-010`→CONSUMER-004、`CONSUMER-007`→CONSUMER-003、`NFR-002`→ORACLE-003。这是**可引用性**问题而非覆盖缺口——行为多半确实被测到了，但外部审计人无法据此确认 |
+| B1 | **12 项需求的证据绑定经不起追问** | `verify-prd-v0.4` 验证的是「具名测试存在且通过」，不是「该测试确立了该需求」。24 项中 **12 项**绑定的测试名从未提及自身 ID：`ORACLE-001/004/008/009/010`、`CONSUMER-005/006/007`、`NFR-001/002/003/004`。其中 **4 项**绑定的测试名断言的是**另一条需求**：`ORACLE-009`→ORACLE-005、`ORACLE-010`→CONSUMER-004、`CONSUMER-007`→CONSUMER-003、`NFR-002`→ORACLE-003。这是**可引用性**问题而非覆盖缺口——行为多半确实被测到了，但外部审计人无法据此确认 |
 | B2 | **文保链传输实现为空** | `SourceTransportPort.fetchByFixedReference()` 抛 `PORT_NOT_IMPLEMENTED`；全仓 `src/` 下无任何真实 HTTP 客户端。架构、schema 字段（`wenbaoRegistryRef`/`wenbaoChangeRef`）、熔断限流均已就位，**等对方 API**。契约测试可先于 API 写（见 #12） |
 | B3 | **服务只能绑 localhost** | `config.js` 对非 `localhost` 直接抛 `NON_LOOPBACK_BIND_NOT_AUTHORIZED`。任何真实部署都需先改此处 |
 | B4 | **ERC 目录重复且有两份不一致** | `docs/erc-working-draft/` 与 `docs/erc/` 并存；生命周期草案在前者**没有取代提示**，照它实现会用上已删除的 `assetIdOf`、`lifecycleStatus` |

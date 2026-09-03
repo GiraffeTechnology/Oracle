@@ -165,14 +165,114 @@ test("CONSUMER-004 and CONSUMER-009 fail closed without a verified attestation",
   machine.transition({ tokenRef: "token", to: "ACTIVE", attestation: consumerAttestation("active"), verify: accept });
   assert.equal(machine.assertOperationAllowed("token", "transfer"), true);
   machine.transition({ tokenRef: "token", to: "TRANSFER_PENDING", attestation: consumerAttestation("pending"), verify: accept });
-  for (const operation of ["transfer", "redeem", "pledge", "relist"]) {
-    assert.throws(() => machine.assertOperationAllowed("token", operation), new RegExp(`CONSUMER_OPERATION_BLOCKED:TRANSFER_PENDING:${operation}`));
+  machine.openGap("token", { openedAt: 100 });
+  // D-008 replaced the blanket block. Perishable exercises still fail closed while the gap is
+  // open; ordinary transfer does not, and that is asserted by its own CONSUMER-004 test below.
+  for (const operation of ["redeem", "pledge"]) {
+    assert.throws(
+      () => machine.assertOperationAllowed("token", operation, { instant: 100 }),
+      new RegExp(`CONSUMER_PERISHABLE_GAP_OPEN:${operation}`),
+    );
   }
+});
+
+/**
+ * CONSUMER-004 under D-008. The ERC this project is submitting says ordinary ERC-721 transfers
+ * MUST NOT be blocked while a projection gap is open, so an open gap must not make transfer
+ * fail. Planting the old blanket block fails this test, which is the point of writing it
+ * separately from the fail-closed test above.
+ */
+test("CONSUMER-004 does not block ordinary transfer while a registry gap is open", () => {
+  const machine = new SyntheticConsumerStateMachine();
+  machine.transition({ tokenRef: "t4", to: "VERIFIED", attestation: consumerAttestation("v"), verify: accept });
+  machine.transition({ tokenRef: "t4", to: "ACTIVE", attestation: consumerAttestation("a"), verify: accept });
+  machine.transition({ tokenRef: "t4", to: "TRANSFER_PENDING", attestation: consumerAttestation("p"), verify: accept });
+  machine.openGap("t4", { openedAt: 1_000 });
+
+  assert.equal(machine.openGapOf("t4"), 1, "the gap must actually be open for this to mean anything");
+  assert.equal(machine.assertOperationAllowed("t4", "transfer"), true);
+  assert.equal(machine.assertOperationAllowed("t4", "relist"), true);
+
+  // ORACLE-004's emergency freeze is a different mechanism and D-008 does not touch it.
+  machine.transition({ tokenRef: "t4", to: "FROZEN", attestation: consumerAttestation("f"), verify: accept });
+  assert.throws(
+    () => machine.assertOperationAllowed("t4", "transfer"),
+    /CONSUMER_OPERATION_BLOCKED:FROZEN:transfer/,
+  );
+});
+
+/**
+ * CONSUMER-005: the settlement resolves to whoever the register confirms for the T+0 instant.
+ * The token may have changed hands several times since, which is exactly why binding to the
+ * current holder would be wrong.
+ */
+test("CONSUMER-005 settles to the holder confirmed at the T+0 instant, not the current holder", () => {
+  const machine = new SyntheticConsumerStateMachine();
+  machine.openGap("t5", { openedAt: 500 });
+  assert.equal(machine.isFinalAsOf("t5", 500), false, "an open gap leaves its own instant unresolved");
+
+  machine.closeGap("t5", { effectiveAt: 500, holder: "wallet-buyer" });
+  machine.openGap("t5", { openedAt: 900 });
+  machine.closeGap("t5", { effectiveAt: 900, holder: "wallet-later" });
+
+  assert.equal(machine.holderAsOf("t5", 500), "wallet-buyer");
+  assert.equal(machine.holderAsOf("t5", 899), "wallet-buyer");
+  assert.equal(machine.holderAsOf("t5", 900), "wallet-later");
+  assert.equal(machine.isFinalAsOf("t5", 500), true, "a later entry closes the earlier interval");
+  assert.equal(machine.isFinalAsOf("t5", 900), false, "the newest interval is still open-ended");
+});
+
+/**
+ * CONSUMER-006: cancellation admits nothing, so it cannot make an instant final. Reading a
+ * cancelled settlement as a determination would let an irreversible exercise proceed while the
+ * register has still said nothing.
+ */
+test("CONSUMER-006 cancellation and timeout leave the instant not final", () => {
+  const machine = new SyntheticConsumerStateMachine();
+  machine.transition({ tokenRef: "t6", to: "VERIFIED", attestation: consumerAttestation("v"), verify: accept });
+  machine.transition({ tokenRef: "t6", to: "ACTIVE", attestation: consumerAttestation("a"), verify: accept });
+  machine.openGap("t6", { openedAt: 300 });
+  machine.cancelGap("t6");
+
+  assert.equal(machine.openGapOf("t6"), 0, "the gap closes so the token is not stuck");
+  assert.equal(machine.isFinalAsOf("t6", 300), false, "but nothing was admitted, so nothing is settled");
+  assert.equal(machine.holderAsOf("t6", 300), null);
+  assert.throws(
+    () => machine.assertOperationAllowed("t6", "redeem", { instant: 300 }),
+    /CONSUMER_PERISHABLE_NOT_FINAL:redeem/,
+  );
+  assert.equal(machine.assertOperationAllowed("t6", "transfer"), true, "cancellation does not restrict transfer");
+});
+
+/**
+ * CONSUMER-007: redemption is perishable — delivery cannot be undone once the register names a
+ * different holder — so it waits for a final instant with no gap outstanding.
+ */
+test("CONSUMER-007 redemption requires a final instant with no open gap", () => {
+  const machine = new SyntheticConsumerStateMachine();
+  machine.transition({ tokenRef: "t7", to: "VERIFIED", attestation: consumerAttestation("v"), verify: accept });
+  machine.transition({ tokenRef: "t7", to: "ACTIVE", attestation: consumerAttestation("a"), verify: accept });
+
+  assert.throws(
+    () => machine.assertOperationAllowed("t7", "redeem", { instant: 10 }),
+    /CONSUMER_PERISHABLE_NOT_FINAL:redeem/,
+  );
+
+  machine.closeGap("t7", { effectiveAt: 10, holder: "wallet-a" });
+  machine.closeGap("t7", { effectiveAt: 20, holder: "wallet-b" });
+  assert.equal(machine.assertOperationAllowed("t7", "redeem", { instant: 10 }), true);
+
+  machine.openGap("t7", { openedAt: 5 });
+  assert.throws(
+    () => machine.assertOperationAllowed("t7", "redeem", { instant: 10 }),
+    /CONSUMER_PERISHABLE_GAP_OPEN:redeem/,
+  );
+  assert.equal(machine.assertOperationAllowed("t7", "transfer"), true, "refusing the exercise never restricts transfer");
 });
 
 test("ORACLE-011 renders all four settlement presentation states without implying completed title", () => {
   const common = { asset: { assetId: "asset-ui", wenbaoRegistryRef: "registry" }, certificate: { certificateHash: HASH_A, certificateVersion: 1 }, warehouse: { warehouseReceiptHash: HASH_B }, status: "TRANSFER_PENDING" };
-  assert.match(renderAssetDetailHtml({ ...common, settlement: null }), /成交锁定/);
+  assert.match(renderAssetDetailHtml({ ...common, settlement: null }), /快照已固定/);
   assert.match(renderAssetDetailHtml({ ...common, settlement: { status: "PENDING" } }), /登记处理中/);
   assert.match(renderAssetDetailHtml({ ...common, status: "VALID", settlement: { status: "FINALIZED" } }), /交割完成/);
   assert.match(renderAssetDetailHtml({ ...common, settlement: { status: "DISPUTED" } }), /交割失败\/争议/);

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "prdVersion": "v0.3",
+  "prdVersion": "v0.4",
   "requirements": [
     {
       "id": "ORACLE-001",

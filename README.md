@@ -22,7 +22,7 @@ Use Node.js 24 or the pinned workspace runtime and run:
 node scripts/syntax-check.mjs
 node --test "test/*.test.js"
 node scripts/repository-scan.mjs
-node scripts/verify-prd-v0.3.mjs
+node scripts/verify-prd-v0.4.mjs
 ```
 
 The public service exposes:

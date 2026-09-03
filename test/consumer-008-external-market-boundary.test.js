@@ -7,7 +7,7 @@ import test from "node:test";
  * CONSUMER-008 requires proving an absence: no order book, matching, counterparty or
  * fund-control path exists, and external market events can only raise a pending T+0 intent.
  *
- * config/prd-v0.3-acceptance.json previously bound CONSUMER-008 to
+ * config/prd-v0.4-acceptance.json previously bound CONSUMER-008 to
  * "CONSUMER-004 and CONSUMER-009 fail closed without a verified attestation", which
  * establishes attestation fail-closed and pending-state operation blocking — not absence.
  * An absence claim needs a test that would fail if the capability were added, which is what

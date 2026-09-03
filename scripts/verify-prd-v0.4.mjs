@@ -6,7 +6,7 @@ import { validateIntegratedCiEvidence, validatePremiseEvidence, validateStageFDe
 
 const root = process.cwd();
 const acceptedCandidateCommits = new Set();
-const config = JSON.parse(await readFile(path.join(root, "config/prd-v0.3-acceptance.json"), "utf8"));
+const config = JSON.parse(await readFile(path.join(root, "config/prd-v0.4-acceptance.json"), "utf8"));
 const testText = (await readdir(path.join(root, "test"), { withFileTypes: true }))
   .filter((entry) => entry.isFile() && entry.name.endsWith(".test.js"));
 const tests = (await Promise.all(testText.map((entry) => readFile(path.join(root, "test", entry.name), "utf8")))).join("\n");
@@ -81,6 +81,6 @@ const report = {
 };
 report.allComplete = Object.values(report.stages).every((value) => value === "VERIFIED") && pending.length === 0;
 await mkdir(path.join(root, "output"), { recursive: true });
-await writeFile(path.join(root, "output/prd-v0.3-acceptance-report.json"), `${JSON.stringify(report, null, 2)}\n`, { flag: "w" });
+await writeFile(path.join(root, "output/prd-v0.4-acceptance-report.json"), `${JSON.stringify(report, null, 2)}\n`, { flag: "w" });
 console.log(JSON.stringify({ engineeringVerified: engineeringVerified.length, pending, stages: report.stages, allComplete: report.allComplete }));
 if (!report.allComplete) process.exitCode = 1;

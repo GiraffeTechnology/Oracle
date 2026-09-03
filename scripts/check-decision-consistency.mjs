@@ -220,6 +220,46 @@ if (/\*\*ArtFi 是文保链上登记产品在公链交易的 agent\*\*/.test(dec
   }
 }
 
+// --- D-008: transfers are not blocked while a registry change is in flight -----
+/**
+ * D-008 resolves a normative head-on conflict: the ERC this project is submitting says ordinary
+ * ERC-721 transfers MUST NOT be blocked while a projection gap is open, and PRD v0.3 required
+ * exactly that block. The PRD gave way.
+ *
+ * A decision like this erodes quietly — someone reinstates a freeze because it reads as the
+ * safer default, and the repository is back to implementing the opposite of the standard it
+ * publishes. Both halves are therefore load-bearing: the decision itself, and the prohibition
+ * the PRD now carries. Their absence fails the build.
+ */
+{
+  const REQUIRED = [
+    {
+      file: join(docs, 'DECISIONS_ZH.md'),
+      label: 'D-008 decision',
+      text: '**登记在途期间，普通 ERC-721 转让不被阻断。**',
+    },
+    {
+      file: join(docs, 'PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md'),
+      label: 'PRD prohibition on any transfer block',
+      text: '**不得**将 NFT 置于协议托管、不可转让状态或任何等价的转让阻断机制。',
+    },
+    {
+      file: join(docs, 'PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md'),
+      label: 'PRD deferrable / perishable rights section',
+      text: '权利分类：可递延与易逝性',
+    },
+  ];
+  let ok = 0;
+  for (const { file, label, text } of REQUIRED) {
+    const contents = await readFile(file, 'utf8');
+    if (contents.includes(text)) ok += 1;
+    else failures.push(`${relative(root, file)} is missing the D-008 clause (${label}): ${text}`);
+  }
+  if (ok === REQUIRED.length) {
+    process.stdout.write(`  ok   D-008 non-blocking transfer: ${ok} required clauses present\n`);
+  }
+}
+
 if (failures.length > 0) {
   process.stderr.write('Decision consistency failed (docs/DECISIONS_ZH.md):\n');
   for (const failure of failures) process.stderr.write(`  ${failure}\n`);

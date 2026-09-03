@@ -9,7 +9,7 @@
 无法构成任何 commit 的证据。
 
 本地实测（Node 22.22.2）：`node --test "test/*.test.js"` 217 项通过；
-`node scripts/verify-prd-v0.3.mjs` 报 23/24 工程侧已验证，仅 NFR-004 待外部证据；
+`node scripts/verify-prd-v0.4.mjs` 报 23/24 工程侧已验证，仅 NFR-004 待外部证据；
 `node scripts/verify-iterations.mjs` 报 I0–I11 completed、I12 blocked。
 
 **表中"`VERIFIED`（本地工程候选）"仍未转为正式 `VERIFIED`**：验收标准 §6 要求被审 commit 上
@@ -29,7 +29,7 @@ I0–I12 与 ORACLE/CONSUMER/NFR 的追溯映射见 `TRACEABILITY_ZH.md`。
 | PREMISE-P1~P8 | `PENDING-GATE` | 书面依据、取证日期、复核周期与责任人尚未形成全部可公开审计记录 |
 | Stage F | `PENDING-GATE` | 独立法律、隐私、安全、合约、运营审查，以及范围/报价和逐司法辖区 go/no-go 未齐 |
 
-机器可读快照由 `scripts/verify-prd-v0.3.mjs` 生成至 `output/prd-v0.3-acceptance-report.json`。该脚本在任何适用门禁未满足时必须非零退出并保持 `allComplete=false`。外部证据必须通过内容校验并绑定同一候选 commit；仅创建文件不能解除门禁。历史提交的 72 小时或其它证据不得替代当前候选证据。
+机器可读快照由 `scripts/verify-prd-v0.4.mjs` 生成至 `output/prd-v0.4-acceptance-report.json`。该脚本在任何适用门禁未满足时必须非零退出并保持 `allComplete=false`。外部证据必须通过内容校验并绑定同一候选 commit；仅创建文件不能解除门禁。历史提交的 72 小时或其它证据不得替代当前候选证据。
 
 ## 产品线裁决
 

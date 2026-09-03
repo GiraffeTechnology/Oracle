@@ -6,7 +6,7 @@ import { validateI12Evidence } from "../src/services/i12-evidence.js";
 
 const root = process.cwd();
 const manifest = JSON.parse(await readFile(path.join(root, "config", "iteration-acceptance.json"), "utf8"));
-const requirementManifest = JSON.parse(await readFile(path.join(root, "config", "prd-v0.3-acceptance.json"), "utf8"));
+const requirementManifest = JSON.parse(await readFile(path.join(root, "config", "prd-v0.4-acceptance.json"), "utf8"));
 
 async function exists(relative) {
   try {
