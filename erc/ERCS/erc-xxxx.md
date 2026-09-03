@@ -340,7 +340,7 @@ Conforming implementations MUST satisfy at least the following.
 
 ## Reference Implementation
 
-A CC0 Solidity reference implementation and self-contained local-EVM tests accompany this proposal in its assets directory.
+A CC0 Solidity [reference implementation](../assets/eip-xxxx/contracts/RegisterProjectionReference.sol) and a self-contained [local-EVM test suite](../assets/eip-xxxx/test/protocol.cjs) accompany this proposal. The suite needs no wallet, RPC endpoint, testnet asset or external signer.
 
 ## Security Considerations
 

@@ -3,7 +3,7 @@
   "status": "PREP_READY",
   "proposalTitle": "Asynchronous Register Projection for NFTs",
   "supersedes": "Proof-Verified Deferred Asset Settlement (V1-V9); rewritten around the register-projection axiom, see review/ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md",
-  "candidateSha256": "9b91d4afd1ffc2fc6cd8abf8141054c61d546eb15e133e29c70a5a096f139b99",
+  "candidateSha256": "e42f8bc170b41631684df7b4c54853d186cecd74ba849ac8c3b6e04d6e6cbf49",
   "referenceSha256": "484e171e62055d6341972c52f69b00d53befc5d4a9c60bd47429db5b7bebb061",
   "testsSha256": "f760e5ee6025475c64980dabaaeb252304ba49bd648dc4a73e6c01fd79db1d73",
   "interfaceIds": {
@@ -11,12 +11,12 @@
     "IProjectionSettlement": "0xf4a7d71b"
   },
   "verification": {
-    "publicAssetTests": "31/31 PASS",
-    "npmTestEntrypoint": "PENDING RE-RUN - edits of 2026-09-02 were applied in an environment with no Solidity compiler and no network, so this gate has not been executed against the current files",
-    "solidityCompileWarnings": "PENDING RE-RUN - edits of 2026-09-02 were applied in an environment with no Solidity compiler and no network, so this gate has not been executed against the current files",
+    "publicAssetTests": "MEASURED 2026-09-03 on the 8168 build, then invalidated 2026-09-03 by the renumber to the 9999 placeholder and the added reference-implementation links. Re-run on the current files before submitting.",
+    "npmTestEntrypoint": "MEASURED 2026-09-03 on the 8168 build, then invalidated 2026-09-03 by the renumber to the 9999 placeholder and the added reference-implementation links. Re-run on the current files before submitting.",
+    "solidityCompileWarnings": "MEASURED 2026-09-03 on the 8168 build, then invalidated 2026-09-03 by the renumber to the 9999 placeholder and the added reference-implementation links. Re-run on the current files before submitting.",
     "submissionGate": "PASS",
-    "officialEipw0110Synthetic": "PENDING RE-RUN - edits of 2026-09-02 were applied in an environment with no Solidity compiler and no network, so this gate has not been executed against the current files",
-    "eipwNegativeControl": "PENDING RE-RUN - edits of 2026-09-02 were applied in an environment with no Solidity compiler and no network, so this gate has not been executed against the current files",
+    "officialEipw0110Synthetic": "MEASURED 2026-09-03 on the 8168 build, then invalidated 2026-09-03 by the renumber to the 9999 placeholder and the added reference-implementation links. Re-run on the current files before submitting.",
+    "eipwNegativeControl": "MEASURED 2026-09-03 on the 8168 build, then invalidated 2026-09-03 by the renumber to the 9999 placeholder and the added reference-implementation links. Re-run on the current files before submitting.",
     "priorArt": "RE-DONE 2026-09-02 against the current draft; the earlier sweep judged V1-V9, a different proposal. Nearest neighbour on the projection side is ERC-5805 with ERC-6372, never checked before: it requires past values to be immutable, which it can because the chain writes them, and which this ERC cannot because the register does not. Finality is vacuous there and decidable here. ERC-3643, ERC-6065 and ERC-8106 checked and distinct; ERC-6065 states outright that it needs a trusted party to keep the mirror true.",
     "iprCc0Engineering": "READY_FOR_RIGHTSHOLDER_CONFIRMATION",
     "proofPathAdversarialReview": "COMPLETED / no exploitable defect; two architectural limits documented in the reference header",
@@ -45,7 +45,10 @@
     "erc1400FamilyDoesNotExist": "VERIFIED by HTTP status: eip-1400, eip-1594, eip-1410 and eip-1643 all return 404. Published outside the EIP process and widely miscited as ERCs; this project once wrote ERC-1643 into a prior-art table as Final.",
     "preSubmissionReview": "APPLIED 2026-09-02 / external pre-submission review. Removed the unused NonReceiverContract fixture from the normative reference file. Settlement authority decoupled from ERC-721 authorization and exposed as isSettlementAuthority, because a registrar that cannot open a gap cannot record a change its own register made, and ownerOf-derived authority hands the withholding position to every new buyer. Finality checkpoint moved to a full EIP-712 domain bound to chain and contract. Merkle leaves and nodes tagged, and the membership index must be exhausted. cancelSettlement lost the parameter that had to be empty. effectiveAt bounded ahead of the present. IProjectionSettlement id changed 0xfd0f6337 to 0xf4a7d71b; IRegisterProjection unchanged. VERIFICATION_PROFILE bumped to v2 because the proof rules changed. Four regression tests added.",
     "gatesAfterPreSubmissionReview": "RUN 2026-09-03 on the merged tree. eipw 0.11.0 exit 0 with zero diagnostics in both the placeholder and the numbered form; negative control still fails at exit 65; clean copy 31 passing 0 failing with 0 compile warnings; verify-package PASS. The review package was applied unbuilt and unlinted; these are the measured results it asked for.",
-    "mergedWithLaterFix": "The review package was based on c78fe74 and carried the markdown-no-backticks defect in the Reference Implementation sentence, which only fires once a real number replaces xxxx. Fixed here, and the numbered form is now linted alongside the placeholder form."
+    "mergedWithLaterFix": "The review package was based on c78fe74 and carried the markdown-no-backticks defect in the Reference Implementation sentence, which only fires once a real number replaces xxxx. Fixed here, and the numbered form is now linted alongside the placeholder form.",
+    "numbering": "CORRECTED 2026-09-03. The build claimed authors pick their own number and shipped as erc-8168. Both wrong. ERC numbers are assigned by editors and associates, sequentially; an editor comment of 2026-08-24 assigned 8394 as the next sequential number, so 8168 sits inside the allocated range. ERC-8168 is in fact already taken: 8130 Payer Service Capability. Author-chosen numbers are treated as number gaming and reassigned. The submit tree now carries the numeric placeholder 9999, which the tooling notes is required because eipw preamble-eip rejects a non-integer and eipw-action path2number crashes on a non-numeric filename.",
+    "gatesAfterSubmissionDraft": "RUN 2026-09-03 on the 9999 submission draft. eipw 0.11.0 exit 0 with zero diagnostics including the new relative links into assets; negative control still fails at exit 65; 31 passing 0 failing with 0 compile warnings; link targets exist in the submission tree, which HTMLProofer follows.",
+    "numberAssignment": "CORRECTED / an earlier note here said authors pick the number, inferred from a merged pull request diff that showed the post-assignment state. EIP-1 gives the number to the editors and calls a self-chosen one number sniping. The submission carries the numeric placeholder 9999 and is regenerated with the assigned number in review."
   },
   "openDesignQuestions": [],
   "userPrinciples": {

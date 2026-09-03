@@ -1,35 +1,61 @@
 Giraffe ERC technical validation
 Proposal: Asynchronous Register Projection for NFTs
-Date: 2026-09-03
+Date: 2026-09-03 (numbering corrected; assets linked from the spec)
 Status: PREP_READY
 
-Authoritative candidate SHA-256: 9B91D4AFD1FFC2FC6CD8ABF8141054C61D546EB15E133E29C70A5A096F139B99
+Authoritative candidate SHA-256: E42F8BC170B41631684DF7B4C54853D186CECD74BA849AC8C3B6E04D6E6CBF49
 Reference Solidity SHA-256:      484E171E62055D6341972C52F69B00D53BEFC5D4A9C60BD47429DB5B7BEBB061
 Protocol tests SHA-256:          F760E5EE6025475C64980DABAAEB252304BA49BD648DC4A73E6C01FD79DB1D73
 
-Node.js v22.22.2
-Hardhat 2.29.0
-ethers 6.17.0
-solc 0.8.26
+Node.js v22.22.2 / Hardhat 2.29.0 / ethers 6.17.0 / solc 0.8.26
 
-MEASURED, not asserted:
+MEASURED ON THE 8168 BUILD, NOW INVALIDATED - RE-RUN BEFORE SUBMITTING
 
-  Official eipw 0.11.0 with the ethereum/ERCs config snapshot
-    placeholder form            exit 0, zero diagnostics
-    numbered form (8168)        exit 0, zero diagnostics
-    eipw   sha256 ae1b2f651f8c8e8534a37e6eac093031c13381e0dc565ce45a28efdd4641d595
-    config sha256 575e0cf5f4f93c924616e3e4ab0ba49b5910b0d78e95c333fad043548a7a2357
-  eipw negative control (CC0 line broken)   markdown-copyright, exit 65
-  Clean copy npm install && npm test        31 passing, 0 failing
-  Solidity compile warnings                 0 (asserted inside the suite)
-  Runtime bytecode                          under EIP-170 (asserted inside the suite)
-  Submission static gate                    PASS
+  These passed on the build dated 2026-09-03 that shipped as erc-8168:
 
-IRegisterProjection interface ID:   0x6309e170
-IProjectionSettlement interface ID: 0xf4a7d71b
+    eipw 0.11.0, ethereum/ERCs config, placeholder form   exit 0, 0 diagnostics
+    eipw 0.11.0, numbered form                            exit 0, 0 diagnostics
+    negative control (CC0 line broken)                    exit 65
+    clean copy npm install && npm test                    31 passing, 0 failing
+    Solidity compile warnings                             0
+    runtime bytecode                                      under EIP-170
 
-Both recomputed by independent selector XOR; the method first reproduced the
-previously frozen values from the previous interface definitions.
+  Two changes since invalidate them:
 
-The only remaining user input is the Ethereum Magicians discussion URL, plus
-publication authorization including IPR/CC0 confirmation.
+    the renumber to the 9999 placeholder, which also moves the string inside
+      VERIFICATION_PROFILE and therefore the reference bytecode
+    the reference implementation and test suite are now linked from the
+      Reference Implementation section, which eipw has not seen
+
+  Nothing suggests either will fail. Neither has been run: the environment that
+  made this edit has no Solidity compiler and no network. Do not carry the
+  earlier results forward.
+
+VERIFIED AT THIS COMMIT
+
+  Submission static gate (tools/verify-package.mjs)       PASS
+  SUBMIT_THIS matches evidence byte for byte apart from
+    the eip number and discussions-to                     checked
+  No residual placeholder except discussions-to           checked
+
+INTERFACE IDENTIFIERS
+
+  IRegisterProjection    0x6309e170
+  IProjectionSettlement  0xf4a7d71b
+
+  Unaffected by the renumber: neither interface changed. VERIFICATION_PROFILE
+  is affected, because the proposal number is part of the string it hashes. Do
+  not publish a profile identifier before the editor has assigned a number.
+
+NUMBERING
+
+  ERC numbers are assigned by the editors, sequentially. Authors do not choose
+  them and a chosen number is reassigned. The submit tree carries the numeric
+  placeholder 9999. A numeric placeholder is required: eipw preamble-eip
+  rejects a non-integer, and eipw-action path2number crashes on a filename that
+  is not erc-<digits>.md.
+
+REMAINING USER INPUTS
+
+  the Ethereum Magicians discussion URL
+  publication authorization including IPR/CC0 confirmation

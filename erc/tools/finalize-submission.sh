@@ -5,13 +5,17 @@
 #
 # Both inputs are required and neither can be invented:
 #
-#   <erc-number>     The number this proposal claims. Authors pick it
-#                    themselves; it is NOT the pull request number. Take the
-#                    next free one above the highest in ethereum/ERCs.
+#   <erc-number>     Authors do NOT choose this. ERC numbers are assigned by
+#                    the editors, sequentially, and an author-chosen number is
+#                    treated as number gaming and reassigned. Submit with the
+#                    numeric placeholder 9999, then run this script again with
+#                    the number the editor assigns in review, and update the
+#                    PR. It is also not the pull request number: numbering
+#                    became sequential from 7500.
 #   <magicians-url>  The real thread. Must match
 #                    ^https://ethereum-magicians.org/t/[^/]+/[0-9]+$
-#                    Post the thread first; by convention its slug carries the
-#                    same number, e.g. .../t/erc-8168-some-title/12345
+#                    Post the thread first. Do not put a number in its title
+#                    before an editor has assigned one.
 #
 # Why a placeholder cannot be submitted, both verified against the official
 # tooling rather than assumed:
