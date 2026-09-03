@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="900" viewBox="0 0 700 900" font-family="SimSun, serif" font-size="13">
+<rect width="700" height="900" fill="#fff"/>
+<defs><marker id="e" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#000"/></marker></defs>
+<g fill="none" stroke="#000" stroke-width="1.5">
+  <rect x="150" y="30" width="330" height="52" rx="6"/>
+  <rect x="150" y="118" width="330" height="52"/>
+  <rect x="150" y="206" width="330" height="52"/>
+  <rect x="150" y="294" width="330" height="52"/>
+  <rect x="150" y="382" width="330" height="52"/>
+  <rect x="150" y="470" width="330" height="52"/>
+  <rect x="150" y="558" width="330" height="52"/>
+  <rect x="150" y="646" width="330" height="66"/>
+  <rect x="150" y="748" width="330" height="52" rx="6"/>
+  <rect x="530" y="382" width="140" height="52"/>
+</g>
+<g fill="#000" text-anchor="middle">
+  <text x="315" y="52">S410 开启缺口:校验权限主体、标识、</text><text x="315" y="70">快照、截止时刻不超期限上限</text>
+  <text x="315" y="140">S420 前置校验:缺口开启中、未逾期、</text><text x="315" y="158">生效时刻严格递增且不超前向上界、承诺未重复</text>
+  <text x="315" y="228">S430 计算叶节点摘要:绑定链标识、合约地址、</text><text x="315" y="246">通证与结算标识、持有人、快照、前后承诺、版本、生效时刻</text>
+  <text x="315" y="316">S440 成员证明:叶标签 0x00 / 内节点标签 0x01,</text><text x="315" y="334">逐层归并至根,且索引剩余位全为零</text>
+  <text x="315" y="404">S450 终局性:域分隔类型化摘要,</text><text x="315" y="422">≥门限个互不相同的见证人签名</text>
+  <text x="315" y="492">S460 远端高度严格递增,</text><text x="315" y="510">且证明标识未被消费</text>
+  <text x="315" y="580">S470 同一交易内原子写入:消费证明、更新高度、</text><text x="315" y="598">闭合前条区间、追加条目、闭合缺口、发事件</text>
+  <text x="315" y="670">S480 对外提供三项独立事实:</text><text x="315" y="688">holderAsOf / isFinalAsOf / openGapOf</text>
+  <text x="315" y="778">S490 缺口期间转让不阻断,</text><text x="315" y="796">且不由 ownerOf 推断确认持有人</text>
+  <text x="600" y="404">任一校验失败</text><text x="600" y="422">→ 整笔交易回滚</text>
+</g>
+<g fill="none" stroke="#000" stroke-width="1.2" marker-end="url(#e)">
+  <path d="M315 82 V118"/><path d="M315 170 V206"/><path d="M315 258 V294"/>
+  <path d="M315 346 V382"/><path d="M315 434 V470"/><path d="M315 522 V558"/>
+  <path d="M315 610 V646"/><path d="M315 712 V748"/>
+  <path d="M480 408 H530"/>
+</g>
+<text x="350" y="880" text-anchor="middle" font-size="16">图 4</text>
+</svg>
