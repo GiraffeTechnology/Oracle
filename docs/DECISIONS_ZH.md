@@ -124,7 +124,7 @@ source/provider 并与 Oracle evidence 分层。`config/external-consumer-state-
 
 **引用规则**：该分支持续更新，因此本仓库任何引用 ERC 内容的文档或脚本
 **必须标注所依据的 commit**。未标注 commit 的引用视为失效，不得作为实现依据。
-当前已知状态锚定在 `bdea8e0`（2026-09-02 复核；历次：`386d6d4` → `c22792a` → `a5270ad` → `bdea8e0`）。
+当前已知状态锚定在 `172fe3f`（2026-09-03 复核；历次：`386d6d4` → `c22792a` → `a5270ad` → `bdea8e0` → `172fe3f`）。
 
 **重新锚定的触发条件是规范文件 `erc/ERCS/erc-xxxx.md` 发生变化，不是分支的任一提交。** 该分支
 同时承载内部审查台账（`erc/review/`）与文件索引清单，二者变动频繁且不可能影响 Oracle 侧的
