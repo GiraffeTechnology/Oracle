@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "prdVersion": "v0.4",
-  "prdSha256": "6d345302974fe0a1207ce0021bfe7ff3efa2f0dfeae762f971b5475ca7ebb308",
+  "prdSha256": "cd712728f0ba3b3658603590c2883cdddcbcecf2df0f4fb9ed722d2c4db4795e",
   "acceptanceSha256": "df9c3e3f1df64c2d16d39aca204b27f8bb8b404da496c05c043157004a1179cc",
   "requirements": [
     { "id": "ORACLE-001", "artifacts": ["src/domain/source-registry.js", "src/adapters/fixed-source-transport.js"], "tests": ["requires a registered active source and approved schema", "rejects caller-supplied endpoint fields"] },

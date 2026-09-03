@@ -8,11 +8,11 @@
 > `claude/erc-standard-feasibility-audit-90ypms`，**持续更新**。当前 PR 为 **#16**；PR 编号会更换
 > （#3 → #13 → #16，每次均为关闭后立刻重开同一分支），**引用请用分支名**。
 >
-> 下表内容依据 commit `172fe3f`（依 D-007，引用 ERC 内容须标注 commit）。
+> 下表内容依据 commit `23c0b71`（依 D-007，引用 ERC 内容须标注 commit）。
 >
 > | | 本目录（旧） | 该分支（现行） |
 > | --- | --- | --- |
-> | 接口 | `IVersionedRWACertificate` `0xebaa86a0`<br>`IDeferredCertificateSettlement` `0x2773d4c9` | `IRegisterProjection` `0x6309e170`<br>`IProjectionSettlement` `0xfd0f6337` |
+> | 接口 | `IVersionedRWACertificate` `0xebaa86a0`<br>`IDeferredCertificateSettlement` `0x2773d4c9` | `IRegisterProjection` `0x6309e170`<br>`IProjectionSettlement` `0xf4a7d71b` |
 > | requires | `165, 712, 721, 1271, 8325` | `165, 721` |
 > | 状态枚举 | `SettlementStatus { NONE, PENDING, FINALIZED, CANCELLED }` | `GapStatus { NONE, OPEN, ADMITTED, CANCELLED, SUPERSEDED }` |
 > | 登记在途期间 | **冻结**，转账 MUST NOT 执行 | **继续交易**；`ownerOf` 为可交易头寸，投影为已确认记录 |

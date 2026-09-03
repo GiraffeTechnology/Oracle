@@ -74,7 +74,7 @@
     "supersededBy": {
       "proposalTitle": "Asynchronous Register Projection for NFTs",
       "pullRequest": 16,
-      "commit": "172fe3fe290851a2de68fc19e7c03bed8ff6da1a",
+      "commit": "23c0b71db268a7b3e369d3e79dd11c8d0c98409c",
       "settlementStatusEnum": [
         "NONE",
         "OPEN",
