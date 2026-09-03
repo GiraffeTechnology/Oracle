@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "prdVersion": "v0.3",
-  "generatedAt": "2026-08-31T17:01:10.471Z",
+  "generatedAt": "2026-09-03T17:11:01.673Z",
   "commands": {
     "syntax": {
       "command": "node scripts/syntax-check.mjs",
@@ -700,5 +700,5 @@
       ]
     }
   ],
-  "reportSha256": "009cdf303f54c3dd94caccd63a2af91c2e16546daec3a7d6869c727eed597e25"
+  "reportSha256": "b1ece0cbdb33e679562aff189ec55989f7a898827346a4a627f8f1425d84b985"
 }
