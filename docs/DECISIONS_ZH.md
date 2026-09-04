@@ -121,7 +121,7 @@ source/provider 并与 Oracle evidence 分层。`config/external-consumer-state-
 | 项目 | 内容 |
 | --- | --- |
 | 裁决 | **ERC 提案的权威位置是分支 `claude/erc-standard-feasibility-audit-90ypms`，不在本仓库主干**；该分支**会持续更新** |
-| 当前 PR | **#16**（PR 编号只是该分支的当前视图，会更换：#3 → #13 → #16；**引用请用分支名，不要用 PR 编号**） |
+| 当前 PR | **#18**（序列 #3 → #13 → #16 → #18；**#18 正文声明不再轮换**，可以引用，但分支仍是权威标识） |
 | 现行提案 | _Asynchronous Register Projection for NFTs_（`erc/ERCS/erc-xxxx.md`） |
 | 日期 | 2026-09-02 |
 
@@ -135,7 +135,9 @@ source/provider 并与 Oracle evidence 分层。`config/external-consumer-state-
 
 **引用规则**：该分支持续更新，因此本仓库任何引用 ERC 内容的文档或脚本
 **必须标注所依据的 commit**。未标注 commit 的引用视为失效，不得作为实现依据。
-当前已知状态锚定在 `23c0b71`（2026-09-03 复核；历次：`386d6d4` → `c22792a` → `a5270ad` → `bdea8e0` → `172fe3f` → `23c0b71`）。
+当前已知状态锚定在 `dce2163`（2026-09-04 复核；历次：`386d6d4` → `c22792a` → `a5270ad`
+→ `bdea8e0` → `172fe3f` → `23c0b71` → `dce2163`）。`23c0b71` → `dce2163` 规范文件未变，
+本次重锚是因为 **PR #18 被产品方指定为终局视图**，锚定到它的 head 而非仅在规范变化时推进。
 
 **`IProjectionSettlement` 的 interface ID 已于 `23c0b71` 由 `0xfd0f6337` 变为 `0xf4a7d71b`**
 （`cancelSettlement` 移除 `proofData` 参数、新增 `isSettlementAuthority`，selector XOR 因此改变）。
@@ -149,8 +151,8 @@ source/provider 并与 Oracle evidence 分层。`config/external-consumer-state-
 被核验的四项属性：两个 interface ID 存在；`GapStatus` 为记录在案的五个取值；`RegisterEntry`
 为七个字段；规范仍写有 ordinary ERC-721 transfers MUST NOT be blocked。
 
-**已知实质分歧（待产品裁决，工程侧不得自行选边）**：这是一处**规范性正面冲突**，不是设计
-偏好之差 ——
+**已知实质分歧 —— 已于 2026-09-03 由 D-008 裁决（PRD 服从 ERC，升 v0.4）。** 以下保留为
+记录。这是一处**规范性正面冲突**，不是设计偏好之差 ——
 
 | | 要求 | 出处 |
 | --- | --- | --- |
@@ -165,7 +167,9 @@ source/provider 并与 Oracle evidence 分层。`config/external-consumer-state-
 定性为立场分歧。该表述过轻 —— 反对冻结不止写在 Motivation 的论证里，规范章节本身就是一条
 MUST NOT，且在 `386d6d4` 时即已如此，并非后续收紧。
 
-在裁决作出前：不得因 ERC 而改 Oracle 的冻结逻辑，也不得因 PRD 而改该分支。
+> **本段的「待裁决」状态已结束。** 裁决结果见 D-008：PRD 一侧吸收，冻结转让删除。
+> 上表所引「§6 第 293 行」是当时的引用错误——第 293 行是 **ORACLE-004 紧急冻结**，
+> 与交割冻结无关；真正的冲突条款是 **CONSUMER-004**。
 
 ## D-008 登记在途期间不阻断转让；权利按可递延 / 易逝性区分
 

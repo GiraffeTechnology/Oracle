@@ -5,10 +5,10 @@
 > **本目录归档的是旧提案 _Versioned RWA Certificate Settlement_，它不再是现行 ERC 提案。**
 >
 > 现行提案为 **_Asynchronous Register Projection for NFTs_**，位于分支
-> `claude/erc-standard-feasibility-audit-90ypms`，**持续更新**。当前 PR 为 **#16**；PR 编号会更换
+> `claude/erc-standard-feasibility-audit-90ypms`，**持续更新**。当前 PR 为 **#18**（正文声明不再轮换）；此前编号曾更换
 > （#3 → #13 → #16，每次均为关闭后立刻重开同一分支），**引用请用分支名**。
 >
-> 下表内容依据 commit `23c0b71`（依 D-007，引用 ERC 内容须标注 commit）。
+> 下表内容依据 commit `dce2163`（依 D-007，引用 ERC 内容须标注 commit）。
 >
 > | | 本目录（旧） | 该分支（现行） |
 > | --- | --- | --- |

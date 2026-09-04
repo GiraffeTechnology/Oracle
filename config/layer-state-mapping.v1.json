@@ -73,8 +73,8 @@
     "archivePath": "docs/erc/",
     "supersededBy": {
       "proposalTitle": "Asynchronous Register Projection for NFTs",
-      "pullRequest": 16,
-      "commit": "23c0b71db268a7b3e369d3e79dd11c8d0c98409c",
+      "pullRequest": 18,
+      "commit": "dce21639d3053ab1ebc78ff85e6f617ff99ea5a3",
       "settlementStatusEnum": [
         "NONE",
         "OPEN",
