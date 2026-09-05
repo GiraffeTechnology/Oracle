@@ -172,6 +172,8 @@ Whether a right may be exercised at a non-final or contested instant, whether an
 
 An entry admitted after an exercise has completed carries no authority over that exercise. This ERC defines when the register's answer changes; it does not give a later answer power to undo an act already performed under an earlier one.
 
+What decides whether a token needs a projection at all is the content of the rights it carries, not the class of asset behind it. A token that confers no right determined by a past instant — not redeemable, not entitled to a distribution fixed at a record instant, carrying no vote or preference fixed at one — never raises the question *who was confirmed at instant t*, and reading its present holder is enough. This ERC does not apply to it and SHOULD NOT be claimed for it. An implementation MAY maintain a projection for some of its tokens and not others, deciding token by token on that test.
+
 In a settlement-conforming implementation an entry can be admitted only into an open gap, so an interval in which no gap is open and none is begun is an interval the projection cannot move in: every instant in it resolves to the same confirmed holder throughout and none is contested.
 
 Cancelling a settlement ends the contest but settles nothing. The preceding entry remains in force, so the provisional answer reverts to the holder confirmed before the gap opened, but the instant does not thereby become final. A change the register already made, and this chain has not yet seen, can still be admitted afterwards.

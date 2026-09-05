@@ -3,7 +3,7 @@
   "status": "PREP_READY",
   "proposalTitle": "Asynchronous Register Projection for NFTs",
   "supersedes": "Proof-Verified Deferred Asset Settlement (V1-V9); rewritten around the register-projection axiom, see review/ADR_007_REGISTER_PROJECTION_AXIOM_ZH.md",
-  "candidateSha256": "e42f8bc170b41631684df7b4c54853d186cecd74ba849ac8c3b6e04d6e6cbf49",
+  "candidateSha256": "3950abd8576fd7b85a1fd56a4c2fd14eeb42468573ac71c96bee3f372da51773",
   "referenceSha256": "484e171e62055d6341972c52f69b00d53befc5d4a9c60bd47429db5b7bebb061",
   "testsSha256": "f760e5ee6025475c64980dabaaeb252304ba49bd648dc4a73e6c01fd79db1d73",
   "interfaceIds": {
