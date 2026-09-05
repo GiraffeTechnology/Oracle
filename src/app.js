@@ -66,6 +66,7 @@ export function publicSettlement(settlement) {
 }
 
 function adminErrorStatus(errorCode) {
+  if (errorCode === "REPOSITORY_ADMISSION_CLOSED" || errorCode === "REPOSITORY_SCOPE_CLOSED") return 503;
   if (errorCode === "ADMIN_OPERATION_FAILED") return 500;
   if (errorCode === "ADMIN_AUTHENTICATION_REQUIRED") return 401;
   if (errorCode.startsWith("PERMISSION_DENIED") || errorCode === "ACTOR_NOT_REGISTERED") return 403;

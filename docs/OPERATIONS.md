@@ -103,6 +103,12 @@ normal drain waits for admitted work and cleanup. Failure or timeout is sticky
 operations are not cancelled. A blocked gate prevents further repository,
 publisher, source and queued command dispatch through these scoped interfaces.
 
+HTTP admin writes rejected with `REPOSITORY_ADMISSION_CLOSED` or
+`REPOSITORY_SCOPE_CLOSED` return 503, not an invalid-input 400. This does not add
+automatic retries or a `Retry-After` promise. In particular, an unresolved prior
+transaction must still be investigated through the controlled recovery procedure;
+service unavailability never proves that a command was not committed.
+
 The public admin facade permits authorized dashboard snapshots and export
 authorization checks, but direct `adminOperations.exportAudit` is rejected.
 Export only through `controlPlane.exportAudit`: the assembly injects a private,
