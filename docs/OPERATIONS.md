@@ -135,6 +135,31 @@ PITR, RPO/RTO or a target migration. Already dispatched signer internals and
 production shutdown coordination remain separate work. Synthetic local tests and source
 review are not target deployment evidence or human approval.
 
+## Unwired HTTP shutdown coordinator
+
+`createHttpShutdownCoordinator({ requestHandler, repositoryLifecycle })` creates
+an owned HTTP server and a one-way `shutdown({ timeoutMs })` interface. It is not
+connected to `createApp`, `main`, bootstrap or process signals. No deployment
+flag enables it. This is a local source component, not a tested SIGTERM rollout.
+
+The owner must return/await the handler's asynchronous business work or register
+children with the supplied `track(() => operation())` capability before dispatch.
+Response `finish`, client disconnect and the server-close callback do not erase
+that work. The coordinator counts responses, handler work, registered children,
+sockets and pending cleanup, and also requires a drained repository lifecycle.
+Unregistered detached work and upgraded protocols are outside this contract.
+Do not add bypass request listeners or re-listen on the owned server after shutdown.
+
+Shutdown closes HTTP admission synchronously, invokes repository quiescence and
+stops new connections. Existing keep-alive requests cannot start new handlers.
+Concurrent calls share one close attempt and the earliest monotonic deadline;
+an earlier deadline is propagated to repository quiescence. Normal admitted work
+may finish. Timeout or failure is sticky `BLOCKED`, with late work still counted.
+Idle-connection cleanup never destroys an active response or cancels business.
+Terminal shutdown calls do not retry failed cleanup. There is no `process.exit`,
+pool close, restart, target promotion or permission to resume writes; snapshots
+always retain `poolCloseAllowed: false` and `writeResumptionAllowed: false`.
+
 ## Go/no-go
 
 The repository is not sufficient to authorize production. Production requires accepted security, privacy
