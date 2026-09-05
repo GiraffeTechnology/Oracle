@@ -12,6 +12,7 @@ import { AdminOperations } from "../services/admin-operations.js";
 import { BusinessCalendar } from "../services/business-calendar.js";
 import { restoreProductionState } from "../services/production-state.js";
 import { OutboxDispatcher } from "../services/outbox-dispatcher.js";
+import { createRepositoryExecutionScope } from "../services/repository-execution-scope.js";
 
 export async function assembleProductionConfiguration({ l2Profile, l3Profile, resolver }) {
   const l2 = validateL2DeploymentProfile(l2Profile);
@@ -38,9 +39,10 @@ export async function assembleProductionConfiguration({ l2Profile, l3Profile, re
   return Object.freeze({ l2, l3, ports: resolved });
 }
 
-export async function assembleProductionApplication({ config, l2Profile, l3Profile, resolver, settlementConfiguration, clock = () => new Date() }) {
+export async function assembleProductionApplication({ config, l2Profile, l3Profile, resolver, settlementConfiguration, clock = () => new Date(), repositoryDrainEnabled = false }) {
   if (config?.environment !== "production") throw new Error("PRODUCTION_ASSEMBLY_ENVIRONMENT_REJECTED");
-  const assembled = await assembleProductionConfiguration({ l2Profile, l3Profile, resolver });
+  if (typeof repositoryDrainEnabled !== "boolean") throw new Error("REPOSITORY_LIFECYCLE_OPTION_INVALID");
+  let assembled = await assembleProductionConfiguration({ l2Profile, l3Profile, resolver });
   if (config.host !== undefined && config.host !== assembled.l2.service.bindHost) throw new Error("PRODUCTION_BIND_PROFILE_MISMATCH");
   if (config.port !== undefined && config.port !== assembled.l2.service.port) throw new Error("PRODUCTION_PORT_PROFILE_MISMATCH");
   const settlement = settlementConfiguration;
@@ -54,28 +56,82 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
     clock,
   });
   const authorizer = new Authorizer();
+  // Opt-in local assembly slice; production bootstrap and remote config stay unchanged.
+  const repositoryExecution = repositoryDrainEnabled
+    ? createRepositoryExecutionScope({ repository: assembled.ports.repository, isCompromised: () => runtime.operationalState.compromised === true })
+    : null;
+  if (repositoryExecution) assembled = Object.freeze({ ...assembled, ports: Object.freeze({ ...assembled.ports, repository: repositoryExecution.repository }) });
+  const inRepositoryScope = (operation) => repositoryExecution ? repositoryExecution.run(operation) : operation();
   const dualControl = new DualControlQueue();
   const signerRotationBroker = assembled.ports.signer;
   if (typeof signerRotationBroker.rotate !== "function" || typeof signerRotationBroker.reconcile !== "function" || typeof signerRotationBroker.activateRuntime !== "function") throw new Error("PRODUCTION_SIGNER_ROTATION_BROKER_INVALID");
   if (typeof assembled.ports.repository.loadStateSnapshot !== "function") throw new Error("PRODUCTION_STATE_RESTORE_UNAVAILABLE");
   if (["recordOutboxAttempt", "recordOutboxDeliveryStateAttempt", "recordOutboxDeadLetterAttempt", "recordOutboxDeadLetterStateAttempt", "markOutboxPublished", "markOutboxDeadLettered"].some((method) => typeof assembled.ports.repository[method] !== "function")) throw new Error("PRODUCTION_OUTBOX_DELIVERY_STORE_INVALID");
-  restoreProductionState(runtime, dualControl, await assembled.ports.repository.loadStateSnapshot());
+  restoreProductionState(runtime, dualControl, await inRepositoryScope(() => assembled.ports.repository.loadStateSnapshot()));
   const baseControlPlane = new OracleControlPlane({ runtime, authorizer, dualControl, commandJournal: new CommandJournal(), outbox: runtime.outbox, signerRotationBroker, clock });
-  const durableControlPlane = new DurableOracleControlPlane({ controlPlane: baseControlPlane, repository: assembled.ports.repository, runtime, dualControl });
-  const controlPlane = new AuthoritativeOracleControlPlane({ controlPlane: durableControlPlane, sourcePorts: assembled.ports, sourceDefinitions });
-  const adminOperations = new AdminOperations({ runtime, sourceRegistry: runtime.sourceRegistry, authorizer, reviewQueue: runtime.reviewQueue, dualControl, clock });
+  const admittedControlPlane = repositoryExecution ? Object.freeze(Object.fromEntries(
+    Object.getOwnPropertyNames(OracleControlPlane.prototype).filter((method) => method !== "constructor").map((method) => [method,
+      (...args) => method === "authorizeCommand" ? baseControlPlane[method](...args)
+        : repositoryExecution.guardSideEffect(() => baseControlPlane[method](...args)),
+    ]),
+  )) : baseControlPlane;
+  const durableControlPlane = new DurableOracleControlPlane({ controlPlane: admittedControlPlane, repository: assembled.ports.repository, runtime, dualControl });
+  if (repositoryExecution) {
+    const guardedSources = Object.fromEntries(["registrySource", "certificateSource", "warehouseSource"].map((name) => {
+      const source = assembled.ports[name];
+      return [name, Object.freeze({ fetchByFixedReference: (...args) => repositoryExecution.guardSideEffect(() => source.fetchByFixedReference(...args)) })];
+    }));
+    assembled = Object.freeze({ ...assembled, ports: Object.freeze({ ...assembled.ports, ...guardedSources }) });
+  }
+  const authoritativeControlPlane = new AuthoritativeOracleControlPlane({ controlPlane: durableControlPlane, sourcePorts: assembled.ports, sourceDefinitions });
+  // Keep one shared Durable instance, writeTail and same-key inFlight map.
+  const controlPlane = repositoryExecution ? Object.freeze(Object.fromEntries(
+    Object.getOwnPropertyNames(AuthoritativeOracleControlPlane.prototype)
+      .filter((method) => method !== "constructor" && method !== "inspectCommandRecovery")
+      .map((method) => [method, (input) => {
+        if (typeof input?.idempotencyKey !== "string" || input.idempotencyKey.length < 1 || input.idempotencyKey.length > 128) return Promise.reject(new Error("IDEMPOTENCY_KEY_REQUIRED"));
+        if (method === "exportAudit") {
+          if (input.adminOperations !== undefined && input.adminOperations !== adminOperations) return Promise.reject(new Error("ADMIN_EXPORT_CAPABILITY_INVALID"));
+          // Only the durable command gets the mutating server-owned capability.
+          // Public dashboard readers cannot append unpersisted export events.
+          input = { ...input, adminOperations: rawAdminOperations };
+        }
+        try { baseControlPlane.authorizeCommand(method, input); }
+        catch (error) { return Promise.reject(error); }
+        return inRepositoryScope(() => authoritativeControlPlane[method](input));
+      }]),
+  )) : authoritativeControlPlane;
+  const rawAdminOperations = new AdminOperations({ runtime, sourceRegistry: runtime.sourceRegistry, authorizer, reviewQueue: runtime.reviewQueue, dualControl, clock });
+  const adminOperations = repositoryExecution ? Object.freeze({
+    snapshot: (...args) => rawAdminOperations.snapshot(...args),
+    authorizeExport: (...args) => rawAdminOperations.authorizeExport(...args),
+    async exportAudit() { throw new Error("ADMIN_EXPORT_DURABLE_COMMAND_REQUIRED"); },
+  }) : rawAdminOperations;
   if (typeof assembled.ports.monitoring?.checkReadiness !== "function") throw new Error("PRODUCTION_READINESS_BOUNDARY_INVALID");
   if (typeof assembled.ports.alerting?.reportFailure !== "function" || typeof assembled.ports.alerting.reportEvent !== "function") throw new Error("PRODUCTION_ALERTING_BOUNDARY_INVALID");
   const readinessCheck = async () => {
+    if (repositoryExecution && repositoryExecution.snapshot().state !== "ACCEPTING") return Object.freeze({ ok: false });
     if (runtime.operationalState.compromised || runtime.operationalState.alertingFailed || runtime.operationalState.signerRecoveryRequired) return Object.freeze({ ok: false });
     const result = await assembled.ports.monitoring.checkReadiness();
-    return Object.freeze({ ok: result?.ok === true });
+    return Object.freeze({ ok: result?.ok === true && (!repositoryExecution || repositoryExecution.snapshot().state === "ACCEPTING") });
   };
   if (typeof assembled.ports.eventPublisher.publish !== "function" || typeof assembled.ports.eventPublisher.publishDeadLetter !== "function") throw new Error("PRODUCTION_EVENT_PUBLISHER_INVALID");
-  const outboxDispatcher = new OutboxDispatcher({ outbox: runtime.outbox, publisher: assembled.ports.eventPublisher, deliveryStore: assembled.ports.repository, clock });
+  if (repositoryExecution) {
+    const publisher = assembled.ports.eventPublisher;
+    const guardedPublisher = Object.freeze(Object.fromEntries(["publish", "publishDeadLetter"].map((method) => [method,
+      (...args) => repositoryExecution.guardSideEffect(() => publisher[method](...args)),
+    ])));
+    assembled = Object.freeze({ ...assembled, ports: Object.freeze({ ...assembled.ports, eventPublisher: guardedPublisher }) });
+  }
+  const rawOutboxDispatcher = new OutboxDispatcher({ outbox: runtime.outbox, publisher: assembled.ports.eventPublisher, deliveryStore: assembled.ports.repository, clock });
+  const outboxDispatcher = repositoryExecution ? Object.freeze({ drain: (...args) => inRepositoryScope(() => rawOutboxDispatcher.drain(...args)) }) : rawOutboxDispatcher;
   let backgroundWorker = null;
+  let activeBackground = Promise.resolve();
+  let backgroundInFlight = false;
+  let backgroundDrainTimedOut = false;
   const startBackgroundWorkers = ({ intervalMs = 1000 } = {}) => {
     if (!Number.isInteger(intervalMs) || intervalMs < 100) throw new Error("PRODUCTION_WORKER_INTERVAL_INVALID");
+    if (repositoryExecution && repositoryExecution.snapshot().state !== "ACCEPTING") throw new Error("REPOSITORY_ADMISSION_CLOSED");
     if (backgroundWorker) return backgroundWorker;
     let stopped = false;
     let draining = false;
@@ -90,23 +146,30 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
       }
       runtime.operationalState.alertingFailed = failedAlertBoundaries.size > 0;
     };
-    const drain = async () => {
+    const drain = () => {
       if (stopped || draining) return;
       draining = true;
-      try {
-        for (const { method, code } of [...failedAlertBoundaries.values()]) await reportAlert(method, code);
-        const results = await outboxDispatcher.drain();
-        for (const result of results) {
-          if (result.status === "DEAD_LETTER_RETRY") await reportAlert("reportFailure", "OUTBOX_DEAD_LETTER_FAILED");
-          if (result.status === "DEAD_LETTER_STATE_RETRY") await reportAlert("reportFailure", "OUTBOX_DEAD_LETTER_STATE_FAILED");
-          if (result.status === "DELIVERY_STATE_RETRY") await reportAlert("reportFailure", "OUTBOX_DELIVERY_STATE_FAILED");
-          if (result.status === "DEAD_LETTERED") await reportAlert("reportEvent", "OUTBOX_EVENT_DEAD_LETTERED");
+      backgroundInFlight = true;
+      activeBackground = (async () => {
+        try {
+          await inRepositoryScope(async () => {
+            for (const { method, code } of [...failedAlertBoundaries.values()]) await reportAlert(method, code);
+            const results = await rawOutboxDispatcher.drain();
+            for (const result of results) {
+              if (result.status === "DEAD_LETTER_RETRY") await reportAlert("reportFailure", "OUTBOX_DEAD_LETTER_FAILED");
+              if (result.status === "DEAD_LETTER_STATE_RETRY") await reportAlert("reportFailure", "OUTBOX_DEAD_LETTER_STATE_FAILED");
+              if (result.status === "DELIVERY_STATE_RETRY") await reportAlert("reportFailure", "OUTBOX_DELIVERY_STATE_FAILED");
+              if (result.status === "DEAD_LETTERED") await reportAlert("reportEvent", "OUTBOX_EVENT_DEAD_LETTERED");
+            }
+          });
+        } catch {
+          await reportAlert("reportFailure", "OUTBOX_DISPATCH_FAILED");
+        } finally {
+          draining = false;
+          backgroundInFlight = false;
         }
-      } catch {
-        await reportAlert("reportFailure", "OUTBOX_DISPATCH_FAILED");
-      } finally {
-        draining = false;
-      }
+      })();
+      return activeBackground;
     };
     const timer = setInterval(drain, intervalMs);
     timer.unref?.();
@@ -120,6 +183,27 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
     });
     return backgroundWorker;
   };
+  const lifecycleSnapshot = () => Object.freeze({ ...repositoryExecution.snapshot(), backgroundInFlight,
+    ...(backgroundDrainTimedOut ? { state: "BLOCKED", blockers: Object.freeze([...repositoryExecution.snapshot().blockers, "BACKGROUND_DRAIN_TIMEOUT"]) } : {}),
+  });
+  const repositoryLifecycle = repositoryExecution ? Object.freeze({
+    snapshot: lifecycleSnapshot,
+    async quiesce({ timeoutMs } = {}) {
+      if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 2147483647) throw new Error("REPOSITORY_DRAIN_TIMEOUT_INVALID");
+      const deadline = Date.now() + timeoutMs;
+      backgroundWorker?.stop();
+      const result = await repositoryExecution.drain({ timeoutMs });
+      if (result.state !== "DRAINED") return lifecycleSnapshot();
+      let timer;
+      try {
+        const completed = await Promise.race([activeBackground.then(() => true), new Promise((resolve) => {
+          timer = setTimeout(() => resolve(false), Math.max(0, deadline - Date.now()));
+        })]);
+        if (!completed) backgroundDrainTimedOut = true;
+      } finally { clearTimeout(timer); }
+      return lifecycleSnapshot();
+    },
+  }) : null;
   const authenticateAdmin = async (request) => {
     if (typeof assembled.ports.adminAuthenticator?.authenticate !== "function") throw new Error("PRODUCTION_ADMIN_AUTHENTICATOR_INVALID");
     const identity = await assembled.ports.adminAuthenticator.authenticate(request);
@@ -142,13 +226,13 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
     // Each observation owns its immutable role snapshot; neither authentication
     // nor authorization reads or updates the shared HTTP actor registry.
     const requestBase = new OracleControlPlane({ runtime, authorizer: requestAuthorizer, dualControl, commandJournal: new CommandJournal(), outbox: runtime.outbox, signerRotationBroker, clock });
-    const requestDurable = new DurableOracleControlPlane({ controlPlane: requestBase, repository: assembled.ports.repository, runtime, dualControl });
+    const requestDurable = new DurableOracleControlPlane({ controlPlane: requestBase, repository: repositoryExecution?.recoveryRepository ?? assembled.ports.repository, runtime, dualControl });
     const requestControlPlane = new AuthoritativeOracleControlPlane({ controlPlane: requestDurable, sourcePorts: assembled.ports, sourceDefinitions });
     const input = { ...commandInput, actorId };
     if (method === "exportAudit") input.adminOperations = new AdminOperations({ runtime, sourceRegistry: runtime.sourceRegistry, authorizer: requestAuthorizer, reviewQueue: runtime.reviewQueue, dualControl, clock });
     return requestControlPlane.inspectCommandRecovery(method, input);
   };
-  return Object.freeze({ ...assembled, runtime, sourceRegistry: runtime.sourceRegistry, controlPlane, adminOperations, authenticateAdmin, inspectCommandRecovery, readinessCheck, outboxDispatcher, startBackgroundWorkers });
+  return Object.freeze({ ...assembled, runtime, sourceRegistry: runtime.sourceRegistry, controlPlane, adminOperations, authenticateAdmin, inspectCommandRecovery, readinessCheck, outboxDispatcher, startBackgroundWorkers, repositoryLifecycle });
 }
 
 

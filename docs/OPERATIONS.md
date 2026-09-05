@@ -83,6 +83,44 @@ configuration; this source implementation does not constitute such a deployment.
 - Quarterly restore, signer rotation and source-outage exercises.
 - Reconciliation must compare asset, certificate, warehouse, settlement and audit-chain projections.
 
+## Opt-in process-local repository drain
+
+`assembleProductionApplication({ repositoryDrainEnabled: true, ... })` supports an
+opt-in source-level admission/drain interface. The default is `false`; production
+bootstrap does not enable it. This is not a deployed cutover procedure.
+
+The opt-in requires the concrete MySQL repository and its fixed pool. Commands and
+whole outbox/background batches share one gate, one Durable write queue, and the
+same-key in-flight deduplication map. Consumers receive scoped capabilities, not
+the raw pool or repository. Admitted source requests remain tracked even when a
+parallel sibling rejects early. Normal authorization/business rejections do not
+poison admission; actual repository/driver failures independently close it.
+
+Call `assembly.repositoryLifecycle.quiesce({ timeoutMs })` to stop new background
+scheduling and close new command/batch admission. Readiness becomes false. A
+normal drain waits for admitted work and cleanup. Failure or timeout is sticky
+`BLOCKED`; late completions do not reopen admission. Already dispatched external
+operations are not cancelled. A blocked gate prevents further repository,
+publisher, source and queued command dispatch through these scoped interfaces.
+
+The public admin facade permits authorized dashboard snapshots and export
+authorization checks, but direct `adminOperations.exportAudit` is rejected.
+Export only through `controlPlane.exportAudit`: the assembly injects a private,
+server-owned capability and the existing Durable command persists the audit event.
+Caller-supplied capabilities other than the assembly's public facade are rejected.
+
+Authenticated recovery observation remains a separately counted read-only command
+lookup; it neither unlocks writes nor authorizes pool closure. Snapshots always
+report `poolCloseAllowed: false` and `writeResumptionAllowed: false`, including
+after `DRAINED`. The deployment owner must not use its retained raw pool outside
+the gate. No pool replacement, close, resume or promotion API is provided.
+
+This process-local slice does not establish cross-process fencing, HTTP shutdown,
+signer/custody lifecycle isolation, replication, real driver failure injection,
+PITR, RPO/RTO or a target migration. Signer rotation continuations and production
+shutdown coordination remain separate work. Synthetic local tests and source
+review are not target deployment evidence or human approval.
+
 ## Go/no-go
 
 The repository is not sufficient to authorize production. Production requires accepted security, privacy
