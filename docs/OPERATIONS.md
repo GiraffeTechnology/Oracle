@@ -30,6 +30,54 @@ poisons the runtime before the next queued write begins; queued work is rejected
 
 ## Recovery objectives for production approval
 
+### Read-only command recovery observation
+
+The public object returned by `bootstrapProductionApplication` (and by
+`assembleProductionApplication`) exposes the supported operator programmatic API:
+
+```js
+const observation = await assembly.inspectCommandRecovery(
+  authenticatedRequest,
+  'verifyAsset',
+  { idempotencyKey, evidenceReferences, evidenceVersion },
+);
+```
+
+Invoke this only from a trusted operator integration in the existing managed
+process. `authenticatedRequest` is verified afresh by the configured server-side
+admin authenticator; the command input must not contain `actorId` or `adminOperations`
+(including inherited properties). A submitted
+actor is rejected rather than overriding the authenticated identity. Authentication
+failure and changed roles fail closed before a command-store read. The current
+actor must retain the original command permission and identity; another actor does
+not reproduce the original command hash. Each observation uses its own copied,
+immutable role snapshot, isolated from concurrent requests and the HTTP actor
+registry. Audit recovery injects a server-owned `AdminOperations` using this same
+request-local authorizer and enforces the existing export purpose/size gate; no
+caller-supplied authorization capability is accepted.
+
+Supply the original method and command fields (excluding `actorId` and `adminOperations`); only the
+existing command method allowlist is accepted. Verification/finalization inputs
+use the same canonicalization as their production write wrappers, without fetching
+source records or invoking operations. The wrapper's two-argument
+`controlPlane.inspectCommandRecovery(method, commandInput)` is for trusted in-process
+callers only; operator integrations should use the authenticated assembly API above,
+not reach through nested internal `controlPlane` properties.
+
+The observation is available while the runtime is compromised and does not depend
+on enabling external writes. It returns only `UNRESOLVED`, `CONFLICT`, or
+`COMPLETED_OBSERVED`, together with `writeResumptionAllowed: false`. An absent or
+pending record is unresolved, not proof of non-commit; a completed observation is
+not approval to resume. No stored results or raw database/authenticator errors are
+returned. Observation never clears compromised, retries the command, starts a
+transaction, or changes existing background outbox behavior. Actual driver cleanup,
+target identity, fencing and recovery approval remain separate requirements.
+
+This is a programmatic operator interface, not a new HTTP endpoint or public browser
+capability. Do not open existing write routes or relax their external-write gate to
+reach it. Deploying an operator integration requires its own trusted host/interface
+configuration; this source implementation does not constitute such a deployment.
+
 - Proposed RPO: no acknowledged authoritative input may be lost.
 - Proposed RTO: four hours for query restoration; final value requires operational approval.
 - Quarterly restore, signer rotation and source-outage exercises.

@@ -127,7 +127,28 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
     authorizer.registerActor(identity.actorId, identity.roles);
     return identity.actorId;
   };
-  return Object.freeze({ ...assembled, runtime, sourceRegistry: runtime.sourceRegistry, controlPlane, adminOperations, authenticateAdmin, readinessCheck, outboxDispatcher, startBackgroundWorkers });
+  // Supported operator API: authenticate afresh, never trust a submitted actor,
+  // and retain the durable command's authorization and method allowlist.
+  const inspectCommandRecovery = async (request, method, commandInput) => {
+    let actorId;
+    const requestAuthorizer = new Authorizer();
+    try {
+      const identity = await assembled.ports.adminAuthenticator.authenticate(request);
+      actorId = identity?.actorId;
+      requestAuthorizer.registerActor(actorId, identity?.roles);
+    }
+    catch { throw new Error("ADMIN_AUTHENTICATION_REQUIRED"); }
+    if (!commandInput || typeof commandInput !== "object" || Array.isArray(commandInput) || "actorId" in commandInput || "adminOperations" in commandInput) throw new Error("RECOVERY_INPUT_INVALID");
+    // Each observation owns its immutable role snapshot; neither authentication
+    // nor authorization reads or updates the shared HTTP actor registry.
+    const requestBase = new OracleControlPlane({ runtime, authorizer: requestAuthorizer, dualControl, commandJournal: new CommandJournal(), outbox: runtime.outbox, signerRotationBroker, clock });
+    const requestDurable = new DurableOracleControlPlane({ controlPlane: requestBase, repository: assembled.ports.repository, runtime, dualControl });
+    const requestControlPlane = new AuthoritativeOracleControlPlane({ controlPlane: requestDurable, sourcePorts: assembled.ports, sourceDefinitions });
+    const input = { ...commandInput, actorId };
+    if (method === "exportAudit") input.adminOperations = new AdminOperations({ runtime, sourceRegistry: runtime.sourceRegistry, authorizer: requestAuthorizer, reviewQueue: runtime.reviewQueue, dualControl, clock });
+    return requestControlPlane.inspectCommandRecovery(method, input);
+  };
+  return Object.freeze({ ...assembled, runtime, sourceRegistry: runtime.sourceRegistry, controlPlane, adminOperations, authenticateAdmin, inspectCommandRecovery, readinessCheck, outboxDispatcher, startBackgroundWorkers });
 }
 
 

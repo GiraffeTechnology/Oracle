@@ -32,7 +32,7 @@ function records(assetId) {
   };
 }
 
-async function productionFixture({ failPersistence = false, initialSnapshot = null, persistenceGate = null, omitSignerPolicy = false, rejectAlerts = false, rejectAlertCodes = [], rejectDeadLetterSubjects = [] } = {}) {
+async function productionFixture({ failPersistence = false, initialSnapshot = null, persistenceGate = null, omitSignerPolicy = false, rejectAlerts = false, rejectAlertCodes = [], rejectDeadLetterSubjects = [], externalWritesEnabled = true } = {}) {
   const [l2Profile, l3Profile] = await Promise.all([loadL2DeploymentProfile("config/l2.production.json"), loadProtocolProfile("config/l3.protocol.wd-0.1.1.json")]);
   const evidence = records("asset-production");
   const sourceById = new Map(l2Profile.sources.map((source) => [source.sourceId, source]));
@@ -43,6 +43,10 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
   const deliveryUpdates = [];
   const alerts = [];
   const alertState = { reject: rejectAlerts === true, rejectCodes: new Set(rejectAlertCodes) };
+  let adminIdentity = { actorId: "production-operator", roles: ["ORACLE_OPERATOR"] };
+  let authenticationFails = false;
+  let commandReads = 0;
+  let commandReadFails = false;
   let sourceFetches = 0;
   let markPersistStarted;
   const persistStarted = new Promise((resolve) => { markPersistStarted = resolve; });
@@ -50,7 +54,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
   const { privateKey, publicKey } = generateKeyPairSync("ed25519");
   const repository = {
     async loadStateSnapshot() { return initialSnapshot; },
-    async getCommand(key) { return commands.get(key) ?? null; },
+    async getCommand(key) { commandReads += 1; if (commandReadFails) throw new Error("synthetic-private-read-detail"); return commands.get(key) ?? null; },
     async recordOutboxAttempt(eventId, attempts) { deliveryUpdates.push({ type: "attempt", eventId, attempts }); },
     async recordOutboxDeliveryStateAttempt(eventId, attempts) { deliveryUpdates.push({ type: "delivery-state-attempt", eventId, attempts }); },
     async recordOutboxDeadLetterAttempt(eventId, attempts) { deliveryUpdates.push({ type: "dead-letter-attempt", eventId, attempts }); },
@@ -78,7 +82,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
         const source = l2Profile.sources.find(({ transportRef }) => transportRef === reference);
         return { async fetchByFixedReference() { sourceFetches += 1; const record = recordBySource[source.sourceId]; return { authenticated: true, sourceId: source.sourceId, schemaVersion: source.schemaVersions[0], record, recordHash: evidenceHash(record) }; } };
       }
-      if (kind === "admin-authenticator") return { async authenticate() { return { actorId: "production-operator", roles: ["ORACLE_OPERATOR"] }; } };
+      if (kind === "admin-authenticator") return { async authenticate(request) { if (authenticationFails) throw new Error("synthetic-private-auth-detail"); return typeof adminIdentity === "function" ? adminIdentity(request) : adminIdentity; } };
       if (kind === "event-publisher") return { async publish(event) { published.push(event); }, async publishDeadLetter(event) { if (rejectDeadLetterSubjects.includes(event.subjectId)) throw new Error("dead-letter unavailable"); deadLetters.push(event); } };
       if (kind === "monitoring") return { async checkReadiness() { return { ok: true }; } };
       if (kind === "alerting") return { async reportFailure(code) { alerts.push({ type: "failure", code }); if (alertState.reject || alertState.rejectCodes.has(code)) throw new Error("alert unavailable"); }, async reportEvent(code) { alerts.push({ type: "event", code }); if (alertState.reject || alertState.rejectCodes.has(code)) throw new Error("alert unavailable"); } };
@@ -86,13 +90,122 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
     },
   };
   const assembly = await assembleProductionApplication({
-    config: { environment: "production", externalWritesEnabled: true }, l2Profile, l3Profile, resolver,
+    config: { environment: "production", externalWritesEnabled }, l2Profile, l3Profile, resolver,
     settlementConfiguration: { profileId: "giraffe-settlement/production-v1", businessCalendarRef: "wenbao-production-v1", targetBusinessDays: 3, timeZone: "Asia/Shanghai", holidays: [] },
     clock: () => NOW,
   });
   await assembly.authenticateAdmin({ headers: {} });
-  return { assembly, persisted, published, deadLetters, deliveryUpdates, alerts, persistStarted, getSourceFetches: () => sourceFetches, setSourceRecord(sourceId, record) { recordBySource[sourceId] = record; }, setRejectAlerts(value) { alertState.reject = value === true; }, setRejectAlertCodes(codes) { alertState.rejectCodes = new Set(codes); } };
+  return { assembly, persisted, published, deadLetters, deliveryUpdates, alerts, persistStarted, getSourceFetches: () => sourceFetches, setSourceRecord(sourceId, record) { recordBySource[sourceId] = record; }, setRejectAlerts(value) { alertState.reject = value === true; }, setRejectAlertCodes(codes) { alertState.rejectCodes = new Set(codes); }, setAdminIdentity(value) { adminIdentity = value; }, failAuthentication() { authenticationFails = true; }, getCommandReads: () => commandReads, setCommand(key, value) { commands.set(key, value); }, failCommandRead() { commandReadFails = true; } };
 }
+
+test("production operator recovery uses public assembly authentication and never resumes a compromised runtime", async () => {
+  const f = await productionFixture({ failPersistence: true, externalWritesEnabled: false });
+  const input = { idempotencyKey: "recovery-production", evidenceReferences: { warehouse: "record:warehouse-001", asset: "record:asset-001", certificate: "record:certificate-001" }, evidenceVersion: 1 };
+  await assert.rejects(() => f.assembly.controlPlane.verifyAsset({ ...input, actorId: "production-operator" }), /MYSQL_DURABILITY_FAILURE/);
+  assert.equal(f.assembly.runtime.operationalState.compromised, true);
+  const read = (value = input, method = "verifyAsset") => f.assembly.inspectCommandRecovery({ headers: {} }, method, value);
+  assert.deepEqual(await read(), { status: "UNRESOLVED", writeResumptionAllowed: false });
+  const hash = evidenceHash({ method: "verifyAsset", input: { actorId: "production-operator", ...input } });
+  f.setCommand(input.idempotencyKey, { commandHash: hash, status: "COMPLETED", result: { detail: "synthetic-private-result" } });
+  assert.deepEqual(await read({ ...input, ignoredByVerifyWrapper: true }), { status: "COMPLETED_OBSERVED", writeResumptionAllowed: false });
+  assert.equal((await read({ ...input, evidenceVersion: 2 })).status, "CONFLICT");
+  f.setCommand(input.idempotencyKey, { commandHash: hash, status: "PENDING" });
+  assert.equal((await read()).status, "UNRESOLVED");
+  await assert.rejects(() => read(input, "unlisted"), /COMMAND_METHOD_INVALID/);
+  await assert.rejects(() => read({ ...input, actorId: "production-operator" }), /RECOVERY_INPUT_INVALID/);
+  await assert.rejects(() => read({ ...input, actorId: "forged-operator" }), /RECOVERY_INPUT_INVALID/);
+  const reads = f.getCommandReads();
+  f.setAdminIdentity(null);
+  await assert.rejects(read, /ADMIN_AUTHENTICATION_REQUIRED/);
+  f.setAdminIdentity({ actorId: "production-operator", roles: ["READER"] });
+  await assert.rejects(read, /PERMISSION_DENIED/);
+  assert.equal(f.getCommandReads(), reads);
+  f.setAdminIdentity({ actorId: "production-operator", roles: ["ORACLE_OPERATOR"] });
+  assert.equal((await read()).status, "UNRESOLVED");
+  f.failCommandRead();
+  await assert.rejects(read, { message: "MYSQL_RECOVERY_READ_FAILED" });
+  f.failAuthentication();
+  await assert.rejects(read, { message: "ADMIN_AUTHENTICATION_REQUIRED" });
+  assert.equal(f.getSourceFetches(), 3);
+  assert.equal(f.persisted.length, 0);
+  assert.equal(f.assembly.runtime.operationalState.compromised, true);
+  await assert.rejects(() => f.assembly.controlPlane.verifyAsset({ ...input, actorId: "production-operator" }), /DURABLE_STATE_COMPROMISED/);
+});
+
+test("production recovery delegates both arguments and preserves finalized-command canonical identity", async (t) => {
+  const f = await productionFixture({ externalWritesEnabled: false });
+  const input = { idempotencyKey: "recovery-finalization", request: { evidenceVersion: 3, warehouseReference: "record:warehouse-final", settlementId: "settlement-recovery", snapshotHash: HASH_A, certificateReference: "record:certificate-final", assetReference: "record:asset-final" } };
+  f.setCommand(input.idempotencyKey, { commandHash: evidenceHash({ method: "finalizeSettlement", input: { actorId: "production-operator", ...input } }), status: "COMPLETED", result: { detail: "synthetic-private-result" } });
+  assert.deepEqual(await f.assembly.inspectCommandRecovery({ headers: {} }, "finalizeSettlement", { ...input, ignoredByFinalizeWrapper: true }), { status: "COMPLETED_OBSERVED", writeResumptionAllowed: false });
+  await assert.rejects(() => f.assembly.inspectCommandRecovery({ headers: {} }, "finalizeSettlement", { ...input, request: { ...input.request, warehouseConfirmed: true } }), /AUTHORITATIVE_FINALIZATION_INPUT_INVALID/);
+  assert.equal(f.getSourceFetches(), 0);
+  assert.equal(f.persisted.length, 0);
+  const app = createApp({ config: { environment: "production", externalWritesEnabled: false }, ...f.assembly });
+  await new Promise((resolve) => app.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise((resolve) => app.close(resolve)));
+  const response = await fetch(`http://127.0.0.1:${app.address().port}/v1/rwa/admin/assets/verify`, { method: "POST" });
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).errorCode, "ADMIN_WRITES_DISABLED");
+});
+
+test("production recovery isolates same-actor concurrent role snapshots", async () => {
+  const f = await productionFixture({ externalWritesEnabled: false });
+  f.assembly.runtime.operationalState.compromised = true;
+  const input = { idempotencyKey: "concurrent-recovery", evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" }, evidenceVersion: 1 };
+  for (const roles of [["READER", "ORACLE_OPERATOR"], ["ORACLE_OPERATOR", "READER"]]) {
+    // Both server authentications complete before their continuations. The old
+    // shared actor table allowed the last identity to govern both observations.
+    f.setAdminIdentity((request) => ({ actorId: "production-operator", roles: [request.serverAuthenticatedRole] }));
+    const reads = f.getCommandReads();
+    const results = await Promise.allSettled(roles.map((role) => f.assembly.inspectCommandRecovery({ serverAuthenticatedRole: role }, "verifyAsset", input)));
+    for (const [index, role] of roles.entries()) {
+      if (role === "READER") {
+        assert.equal(results[index].status, "rejected");
+        assert.equal(results[index].reason.message, "PERMISSION_DENIED:asset:verify");
+      } else {
+        assert.equal(results[index].status, "fulfilled");
+        assert.deepEqual(results[index].value, { status: "UNRESOLVED", writeResumptionAllowed: false });
+      }
+    }
+    assert.equal(f.getCommandReads(), reads + 1);
+  }
+  assert.equal(f.assembly.runtime.operationalState.compromised, true);
+  assert.equal(f.getSourceFetches(), 0);
+  assert.equal(f.persisted.length, 0);
+});
+
+test("production audit recovery rejects injected capabilities and uses request-local server authorization", async () => {
+  const f = await productionFixture({ externalWritesEnabled: false });
+  f.assembly.runtime.auditJournal.append({ type: "synthetic.recovery", subjectId: "synthetic", payloadHash: HASH_A, actorId: "production-operator", occurredAt: NOW.toISOString() });
+  f.assembly.runtime.operationalState.compromised = true;
+  const input = { idempotencyKey: "audit-recovery", purpose: "internal-reconciliation" };
+  const commandHash = evidenceHash({ method: "exportAudit", input: { ...input, actorId: "production-operator" } });
+  f.setCommand(input.idempotencyKey, { commandHash, status: "COMPLETED", result: { privateResult: "must-not-return" } });
+  let injectedCalls = 0;
+  const injected = { authorizeExport() { injectedCalls += 1; return true; } };
+  const read = (value = input) => f.assembly.inspectCommandRecovery({ headers: {} }, "exportAudit", value);
+  f.setAdminIdentity({ actorId: "production-operator", roles: ["READER"] });
+  await assert.rejects(() => read({ ...input, adminOperations: injected }), { message: "RECOVERY_INPUT_INVALID" });
+  await assert.rejects(() => read(Object.assign(Object.create({ adminOperations: injected }), input)), { message: "RECOVERY_INPUT_INVALID" });
+  await assert.rejects(read, { message: "PERMISSION_DENIED:audit:export" });
+  assert.equal(f.getCommandReads(), 0);
+  assert.equal(injectedCalls, 0);
+  f.setAdminIdentity({ actorId: "production-operator", roles: ["AUDITOR"] });
+  await assert.rejects(() => read({ ...input, adminOperations: injected }), { message: "RECOVERY_INPUT_INVALID" });
+  await assert.rejects(() => read({ ...input, purpose: "unapproved" }), { message: "EXPORT_PURPOSE_INVALID" });
+  assert.equal(f.getCommandReads(), 0);
+  assert.deepEqual(await read(), { status: "COMPLETED_OBSERVED", writeResumptionAllowed: false });
+  f.setAdminIdentity((request) => ({ actorId: "production-operator", roles: [request.serverAuthenticatedRole] }));
+  const results = await Promise.allSettled(["READER", "AUDITOR"].map((role) => f.assembly.inspectCommandRecovery({ serverAuthenticatedRole: role }, "exportAudit", input)));
+  assert.equal(results[0].status, "rejected");
+  assert.equal(results[0].reason.message, "PERMISSION_DENIED:audit:export");
+  assert.deepEqual(results[1], { status: "fulfilled", value: { status: "COMPLETED_OBSERVED", writeResumptionAllowed: false } });
+  assert.equal(f.getCommandReads(), 2);
+  assert.equal(f.assembly.runtime.auditJournal.list().length, 1);
+  assert.equal(f.assembly.runtime.operationalState.compromised, true);
+  assert.equal(f.getSourceFetches(), 0);
+  assert.equal(f.persisted.length, 0);
+});
 
 test("production assembly fetches three authenticated sources and persists the authoritative mutation", async () => {
   const { assembly, persisted, published, deliveryUpdates, getSourceFetches } = await productionFixture();

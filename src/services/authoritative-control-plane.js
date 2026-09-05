@@ -9,6 +9,18 @@ const RECORD_KINDS = Object.freeze({
 
 const FINALIZATION_INPUT_FIELDS = new Set(["settlementId", "snapshotHash", "evidenceVersion", "assetReference", "certificateReference", "warehouseReference"]);
 
+function verificationCommandInput({ actorId, idempotencyKey, evidenceReferences, evidenceVersion }) {
+  if (!evidenceReferences || Object.keys(evidenceReferences).some((key) => !Object.hasOwn(RECORD_KINDS, key))) throw new Error("AUTHORITATIVE_REFERENCES_REQUIRED");
+  const fixedEvidenceReferences = Object.freeze(Object.fromEntries(Object.keys(RECORD_KINDS).map((name) => [name, evidenceReferences[name]])));
+  return { actorId, idempotencyKey, evidenceReferences: fixedEvidenceReferences, evidenceVersion };
+}
+
+function finalizationCommandInput({ actorId, idempotencyKey, request }) {
+  if (!request || Object.keys(request).some((key) => !FINALIZATION_INPUT_FIELDS.has(key))) throw new Error("AUTHORITATIVE_FINALIZATION_INPUT_INVALID");
+  const fixedRequest = Object.freeze(Object.fromEntries([...FINALIZATION_INPUT_FIELDS].map((name) => [name, request[name]])));
+  return { actorId, idempotencyKey, request: fixedRequest };
+}
+
 function assertFixedReference(value) {
   if (typeof value !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9:._/-]{2,255}$/.test(value) || /^(?:https?|wss?):/i.test(value)) throw new Error("AUTHORITATIVE_REFERENCE_INVALID");
   return value;
@@ -32,9 +44,8 @@ export class AuthoritativeOracleControlPlane {
   }
 
   async verifyAsset({ actorId, idempotencyKey, evidenceReferences, evidenceVersion }) {
-    if (!evidenceReferences || Object.keys(evidenceReferences).some((key) => !Object.hasOwn(RECORD_KINDS, key))) throw new Error("AUTHORITATIVE_REFERENCES_REQUIRED");
-    const fixedEvidenceReferences = Object.freeze(Object.fromEntries(Object.keys(RECORD_KINDS).map((name) => [name, evidenceReferences[name]])));
-    const commandInput = { actorId, idempotencyKey, evidenceReferences: fixedEvidenceReferences, evidenceVersion };
+    const commandInput = verificationCommandInput({ actorId, idempotencyKey, evidenceReferences, evidenceVersion });
+    const fixedEvidenceReferences = commandInput.evidenceReferences;
     return this.controlPlane.executeResolved("verifyAsset", commandInput, async () => {
       const records = {};
       const evidenceSources = {};
@@ -49,9 +60,8 @@ export class AuthoritativeOracleControlPlane {
   }
 
   async finalizeSettlement({ actorId, idempotencyKey, request }) {
-    if (!request || Object.keys(request).some((key) => !FINALIZATION_INPUT_FIELDS.has(key))) throw new Error("AUTHORITATIVE_FINALIZATION_INPUT_INVALID");
-    const fixedRequest = Object.freeze(Object.fromEntries([...FINALIZATION_INPUT_FIELDS].map((name) => [name, request[name]])));
-    const commandInput = { actorId, idempotencyKey, request: fixedRequest };
+    const commandInput = finalizationCommandInput({ actorId, idempotencyKey, request });
+    const fixedRequest = commandInput.request;
     return this.controlPlane.executeResolved("finalizeSettlement", commandInput, async () => {
       const records = {};
       const evidenceSources = {};
@@ -67,6 +77,14 @@ export class AuthoritativeOracleControlPlane {
       void warehouseReference;
       return { actorId, idempotencyKey, request: { ...safeRequest, ...records, evidenceSources, evidenceRecordHashes: Object.freeze(Object.fromEntries(Object.entries(records).map(([name, record]) => [name, evidenceHash(record)]))), evidenceAuthentication: sealAuthenticatedEvidence({ records, evidenceSources }) } };
     });
+  }
+
+  // Preserve the write wrapper's command identity without fetching evidence or
+  // invoking the operation. Trusted callers supply an authenticated actor only.
+  async inspectCommandRecovery(method, commandInput) {
+    const input = method === "verifyAsset" ? verificationCommandInput(commandInput)
+      : method === "finalizeSettlement" ? finalizationCommandInput(commandInput) : commandInput;
+    return this.controlPlane.inspectCommandRecovery(method, input);
   }
 }
 
