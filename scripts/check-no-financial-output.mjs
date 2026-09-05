@@ -52,7 +52,7 @@ const violations = [];
 
 for (const file of files) {
   const contents = await readFile(file, 'utf8');
-  if (ENFORCEMENT_FILES.some((allowed) => relative(repoRoot, file) === allowed)) {
+  if (ENFORCEMENT_FILES.some((allowed) => resolve(repoRoot, allowed) === file)) {
     continue;
   }
   contents.split('\n').forEach((line, index) => {
