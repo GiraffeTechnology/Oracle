@@ -1,5 +1,30 @@
 import { evidenceHash } from "../domain/canonical-json.js";
 
+// Driver errors may contain SQL, endpoints or credentials. Keep original objects
+// available for explicit internal diagnostics, never on the public error itself.
+const transactionDiagnostics = new WeakMap();
+
+export class MySqlTransactionError extends Error {
+  constructor({ phase, outcome, primaryError, rollbackError = null, releaseError = null, cleanupError = null, connectionState = "NOT_ACQUIRED" }) {
+    const code = outcome === "COMMIT_UNKNOWN" ? "MYSQL_COMMIT_UNKNOWN"
+      : outcome === "COMMITTED" ? "MYSQL_CONNECTION_RELEASE_FAILED"
+        : outcome === "ROLLBACK_UNKNOWN" ? "MYSQL_ROLLBACK_UNKNOWN"
+          : outcome === "ROLLED_BACK" ? "MYSQL_TRANSACTION_ROLLED_BACK" : "MYSQL_TRANSACTION_NOT_STARTED";
+    super(code);
+    this.name = "MySqlTransactionError";
+    this.code = code;
+    this.phase = phase;
+    this.outcome = outcome;
+    this.connectionState = connectionState;
+    transactionDiagnostics.set(this, Object.freeze({ primaryError, rollbackError, releaseError, cleanupError }));
+  }
+}
+
+// Privileged diagnostic use only: callers must not serialize or log these values.
+export function getMySqlTransactionDiagnostics(error) {
+  return transactionDiagnostics.get(error) ?? null;
+}
+
 export class MySqlOracleRepository {
   constructor({ pool }) {
     if (!pool || typeof pool.getConnection !== "function") throw new Error("MYSQL_POOL_INVALID");
@@ -7,18 +32,62 @@ export class MySqlOracleRepository {
   }
 
   async transaction(operation) {
-    const connection = await this.pool.getConnection();
+    let connection;
+    let phase = "ACQUIRE";
+    let result;
+    let failure = null;
+    let discardRequired = false;
     try {
+      connection = await this.pool.getConnection();
+      phase = "BEGIN";
       await connection.beginTransaction();
-      const result = await operation(connection);
+      phase = "OPERATION";
+      result = await operation(connection);
+      phase = "COMMIT";
       await connection.commit();
-      return result;
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
+      phase = "COMMITTED";
+    } catch (primaryError) {
+      let rollbackError = null;
+      let rollbackFailed = false;
+      if (connection) {
+        try { await connection.rollback(); } catch (error) { rollbackFailed = true; rollbackError = error; }
+      }
+      // Once COMMIT was attempted, even an acknowledged ROLLBACK cannot prove
+      // that it did not commit. No operation/transaction is retried here.
+      const outcome = phase === "COMMIT" ? "COMMIT_UNKNOWN"
+        : phase !== "OPERATION" ? "NOT_STARTED"
+          : rollbackFailed ? "ROLLBACK_UNKNOWN" : "ROLLED_BACK";
+      failure = { phase, outcome, primaryError, rollbackError };
+      discardRequired = phase === "COMMIT" || rollbackFailed;
     }
+    if (connection) {
+      // An unresolved transaction must never return to the pool: a subsequent
+      // START TRANSACTION could commit it, and a read could see its dirty rows.
+      if (!discardRequired) {
+        try {
+          await connection.release();
+          if (failure) failure.connectionState = "RELEASED";
+        } catch (releaseError) {
+          if (failure) failure.releaseError = releaseError;
+          else failure = { phase: "RELEASE", outcome: "COMMITTED", primaryError: releaseError, releaseError };
+          discardRequired = true;
+        }
+      }
+      if (discardRequired) {
+        failure.connectionState = "DISCARD_UNCONFIRMED";
+        try {
+          if (typeof connection.destroy !== "function") throw new Error("MYSQL_CONNECTION_DESTROY_UNAVAILABLE");
+          await connection.destroy();
+          failure.connectionState = "DESTROYED";
+        } catch (cleanupError) {
+          // No release fallback or retry. Preserve cleanup failure internally;
+          // adapters without reliable destroy cannot claim safe pool recovery.
+          failure.cleanupError = cleanupError;
+        }
+      }
+    }
+    if (failure) throw new MySqlTransactionError(failure);
+    return result;
   }
 
   async getAsset(assetId, connection = this.pool) {
@@ -289,5 +358,3 @@ export class MySqlOracleRepository {
     }
   }
 }
-
-
