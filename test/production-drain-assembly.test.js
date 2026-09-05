@@ -14,7 +14,14 @@ function deferred() {
   return { promise, resolve };
 }
 
-async function fixture({ commitGate, failCommit = false, publishGate, sourceHandler } = {}) {
+async function fixture({
+  commitGate,
+  failCommit = false,
+  publishGate,
+  sourceHandler,
+  signerHandlers = {},
+  failRead,
+} = {}) {
   const l2Profile = await loadL2DeploymentProfile('config/l2.production.json');
   const l3Profile = await loadProtocolProfile('config/l3.protocol.wd-0.1.1.json');
   const events = [];
@@ -24,6 +31,7 @@ async function fixture({ commitGate, failCommit = false, publishGate, sourceHand
   const pool = {
     async execute(sql, args) {
       events.push('read');
+      if (failRead?.()) throw new Error('SYNTHETIC_READ_FAILURE');
       if (sql.includes('FROM command_journal')) {
         const row = commands.get(args[0]);
         return [row ? [row] : []];
@@ -90,13 +98,16 @@ async function fixture({ commitGate, failCommit = false, publishGate, sourceHand
     verifyHistoricalBytes() {
       return false;
     },
-    async rotate() {
+    async rotate(...args) {
+      if (signerHandlers.rotate) return signerHandlers.rotate(...args);
       assert.fail('no rotation');
     },
-    async reconcile() {
+    async reconcile(...args) {
+      if (signerHandlers.reconcile) return signerHandlers.reconcile(...args);
       assert.fail('no rotation');
     },
-    async activateRuntime() {
+    async activateRuntime(...args) {
+      if (signerHandlers.activateRuntime) return signerHandlers.activateRuntime(...args);
       assert.fail('no rotation');
     },
   };
@@ -176,7 +187,7 @@ async function fixture({ commitGate, failCommit = false, publishGate, sourceHand
     });
     assembly.runtime.outbox.markDurable(event.eventId);
   }
-  return { assembly, events, input, command, commitEntered, publishEntered, enqueue };
+  return { assembly, events, input, command, commitEntered, publishEntered, enqueue, commands };
 }
 
 test('opt-in production assembly exposes scoped lifecycle without a raw repository bypass', async () => {
@@ -488,3 +499,214 @@ test('audit export refuses injected capabilities before callbacks or DB reads', 
   assert.equal(f.events.length, before);
   assert.equal(f.assembly.repositoryLifecycle.snapshot().state, 'ACCEPTING');
 });
+
+// Fake broker facts only, never evidence of a protected signer run.
+const FAKE_ROTATION_RESULT = Object.freeze({
+  oldSignerRejected: true,
+  newSignerAccepted: true,
+  rotationAudited: true,
+  auditChainVerified: true,
+  dualApprovalVerified: true,
+  rollbackVerified: true,
+  timelockSeconds: 300,
+  rollbackWindowSeconds: 3600,
+  privateMaterialObserved: false,
+  networkUsed: false,
+  transactionSigned: false,
+});
+
+async function signerContinuationFixture(phase) {
+  const entered = deferred();
+  const hold = deferred();
+  const brokerCalls = [];
+  let failReads = false;
+  let f;
+  const finish = async (method) => {
+    brokerCalls.push(method);
+    entered.resolve();
+    await hold.promise;
+    return { applied: true, ...FAKE_ROTATION_RESULT };
+  };
+  f = await fixture({
+    failRead: () => failReads,
+    signerHandlers: {
+      async rotate() {
+        if (phase === 'reconcile') {
+          brokerCalls.push('rotate-lost-ack');
+          throw new Error('SYNTHETIC_ROTATION_ACK_UNKNOWN');
+        }
+        return finish('rotate');
+      },
+      reconcile: () => finish('reconcile'),
+      async activateRuntime({ fromSignerSetId, toSignerSetId, attestationService }) {
+        brokerCalls.push('activateRuntime');
+        assert.notEqual(f.assembly.repositoryLifecycle.snapshot().state, 'BLOCKED');
+        // Byte echo validates the local backend contract without crypto signing,
+        // keys, a platform broker, SYSTEM, or any external call.
+        return attestationService.activateSignerBackend(
+          {
+            signerSetId: toSignerSetId,
+            signBytes: (bytes) => Buffer.from(bytes),
+            verifyBytes: (bytes, signature) => Buffer.from(bytes).equals(signature),
+            signerPolicy: new SignerSetPolicy({
+              signerSetId: toSignerSetId,
+              threshold: 1,
+              signers: ['synthetic-next'],
+              environment: 'production',
+            }),
+          },
+          fromSignerSetId,
+        );
+      },
+    },
+  });
+  const rotationInput = {
+    actorId: 'synthetic-security',
+    actionId: `synthetic-rotation-${phase}`,
+    fromSignerSetId: 'synthetic-signers',
+    toSignerSetId: 'synthetic-next-signers',
+    rotationDigest: 'b'.repeat(64),
+  };
+  await f.assembly.controlPlane.requestSignerRotation({
+    ...rotationInput,
+    idempotencyKey: `request-${phase}`,
+  });
+  await f.assembly.authenticateAdmin({ actorId: 'synthetic-approver', roles: ['APPROVER'] });
+  await f.assembly.controlPlane.approveAction({
+    actorId: 'synthetic-approver',
+    actionId: rotationInput.actionId,
+    idempotencyKey: `approve-${phase}`,
+  });
+  if (phase === 'reconcile') {
+    await assert.rejects(
+      f.assembly.controlPlane.executeSignerRotation({
+        ...rotationInput,
+        idempotencyKey: 'lost-ack',
+      }),
+      /SYNTHETIC_ROTATION_ACK_UNKNOWN/,
+    );
+    assert.equal(f.assembly.runtime.operationalState.signerRecoveryRequired, true);
+  }
+  return {
+    ...f,
+    entered,
+    hold,
+    rotationInput,
+    brokerCalls,
+    failReads: (value) => {
+      failReads = value;
+    },
+    run: () =>
+      f.assembly.controlPlane[
+        phase === 'rotate' ? 'executeSignerRotation' : 'reconcileSignerRotation'
+      ]({ ...rotationInput, idempotencyKey: `execute-${phase}` }),
+  };
+}
+
+for (const phase of ['rotate', 'reconcile']) {
+  for (const blocker of ['timeout', 'repository-failure']) {
+    test(`signer continuation: ${phase} cannot dispatch activation after ${blocker}`, async () => {
+      const f = await signerContinuationFixture(phase);
+      const operation = f.run();
+      const rejected = assert.rejects(operation);
+      let writesAtBlock;
+      let commandsAtBlock;
+      const outboxBefore = f.assembly.runtime.outbox.list().length;
+      try {
+        await f.entered.promise;
+        if (blocker === 'timeout') {
+          assert.equal(
+            (await f.assembly.repositoryLifecycle.quiesce({ timeoutMs: 5 })).state,
+            'BLOCKED',
+          );
+        } else {
+          f.failReads(true);
+          // getCommand precedes the shared write queue; its failure can occur
+          // while the already admitted broker operation is awaiting its reply.
+          await assert.rejects(
+            f.assembly.controlPlane.reconcileSignerRotation({
+              ...f.rotationInput,
+              idempotencyKey: 'read-failure',
+            }),
+          );
+          f.failReads(false);
+          assert.equal(f.assembly.repositoryLifecycle.snapshot().state, 'BLOCKED');
+        }
+        assert.equal(f.assembly.repositoryLifecycle.snapshot().inFlight, 1);
+        writesAtBlock = f.events.filter((event) =>
+          ['sql', 'acquire', 'commit'].includes(event),
+        ).length;
+        commandsAtBlock = JSON.stringify([...f.commands]);
+      } finally {
+        f.hold.resolve();
+        await rejected;
+      }
+      assert.equal(f.brokerCalls.includes('activateRuntime'), false);
+      assert.equal(f.assembly.runtime.attestations.signerSetId, 'synthetic-signers');
+      assert.equal(f.assembly.runtime.operationalState.signerRecoveryRequired, true);
+      assert.equal(
+        f.assembly.runtime.auditJournal.list().some(({ type }) => type === 'signer.rotated'),
+        false,
+      );
+      assert.equal(f.assembly.runtime.outbox.list().length, outboxBefore);
+      assert.equal(
+        f.events.filter((event) => ['sql', 'acquire', 'commit'].includes(event)).length,
+        writesAtBlock,
+      );
+      assert.equal(JSON.stringify([...f.commands]), commandsAtBlock);
+      if (phase === 'reconcile') assert.equal(f.commands.get('lost-ack').command_status, 'PENDING');
+      else assert.equal(f.commands.has('execute-rotate'), false);
+      const snapshot = f.assembly.repositoryLifecycle.snapshot();
+      assert.equal(snapshot.state, 'BLOCKED');
+      assert.equal(snapshot.inFlight, 0);
+      assert.equal(snapshot.poolCloseAllowed, false);
+      assert.equal(snapshot.writeResumptionAllowed, false);
+      const before = [...f.brokerCalls];
+      const { actorId, ...recoveryInput } = {
+        ...f.rotationInput,
+        idempotencyKey: phase === 'reconcile' ? 'lost-ack' : 'execute-rotate',
+      };
+      assert.deepEqual(
+        await f.assembly.inspectCommandRecovery(
+          { actorId, roles: ['SECURITY_OFFICER'] },
+          'executeSignerRotation',
+          recoveryInput,
+        ),
+        { status: 'UNRESOLVED', writeResumptionAllowed: false },
+      );
+      assert.deepEqual(f.brokerCalls, before);
+      await assert.rejects(f.run());
+      assert.deepEqual(f.brokerCalls, before);
+    });
+  }
+
+  test(`signer continuation: normal drain permits admitted ${phase} to finish`, async () => {
+    const f = await signerContinuationFixture(phase);
+    const operation = f.run();
+    await f.entered.promise;
+    const drain = f.assembly.repositoryLifecycle.quiesce({ timeoutMs: 1000 });
+    assert.equal(f.assembly.repositoryLifecycle.snapshot().state, 'DRAINING');
+    f.hold.resolve();
+    await operation;
+    assert.equal((await drain).state, 'DRAINED');
+    assert.equal(f.brokerCalls.filter((call) => call === 'activateRuntime').length, 1);
+    assert.equal(f.assembly.runtime.attestations.signerSetId, 'synthetic-next-signers');
+    assert.equal(
+      f.assembly.runtime.auditJournal.list().filter(({ type }) => type === 'signer.rotated').length,
+      1,
+    );
+    const { actorId, ...recoveryInput } = {
+      ...f.rotationInput,
+      idempotencyKey: `execute-${phase}`,
+    };
+    assert.deepEqual(
+      await f.assembly.inspectCommandRecovery(
+        { actorId, roles: ['SECURITY_OFFICER'] },
+        phase === 'rotate' ? 'executeSignerRotation' : 'reconcileSignerRotation',
+        recoveryInput,
+      ),
+      { status: 'COMPLETED_OBSERVED', writeResumptionAllowed: false },
+    );
+    assert.equal(f.assembly.repositoryLifecycle.snapshot().poolCloseAllowed, false);
+  });
+}

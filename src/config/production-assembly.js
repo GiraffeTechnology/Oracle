@@ -63,8 +63,15 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
   if (repositoryExecution) assembled = Object.freeze({ ...assembled, ports: Object.freeze({ ...assembled.ports, repository: repositoryExecution.repository }) });
   const inRepositoryScope = (operation) => repositoryExecution ? repositoryExecution.run(operation) : operation();
   const dualControl = new DualControlQueue();
-  const signerRotationBroker = assembled.ports.signer;
-  if (typeof signerRotationBroker.rotate !== "function" || typeof signerRotationBroker.reconcile !== "function" || typeof signerRotationBroker.activateRuntime !== "function") throw new Error("PRODUCTION_SIGNER_ROTATION_BROKER_INVALID");
+  const rawSignerRotationBroker = assembled.ports.signer;
+  if (typeof rawSignerRotationBroker.rotate !== "function" || typeof rawSignerRotationBroker.reconcile !== "function" || typeof rawSignerRotationBroker.activateRuntime !== "function") throw new Error("PRODUCTION_SIGNER_ROTATION_BROKER_INVALID");
+  // Recheck each dispatch, including activation after an awaited broker reply.
+  // Blocking activation never proves the already dispatched rotation did not apply.
+  const signerRotationBroker = repositoryExecution ? Object.freeze(Object.fromEntries(
+    ["rotate", "reconcile", "activateRuntime"].map((method) => [method,
+      (...args) => repositoryExecution.guardSideEffect(() => rawSignerRotationBroker[method](...args)),
+    ]),
+  )) : rawSignerRotationBroker;
   if (typeof assembled.ports.repository.loadStateSnapshot !== "function") throw new Error("PRODUCTION_STATE_RESTORE_UNAVAILABLE");
   if (["recordOutboxAttempt", "recordOutboxDeliveryStateAttempt", "recordOutboxDeadLetterAttempt", "recordOutboxDeadLetterStateAttempt", "markOutboxPublished", "markOutboxDeadLettered"].some((method) => typeof assembled.ports.repository[method] !== "function")) throw new Error("PRODUCTION_OUTBOX_DELIVERY_STORE_INVALID");
   restoreProductionState(runtime, dualControl, await inRepositoryScope(() => assembled.ports.repository.loadStateSnapshot()));

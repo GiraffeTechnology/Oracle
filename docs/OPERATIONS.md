@@ -109,6 +109,14 @@ automatic retries or a `Retry-After` promise. In particular, an unresolved prior
 transaction must still be investigated through the controlled recovery procedure;
 service unavailability never proves that a command was not committed.
 
+The opt-in control plane also rechecks admission before each broker `rotate`,
+`reconcile` and `activateRuntime` dispatch. Normal draining permits an admitted
+flow to finish; `BLOCKED` prevents a new activation after a pending broker reply.
+This does not cancel an already dispatched broker operation or prove rotation
+was not applied. Recovery-required memory is not proof of persisted recovery;
+closed repository admission never permits a bypass write. The authenticated
+read-only command observation remains available without reopening admission.
+
 The public admin facade permits authorized dashboard snapshots and export
 authorization checks, but direct `adminOperations.exportAudit` is rejected.
 Export only through `controlPlane.exportAudit`: the assembly injects a private,
@@ -123,8 +131,8 @@ the gate. No pool replacement, close, resume or promotion API is provided.
 
 This process-local slice does not establish cross-process fencing, HTTP shutdown,
 signer/custody lifecycle isolation, replication, real driver failure injection,
-PITR, RPO/RTO or a target migration. Signer rotation continuations and production
-shutdown coordination remain separate work. Synthetic local tests and source
+PITR, RPO/RTO or a target migration. Already dispatched signer internals and
+production shutdown coordination remain separate work. Synthetic local tests and source
 review are not target deployment evidence or human approval.
 
 ## Go/no-go
