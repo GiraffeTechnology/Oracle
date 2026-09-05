@@ -24,5 +24,5 @@ export async function loadPinnedDeploymentModule({ modulePath, expectedSha256 })
 export async function bootstrapProductionApplication({ config, env = process.env, clock = () => new Date() }) {
   const deployment = await loadPinnedDeploymentModule({ modulePath: env.GIRAFFE_ORACLE_DEPLOYMENT_MODULE, expectedSha256: env.GIRAFFE_ORACLE_DEPLOYMENT_MODULE_SHA256 });
   const [l2Profile, l3Profile] = await Promise.all([loadL2DeploymentProfile(config.l2ProfileRef), loadProtocolProfile(config.l3ProfileRef)]);
-  return assembleProductionApplication({ config, l2Profile, l3Profile, resolver: deployment.resolver, settlementConfiguration: deployment.settlementConfiguration, clock });
+  return assembleProductionApplication({ config, l2Profile, l3Profile, resolver: deployment.resolver, settlementConfiguration: deployment.settlementConfiguration, clock, repositoryDrainEnabled: config.processLifecycleEnabled === true });
 }

@@ -102,10 +102,14 @@ function assertSameOriginAdminWrite(request) {
   return true;
 }
 
-export function createApp({ config, sourceRegistry, runtime = null, controlPlane = null, adminOperations = null, authenticateAdmin = null, readinessCheck = null, l2Profile = null, protocolProfile = null, verificationRateLimiter = new FixedWindowRateLimiter({ limit: 60, windowMs: 60000 }) }) {
+export function createApp(options) {
+  return http.createServer(createRequestHandler(options));
+}
+
+export function createRequestHandler({ config, sourceRegistry, runtime = null, controlPlane = null, adminOperations = null, authenticateAdmin = null, readinessCheck = null, l2Profile = null, protocolProfile = null, verificationRateLimiter = new FixedWindowRateLimiter({ limit: 60, windowMs: 60000 }) }) {
   if (!config || !sourceRegistry) throw new Error("APP_DEPENDENCY_MISSING");
 
-  return http.createServer(async (request, response) => {
+  return async (request, response) => {
     const requestUrl = new URL(request.url, "http://localhost");
     if (runtime?.operationalState?.compromised && requestUrl.pathname !== "/healthz") {
       sendJson(response, 503, { ok: false, errorCode: "DURABLE_STATE_COMPROMISED" });
@@ -373,5 +377,5 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
     }
 
     sendJson(response, 404, { ok: false, errorCode: "NOT_FOUND" });
-  });
+  };
 }

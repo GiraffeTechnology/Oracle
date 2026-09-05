@@ -56,7 +56,7 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
     clock,
   });
   const authorizer = new Authorizer();
-  // Opt-in local assembly slice; production bootstrap and remote config stay unchanged.
+  // Explicit opt-in from the production bootstrap; deployment enablement is separate.
   const repositoryExecution = repositoryDrainEnabled
     ? createRepositoryExecutionScope({ repository: assembled.ports.repository, isCompromised: () => runtime.operationalState.compromised === true })
     : null;

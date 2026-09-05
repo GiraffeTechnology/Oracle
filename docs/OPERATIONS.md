@@ -132,15 +132,16 @@ the gate. No pool replacement, close, resume or promotion API is provided.
 This process-local slice does not establish cross-process fencing, HTTP shutdown,
 signer/custody lifecycle isolation, replication, real driver failure injection,
 PITR, RPO/RTO or a target migration. Already dispatched signer internals and
-production shutdown coordination remain separate work. Synthetic local tests and source
+target shutdown rollout remain separate work. Synthetic local tests and source
 review are not target deployment evidence or human approval.
 
-## Unwired HTTP shutdown coordinator
+## HTTP shutdown coordinator and opt-in application entry
 
 `createHttpShutdownCoordinator({ requestHandler, repositoryLifecycle })` creates
-an owned HTTP server and a one-way `shutdown({ timeoutMs })` interface. It is not
-connected to `createApp`, `main`, bootstrap or process signals. No deployment
-flag enables it. This is a local source component, not a tested SIGTERM rollout.
+an owned HTTP server and a one-way `shutdown({ timeoutMs })` interface. The actual
+application entry can explicitly opt in through `GIRAFFE_ORACLE_PROCESS_LIFECYCLE=true`
+in acknowledged production mode. Omitted/false preserves the unmanaged default.
+This source capability is not approval to enable a deployment or restart a gray instance.
 
 The owner must return/await the handler's asynchronous business work or register
 children with the supplied `track(() => operation())` capability before dispatch.
@@ -159,6 +160,43 @@ Idle-connection cleanup never destroys an active response or cancels business.
 Terminal shutdown calls do not retry failed cleanup. There is no `process.exit`,
 pool close, restart, target promotion or permission to resume writes; snapshots
 always retain `poolCloseAllowed: false` and `writeResumptionAllowed: false`.
+
+`main` uses the unchanged request logic through `createRequestHandler`, with one
+owned listener and its complete asynchronous return value. The pinned production
+bootstrap enables the existing assembly drain only for this explicit opt-in and
+passes that same assembly lifecycle to HTTP shutdown. Authentication, CSRF,
+external-write acknowledgement and idempotency checks are not relaxed.
+
+The optional `GIRAFFE_ORACLE_SHUTDOWN_TIMEOUT_MS` is a canonical positive integer
+in 1..2147483647 (default 30000); it is rejected without lifecycle opt-in. SIGTERM
+and SIGINT latch shutdown before awaited bootstrap/listen completion. A signal
+during startup prevents subsequent worker start and `server.started`. Startup
+remains counted until it settles; timeout is sticky even when late bootstrap
+completion subsequently closes admission. After initialization the HTTP/repository
+coordinator owns the remaining monotonic deadline; repeated calls cannot extend it.
+Startup, listener, reporting or drain failure is not a clean stop. The CLI sets
+exit status 1 for failure, never forces process exit, and never closes the pool or
+claims an unknown commit did not apply. Pending work is not cancelled by a signal.
+
+Runtime HTTP failures actively invoke a one-shot `onBlocked` notification. The
+application marks failure and begins the same shutdown/quiescence path without
+requiring a snapshot poll. Notification is guarded before callback dispatch so
+reentrant shutdown and repeated errors cannot recursively notify or restart cleanup.
+Already dispatched work remains counted after the failure notification.
+
+The exported `startApplication` handle exposes `ready`, `shutdown`, `snapshot` and
+the owned server for in-process integration tests. Callers must not re-listen,
+attach bypass listeners, replace lifecycle methods or dispatch detached work.
+Bootstrap must settle to expose its assembly; a hung/failed bootstrap is BLOCKED,
+not evidence that unseen initialization resources have drained. The CLI uses the
+pinned bootstrap; injected test ports are not a production deployment mechanism.
+
+Synthetic subprocess tests exercise actual `main`, the actual production assembly
+with fake ports, and JavaScript SIGTERM/SIGINT event handlers. Normal shutdown exits
+naturally with status 0; the synthetic ambiguous commit path exits with status 1,
+without retry. They do not verify native OS signal delivery, Linux service-manager
+behavior, real MySQL faults, cross-process fencing, protected signing or a target
+rollout. Those checks and target/deployment authorization remain separate gates.
 
 ## Go/no-go
 

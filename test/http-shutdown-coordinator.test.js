@@ -6,6 +6,69 @@ import { createHttpShutdownCoordinator } from '../src/services/http-shutdown-coo
 import { createRepositoryExecutionScope } from '../src/services/repository-execution-scope.js';
 import { MySqlOracleRepository } from '../src/adapters/mysql-repository.js';
 
+test('failure observer is one-shot under reentrant shutdown and repeated errors', async () => {
+  let notifications = 0,
+    quiesces = 0,
+    state = 'ACCEPTING';
+  const lifecycle = {
+    snapshot: () => ({
+      state,
+      inFlight: 0,
+      poolCloseAllowed: false,
+      writeResumptionAllowed: false,
+    }),
+    async quiesce() {
+      quiesces += 1;
+      state = 'DRAINED';
+      return this.snapshot();
+    },
+  };
+  const coordinator = createHttpShutdownCoordinator({
+    requestHandler() {},
+    repositoryLifecycle: lifecycle,
+    onBlocked() {
+      notifications += 1;
+      void coordinator.shutdown({ timeoutMs: 1000 });
+    },
+  });
+  coordinator.server.emit('error', new Error('sensitive-failure'));
+  coordinator.server.emit('error', new Error('sensitive-repeated-failure'));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(notifications, 1);
+  assert.equal(quiesces, 1);
+  assert.equal((await coordinator.shutdown({ timeoutMs: 1 })).state, 'BLOCKED');
+  assert.equal(coordinator.snapshot().serverClosed, true);
+});
+
+test('throwing failure observer cannot escape the error handler or leak its message', async () => {
+  let notifications = 0;
+  const lifecycle = {
+    snapshot: () => ({
+      state: 'DRAINED',
+      inFlight: 0,
+      poolCloseAllowed: false,
+      writeResumptionAllowed: false,
+    }),
+    async quiesce() {
+      return this.snapshot();
+    },
+  };
+  const coordinator = createHttpShutdownCoordinator({
+    requestHandler() {},
+    repositoryLifecycle: lifecycle,
+    onBlocked() {
+      notifications += 1;
+      throw new Error('sensitive-observer-error');
+    },
+  });
+  assert.doesNotThrow(() => coordinator.server.emit('error', new Error('private')));
+  const result = await coordinator.shutdown({ timeoutMs: 1000 });
+  assert.equal(notifications, 1);
+  assert.equal(result.state, 'BLOCKED');
+  assert.ok(result.blockers.includes('HTTP_FAILURE_OBSERVER_FAILED'));
+  assert.doesNotMatch(JSON.stringify(result), /sensitive|private/);
+});
+
 function deferred() {
   let resolve;
   const promise = new Promise((done) => {

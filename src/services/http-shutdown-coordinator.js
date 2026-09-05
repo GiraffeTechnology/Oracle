@@ -1,14 +1,19 @@
 import http from 'node:http';
 import { performance } from 'node:perf_hooks';
 
-// Unwired process-local component. The owner must return/await handler work or
+// Process-local component. The owner must return/await handler work or
 // register child operations with track BEFORE dispatch. Unregistered detached
 // work, upgraded protocols, cross-process fencing and pool closure are not proven.
-export function createHttpShutdownCoordinator({ requestHandler, repositoryLifecycle } = {}) {
+export function createHttpShutdownCoordinator({
+  requestHandler,
+  repositoryLifecycle,
+  onBlocked = () => {},
+} = {}) {
   if (
     typeof requestHandler !== 'function' ||
     typeof repositoryLifecycle?.quiesce !== 'function' ||
-    typeof repositoryLifecycle.snapshot !== 'function'
+    typeof repositoryLifecycle.snapshot !== 'function' ||
+    typeof onBlocked !== 'function'
   )
     throw new Error('HTTP_SHUTDOWN_DEPENDENCY_INVALID');
   let started = false;
@@ -20,6 +25,7 @@ export function createHttpShutdownCoordinator({ requestHandler, repositoryLifecy
   let childOperationsInFlight = 0;
   let quiesceInFlight = 0;
   let idleCleanupInFlight = 0;
+  let failureNotified = false;
   const blockers = new Set();
   const sockets = new Set();
   const waiters = new Set();
@@ -74,7 +80,18 @@ export function createHttpShutdownCoordinator({ requestHandler, repositoryLifecy
     });
   };
   const settle = () => {
-    const result = snapshot();
+    let result = snapshot();
+    if (result.state === 'BLOCKED' && !failureNotified) {
+      // Notify on failure, not on a later observer poll. Mark first because the
+      // application callback may synchronously call shutdown and re-enter settle.
+      failureNotified = true;
+      try {
+        onBlocked(result);
+      } catch {
+        blockers.add('HTTP_FAILURE_OBSERVER_FAILED');
+      }
+      result = snapshot(); // callback may have started cleanup; retain its counts
+    }
     if (!started || !['DRAINED', 'BLOCKED'].includes(result.state)) return;
     clearTimeout(timer);
     for (const resolve of waiters) resolve(result);
