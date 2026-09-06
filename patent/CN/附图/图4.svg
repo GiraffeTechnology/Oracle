@@ -1,35 +1,35 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="700" height="900" viewBox="0 0 700 900" font-family="WenQuanYi Zen Hei, SimSun, serif" font-size="13">
-<rect width="700" height="900" fill="#fff"/>
-<defs><marker id="e" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#000"/></marker></defs>
-<g fill="none" stroke="#000" stroke-width="1.5">
-  <rect x="150" y="30" width="330" height="52" rx="6"/>
-  <rect x="150" y="118" width="330" height="52"/>
-  <rect x="150" y="206" width="330" height="52"/>
-  <rect x="150" y="294" width="330" height="52"/>
-  <rect x="150" y="382" width="330" height="52"/>
-  <rect x="150" y="470" width="330" height="52"/>
-  <rect x="150" y="558" width="330" height="52"/>
-  <rect x="150" y="646" width="330" height="66"/>
-  <rect x="150" y="748" width="330" height="52" rx="6"/>
-  <rect x="530" y="382" width="140" height="52"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="920" viewBox="0 0 700 920" font-family="WenQuanYi Zen Hei, SimSun, serif" font-size="13">
+<defs><marker id="e" markerWidth="10" markerHeight="10" refX="9" refY="3.2" orient="auto"><path d="M0,0 L9,3.2 L0,6.4 Z" fill="#000"/></marker></defs>
+<rect width="700" height="920" fill="#fff"/>
+<g fill="none" stroke="#000" stroke-width="1.6">
+  <rect x="130" y="30" width="340" height="56" rx="6"/>
+  <rect x="130" y="120" width="340" height="56"/>
+  <rect x="130" y="210" width="340" height="56"/>
+  <rect x="130" y="300" width="340" height="56"/>
+  <rect x="130" y="390" width="340" height="56"/>
+  <rect x="130" y="480" width="340" height="56"/>
+  <rect x="130" y="570" width="340" height="70"/>
+  <rect x="130" y="674" width="340" height="56"/>
+  <rect x="130" y="764" width="340" height="56" rx="6"/>
+  <rect x="520" y="390" width="150" height="56"/>
 </g>
 <g fill="#000" text-anchor="middle">
-  <text x="315" y="52">S410 开启缺口:校验权限主体、标识、</text><text x="315" y="70">快照、截止时刻不超期限上限</text>
-  <text x="315" y="140">S420 前置校验:缺口开启中、未逾期、</text><text x="315" y="158">生效时刻严格递增且不超前向上界、承诺未重复</text>
-  <text x="315" y="228">S430 计算叶节点摘要:绑定链标识、合约地址、</text><text x="315" y="246">通证与结算标识、持有人、快照、前后承诺、版本、生效时刻</text>
-  <text x="315" y="316">S440 成员证明:叶标签 0x00 / 内节点标签 0x01,</text><text x="315" y="334">逐层归并至根,且索引剩余位全为零</text>
-  <text x="315" y="404">S450 终局性:域分隔类型化摘要,</text><text x="315" y="422">≥门限个互不相同的见证人签名</text>
-  <text x="315" y="492">S460 远端高度严格递增,</text><text x="315" y="510">且证明标识未被消费</text>
-  <text x="315" y="580">S470 同一交易内原子写入:消费证明、更新高度、</text><text x="315" y="598">闭合前条区间、追加条目、闭合缺口、发事件</text>
-  <text x="315" y="670">S480 对外提供三项独立事实:</text><text x="315" y="688">holderAsOf / isFinalAsOf / openGapOf</text>
-  <text x="315" y="778">S490 缺口期间转让不阻断,</text><text x="315" y="796">且不由 ownerOf 推断确认持有人</text>
-  <text x="600" y="404">任一校验失败</text><text x="600" y="422">→ 整笔交易回滚</text>
+  <text x="300" y="52">S410 开启窗口：校验权限主体、标识、</text><text x="300" y="72">起始快照、截止时刻不超核定期上限</text>
+  <text x="300" y="142">S420 前置校验：窗口开启中、未逾期、生效时刻</text><text x="300" y="162">严格递增且不超前向上界、记录承诺未重复</text>
+  <text x="300" y="232">S430 计算叶节点摘要：绑定链标识、合约地址、</text><text x="300" y="252">对象与核定标识、权属人、快照、前后承诺、版本、时刻</text>
+  <text x="300" y="322">S440 成员证明：叶标签 0x00 ／ 内节点标签 0x01，</text><text x="300" y="342">逐层归并至根，且索引剩余位全为零</text>
+  <text x="300" y="412">S450 终局性：域分隔类型化摘要，</text><text x="300" y="432">不少于门限个互不相同的见证人签名</text>
+  <text x="300" y="502">S460 远端高度严格递增，</text><text x="300" y="522">且证明标识未被消费</text>
+  <text x="300" y="592">S470 同一个事务内原子写入：消费证明、更新高度、</text><text x="300" y="612">闭合前条区间、追加条目、闭合窗口、发出事件</text>
+  <text x="300" y="696">S480 对外提供三项彼此独立的事实：</text><text x="300" y="716">某时刻权属人／是否终局／是否被争议</text>
+  <text x="300" y="786">S490 窗口开启期间转移不被阻断，</text><text x="300" y="806">且不由当前所有者推断确认权属人</text>
+  <text x="595" y="412">任一校验失败</text><text x="595" y="432">整个事务回滚</text>
 </g>
-<g fill="none" stroke="#000" stroke-width="1.2" marker-end="url(#e)">
-  <path d="M315 82 V118"/><path d="M315 170 V206"/><path d="M315 258 V294"/>
-  <path d="M315 346 V382"/><path d="M315 434 V470"/><path d="M315 522 V558"/>
-  <path d="M315 610 V646"/><path d="M315 712 V748"/>
-  <path d="M480 408 H530"/>
+<g fill="none" stroke="#000" stroke-width="1.3" marker-end="url(#e)">
+  <path d="M300 86 V116"/><path d="M300 176 V206"/><path d="M300 266 V296"/>
+  <path d="M300 356 V386"/><path d="M300 446 V476"/><path d="M300 536 V566"/>
+  <path d="M300 640 V670"/><path d="M300 730 V760"/>
+  <path d="M470 418 H516"/>
 </g>
-<text x="350" y="880" text-anchor="middle" font-size="16">图 4</text>
+<text x="350" y="890" text-anchor="middle" font-size="16">图 4</text>
 </svg>

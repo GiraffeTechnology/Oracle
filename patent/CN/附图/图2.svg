@@ -1,45 +1,47 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="820" height="420" viewBox="0 0 820 420" font-family="WenQuanYi Zen Hei, SimSun, serif" font-size="14">
-<rect width="820" height="420" fill="#fff"/>
-<line x1="60" y1="300" x2="780" y2="300" stroke="#000" stroke-width="1.5" marker-end="url(#b)"/>
-<defs><marker id="b" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#000"/></marker></defs>
-<text x="790" y="305" font-size="13">t</text>
-<g stroke="#000" stroke-width="1.2">
-  <line x1="140" y1="290" x2="140" y2="310"/>
-  <line x1="330" y1="290" x2="330" y2="310"/>
-  <line x1="520" y1="290" x2="520" y2="310"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="400" viewBox="0 0 860 400" font-family="WenQuanYi Zen Hei, SimSun, serif" font-size="14">
+<defs>
+<marker id="b" markerWidth="10" markerHeight="10" refX="9" refY="3.2" orient="auto"><path d="M0,0 L9,3.2 L0,6.4 Z" fill="#000"/></marker>
+<marker id="c" markerWidth="10" markerHeight="10" refX="1" refY="3.2" orient="auto"><path d="M9,0 L0,3.2 L9,6.4 Z" fill="#000"/></marker>
+</defs>
+<rect width="860" height="400" fill="#fff"/>
+<g fill="none" stroke="#000" stroke-width="1.6">
+  <rect x="150" y="180" width="200" height="52"/>
+  <rect x="350" y="180" width="200" height="52"/>
+  <rect x="550" y="180" width="200" height="52"/>
+</g>
+<g fill="#000" font-size="13" text-anchor="middle">
+  <text x="250" y="202">条目 v=1</text><text x="250" y="222">权属人 A</text>
+  <text x="450" y="202">条目 v=2</text><text x="450" y="222">权属人 B</text>
+  <text x="650" y="202">条目 v=3</text><text x="650" y="222">权属人 C</text>
+</g>
+<line x1="70" y1="290" x2="800" y2="290" stroke="#000" stroke-width="1.6" marker-end="url(#b)"/>
+<text x="812" y="295" font-size="13">t</text>
+<g stroke="#000" stroke-width="1.2" stroke-dasharray="4 3">
+  <line x1="150" y1="232" x2="150" y2="282"/>
+  <line x1="350" y1="232" x2="350" y2="282"/>
+  <line x1="550" y1="232" x2="550" y2="282"/>
+</g>
+<g stroke="#000" stroke-width="1.4">
+  <line x1="150" y1="282" x2="150" y2="298"/>
+  <line x1="350" y1="282" x2="350" y2="298"/>
+  <line x1="550" y1="282" x2="550" y2="298"/>
 </g>
 <g fill="#000" font-size="12" text-anchor="middle">
-  <text x="140" y="330">e1</text><text x="330" y="330">e2</text><text x="520" y="330">e3</text>
-  <text x="140" y="348">首条生效时刻</text><text x="520" y="348">最新条目生效时刻</text>
+  <text x="150" y="318">e1</text><text x="350" y="318">e2</text><text x="550" y="318">e3</text>
+  <text x="150" y="338">首条生效时刻</text><text x="550" y="338">最新条目生效时刻</text>
 </g>
 <g fill="none" stroke="#000" stroke-width="1.5">
-  <rect x="140" y="200" width="190" height="46"/>
-  <rect x="330" y="200" width="190" height="46"/>
-  <rect x="520" y="200" width="190" height="46"/>
+  <path d="M158 120 H542" marker-start="url(#c)" marker-end="url(#b)"/>
+  <path d="M558 120 H780" marker-start="url(#c)" marker-end="url(#b)"/>
 </g>
 <g fill="#000" font-size="13" text-anchor="middle">
-  <text x="235" y="220">条目 v=1</text><text x="235" y="238">holder A</text>
-  <text x="425" y="220">条目 v=2</text><text x="425" y="238">holder B</text>
-  <text x="615" y="220">条目 v=3</text><text x="615" y="238">holder C</text>
-</g>
-<g fill="none" stroke="#000" stroke-width="1.2" stroke-dasharray="4 3">
-  <line x1="140" y1="246" x2="140" y2="290"/>
-  <line x1="330" y1="246" x2="330" y2="290"/>
-  <line x1="520" y1="246" x2="520" y2="290"/>
-</g>
-<g fill="none" stroke="#000" stroke-width="1.5">
-  <path d="M140 130 H520" marker-start="url(#c)" marker-end="url(#c)"/>
-  <path d="M520 130 H760" marker-start="url(#c)" marker-end="url(#c)"/>
-</g>
-<defs><marker id="c" markerWidth="9" markerHeight="9" refX="4" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#000"/></marker></defs>
-<g fill="#000" font-size="13" text-anchor="middle">
-  <text x="330" y="118">终局区间:isFinalAsOf = true</text>
-  <text x="640" y="118">非终局区间:可被后到条目覆盖</text>
+  <text x="350" y="106">终局区间</text>
+  <text x="669" y="106">非终局区间</text>
 </g>
 <g fill="#000" font-size="12">
-  <text x="150" y="185">v1.supersededAt := e2</text>
-  <text x="340" y="185">v2.supersededAt := e3</text>
-  <text x="530" y="185">v3.supersededAt = 0</text>
+  <text x="158" y="168">v1 被覆盖时刻 := e2</text>
+  <text x="358" y="168">v2 被覆盖时刻 := e3</text>
+  <text x="558" y="168">v3 被覆盖时刻 = 0</text>
 </g>
-<text x="410" y="400" text-anchor="middle" font-size="16">图 2</text>
+<text x="430" y="380" text-anchor="middle" font-size="16">图 2</text>
 </svg>

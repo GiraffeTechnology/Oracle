@@ -1,39 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="780" height="460" viewBox="0 0 780 460" font-family="WenQuanYi Zen Hei, SimSun, serif" font-size="14">
-<rect width="780" height="460" fill="#fff"/>
-<defs><marker id="d" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#000"/></marker></defs>
-<g fill="none" stroke="#000" stroke-width="1.5">
-  <rect x="40" y="180" width="130" height="56" rx="6"/>
-  <rect x="290" y="180" width="130" height="56" rx="6"/>
-  <rect x="580" y="60" width="150" height="56" rx="6"/>
-  <rect x="580" y="180" width="150" height="56" rx="6"/>
-  <rect x="580" y="300" width="150" height="56" rx="6"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="470" viewBox="0 0 900 470" font-family="WenQuanYi Zen Hei, SimSun, serif" font-size="15">
+<defs><marker id="d" markerWidth="10" markerHeight="10" refX="9" refY="3.2" orient="auto"><path d="M0,0 L9,3.2 L0,6.4 Z" fill="#000"/></marker></defs>
+<rect width="900" height="470" fill="#fff"/>
+<g fill="none" stroke="#000" stroke-width="1.6">
+  <rect x="40" y="190" width="170" height="60" rx="6"/>
+  <rect x="360" y="190" width="150" height="60" rx="6"/>
+  <rect x="700" y="60" width="160" height="60" rx="6"/>
+  <rect x="700" y="190" width="160" height="60" rx="6"/>
+  <rect x="700" y="320" width="160" height="60" rx="6"/>
 </g>
 <g fill="#000" text-anchor="middle">
-  <text x="105" y="214">NONE(无缺口)</text>
-  <text x="355" y="214">OPEN(开启)</text>
-  <text x="655" y="94">ADMITTED(已准入)</text>
-  <text x="655" y="214">CANCELLED(已取消)</text>
-  <text x="655" y="334">SUPERSEDED(已覆盖)</text>
+  <text x="125" y="226">无未闭合窗口</text>
+  <text x="435" y="226">开启中</text>
+  <text x="780" y="96">已准入</text>
+  <text x="780" y="226">已取消</text>
+  <text x="780" y="356">已被覆盖</text>
 </g>
-<g fill="none" stroke="#000" stroke-width="1.2" marker-end="url(#d)">
-  <path d="M170 208 H290"/>
-  <path d="M420 195 H500 V88 H580"/>
-  <path d="M420 208 H580"/>
-  <path d="M420 221 H500 V328 H580"/>
-  <path d="M355 180 V120 Q355 100 335 100 H250 Q230 100 230 120 V180"/>
+<g fill="none" stroke="#000" stroke-width="1.3" marker-end="url(#d)">
+  <path d="M210 220 H356"/>
+  <path d="M510 205 H600 V90 H696"/>
+  <path d="M510 220 H696"/>
+  <path d="M510 235 H600 V350 H696"/>
 </g>
-<g fill="#000" font-size="12">
-  <text x="176" y="200">beginSettlement</text>
-  <text x="176" y="216">(校验权限主体/非零标识/</text>
-  <text x="176" y="232">快照/期限上限)</text>
-  <text x="428" y="80">finalizeSettlement</text>
-  <text x="428" y="96">(证明通过,原子追加条目)</text>
-  <text x="428" y="200">cancelSettlement</text>
-  <text x="428" y="230">(仅发起方,且须在截止时刻之后)</text>
-  <text x="428" y="322">再次 beginSettlement</text>
-  <text x="428" y="338">(覆盖,投影不变)</text>
-  <text x="240" y="92" font-size="12">至多一个未闭合缺口</text>
+<g fill="#000" font-size="14" text-anchor="middle">
+  <text x="283" y="210">开启核定</text>
+  <text x="600" y="78">完成核定</text>
+  <text x="600" y="212">取消核定</text>
+  <text x="600" y="338">再次开启核定</text>
 </g>
-<text x="40" y="432" font-size="13">缺口开启期间通证转让不被阻断;缺口的 openedAt 用于判定某时刻是否被争议。</text>
-<text x="385" y="452" text-anchor="middle" font-size="16">图 3</text>
+<text x="450" y="440" text-anchor="middle" font-size="16">图 3</text>
 </svg>

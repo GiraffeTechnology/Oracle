@@ -1,46 +1,49 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="760" height="560" viewBox="0 0 760 560" font-family="WenQuanYi Zen Hei, SimSun, serif" font-size="14">
-<rect width="760" height="560" fill="#fff"/>
-<g fill="none" stroke="#000" stroke-width="1.5">
-  <rect x="30" y="40" width="200" height="70"/>
-  <rect x="30" y="160" width="200" height="70"/>
-  <rect x="30" y="280" width="200" height="70"/>
-  <rect x="330" y="40" width="400" height="310"/>
-  <rect x="355" y="90" width="160" height="46"/>
-  <rect x="545" y="90" width="160" height="46"/>
-  <rect x="355" y="152" width="160" height="46"/>
-  <rect x="545" y="152" width="160" height="46"/>
-  <rect x="355" y="214" width="350" height="46"/>
-  <rect x="330" y="420" width="200" height="70"/>
-  <rect x="30" y="420" width="200" height="70"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="640" viewBox="0 0 820 640" font-family="WenQuanYi Zen Hei, SimSun, serif" font-size="14">
+<defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="3.2" orient="auto"><path d="M0,0 L9,3.2 L0,6.4 Z" fill="#000"/></marker></defs>
+<rect width="820" height="640" fill="#fff"/>
+<g fill="none" stroke="#000" stroke-width="1.6">
+  <rect x="40" y="40" width="180" height="66"/>
+  <rect x="40" y="150" width="180" height="66"/>
+  <rect x="40" y="260" width="180" height="66"/>
+  <rect x="40" y="400" width="180" height="66"/>
+  <rect x="310" y="40" width="440" height="310"/>
+  <rect x="335" y="92" width="185" height="48"/>
+  <rect x="545" y="92" width="180" height="48"/>
+  <rect x="335" y="156" width="185" height="48"/>
+  <rect x="545" y="156" width="180" height="48"/>
+  <rect x="335" y="220" width="390" height="48"/>
+  <rect x="310" y="520" width="280" height="66"/>
 </g>
-<g fill="#000">
-  <text x="130" y="70" text-anchor="middle">链下登记册</text><text x="130" y="92" text-anchor="middle">110</text>
-  <text x="130" y="190" text-anchor="middle">见证方集合</text><text x="130" y="212" text-anchor="middle">120</text>
-  <text x="130" y="310" text-anchor="middle">提交人(不可信)</text><text x="130" y="332" text-anchor="middle">130</text>
-  <text x="530" y="68" text-anchor="middle">链上合约 150</text>
-  <text x="435" y="112" text-anchor="middle">条目存储 151</text>
-  <text x="625" y="112" text-anchor="middle">不变量校验 152</text>
-  <text x="435" y="174" text-anchor="middle">缺口管理 153</text>
-  <text x="625" y="174" text-anchor="middle">证明验证 154</text>
-  <text x="530" y="236" text-anchor="middle">时刻解析与终局判定 155</text>
-  <text x="130" y="450" text-anchor="middle">验证配置 140</text><text x="130" y="472" text-anchor="middle">(规则集合标识)</text>
-  <text x="430" y="450" text-anchor="middle">第三方消费方 160</text><text x="430" y="472" text-anchor="middle">(场所/钱包/分配合约)</text>
+<g fill="#000" text-anchor="middle">
+  <text x="130" y="68">链下登记册</text><text x="130" y="92">110</text>
+  <text x="130" y="178">见证方集合</text><text x="130" y="202">120</text>
+  <text x="130" y="288">提交人（不可信）</text><text x="130" y="312">130</text>
+  <text x="130" y="428">验证配置</text><text x="130" y="452">140</text>
+  <text x="530" y="70">链上合约 150</text>
+  <text x="427" y="122">条目存储 151</text>
+  <text x="635" y="122">不变量校验 152</text>
+  <text x="427" y="186">窗口管理 153</text>
+  <text x="635" y="186">证明验证 154</text>
+  <text x="530" y="250">时刻解析与终局判定 155</text>
+  <text x="450" y="548">第三方消费方 160</text><text x="450" y="572">（流通场所／钱包／权利分配合约）</text>
 </g>
-<g fill="none" stroke="#000" stroke-width="1.2" marker-end="url(#a)">
-  <path d="M130 110 V160"/>
-  <path d="M130 230 V280"/>
-  <path d="M230 315 H330 V300"/>
-  <path d="M230 455 H330"/>
-  <path d="M430 350 V420"/>
-  <path d="M130 420 V350 H30 V110"/>
+<g fill="none" stroke="#000" stroke-width="1.3" marker-end="url(#a)">
+  <path d="M130 106 V148"/>
+  <path d="M130 216 V258"/>
+  <path d="M220 293 H308"/>
+  <path d="M220 433 H262 V330 H308"/>
+  <path d="M40 433 H22 V183 H38"/>
+  <path d="M450 350 V518"/>
+  <path d="M130 466 V553 H308"/>
 </g>
-<defs><marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#000"/></marker></defs>
 <g fill="#000" font-size="12">
-  <text x="140" y="140">状态根断言</text>
-  <text x="140" y="262">签名与成员路径</text>
-  <text x="240" y="308">证明数据</text>
-  <text x="240" y="448">规则</text>
-  <text x="440" y="392">三项查询事实</text>
+  <text x="140" y="132">登记内容与状态根</text>
+  <text x="140" y="242">见证签名</text>
+  <text x="228" y="286">证明数据</text>
+  <text x="268" y="324">所接受的规则标识</text>
+  <text x="30" y="370">见证人集合与门限</text>
+  <text x="458" y="440">三项查询结果</text>
+  <text x="140" y="546">须接受该验证配置</text>
 </g>
-<text x="380" y="540" text-anchor="middle" font-size="16">图 1</text>
+<text x="410" y="618" text-anchor="middle" font-size="16">图 1</text>
 </svg>
