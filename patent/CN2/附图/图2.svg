@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="960" viewBox="0 0 880 960" font-family="WenQuanYi Zen Hei, SimSun, serif" font-size="14">
+<defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="3.2" orient="auto"><path d="M0,0 L9,3.2 L0,6.4 Z" fill="#000"/></marker></defs>
+<rect width="880" height="960" fill="#fff"/>
+<g fill="none" stroke="#000" stroke-width="1.6">
+  <rect x="150" y="30" width="260" height="46"/>
+  <path d="M280,110 L410,150 L280,190 L150,150 Z"/>
+  <path d="M280,230 L410,270 L280,310 L150,270 Z"/>
+  <path d="M280,350 L410,395 L280,440 L150,395 Z"/>
+  <path d="M280,480 L410,525 L280,570 L150,525 Z"/>
+  <rect x="150" y="610" width="260" height="46"/>
+  <rect x="150" y="700" width="260" height="46"/>
+  <rect x="520" y="700" width="250" height="46"/>
+  <rect x="150" y="820" width="260" height="46"/>
+</g>
+<g fill="none" stroke="#000" stroke-width="1.6">
+  <path d="M410,150 L820,150"/>
+  <path d="M410,270 L820,270"/>
+  <path d="M410,395 L820,395"/>
+  <path d="M410,525 L820,525"/>
+  <path d="M820,150 L820,723"/>
+</g>
+<g fill="none" stroke="#000" stroke-width="1.6" marker-end="url(#a)">
+  <path d="M280,76 L280,108"/>
+  <path d="M280,190 L280,228"/>
+  <path d="M280,310 L280,348"/>
+  <path d="M280,440 L280,478"/>
+  <path d="M280,570 L280,608"/>
+  <path d="M280,656 L280,698"/>
+  <path d="M280,746 L280,818"/>
+  <path d="M820,723 L772,723"/>
+  <path d="M645,746 L645,843 L412,843"/>
+</g>
+<g fill="#000" text-anchor="middle">
+  <text x="280" y="59">T1 接收事实数据与来源标识</text>
+  <text x="280" y="146">已登记且未被撤销？</text><text x="280" y="167">单元 10</text>
+  <text x="280" y="266">未超出所声明有效期？</text><text x="280" y="287">单元 20</text>
+  <text x="280" y="381">不含禁止结论类别</text><text x="280" y="404">且不含记录原文？</text><text x="280" y="427">单元 30</text>
+  <text x="280" y="511">规范反例调用</text><text x="280" y="534">返回结果为拒绝？</text><text x="280" y="557">单元 40</text>
+  <text x="280" y="639">T5 以私钥对内容承诺签名并发送</text>
+  <text x="280" y="729">T6 留痕并关联内容承诺</text>
+  <text x="645" y="722">终止本次出具，不调用签名</text>
+  <text x="280" y="849">结束</text>
+  <text x="440" y="925">图 2</text>
+</g>
+<g fill="#000" font-size="13">
+  <text x="428" y="143">否</text><text x="428" y="263">否</text><text x="428" y="388">否</text><text x="428" y="518">否</text>
+  <text x="294" y="214">是</text><text x="294" y="334">是</text><text x="294" y="464">是</text><text x="294" y="596">是</text>
+</g>
+</svg>

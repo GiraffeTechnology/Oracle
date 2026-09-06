@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="700" viewBox="0 0 880 700" font-family="WenQuanYi Zen Hei, SimSun, serif" font-size="14">
+<defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="3.2" orient="auto"><path d="M0,0 L9,3.2 L0,6.4 Z" fill="#000"/></marker></defs>
+<rect width="880" height="700" fill="#fff"/>
+<g fill="none" stroke="#000" stroke-width="1.6">
+  <rect x="30" y="70" width="150" height="70"/>
+  <rect x="30" y="180" width="150" height="70"/>
+  <rect x="30" y="360" width="150" height="70"/>
+  <rect x="250" y="40" width="380" height="600"/>
+  <rect x="285" y="90" width="310" height="52"/>
+  <rect x="285" y="172" width="310" height="52"/>
+  <rect x="285" y="254" width="310" height="72"/>
+  <rect x="285" y="356" width="310" height="72"/>
+  <rect x="285" y="458" width="310" height="52"/>
+  <rect x="285" y="540" width="310" height="52"/>
+  <rect x="700" y="450" width="150" height="70"/>
+  <rect x="700" y="532" width="150" height="70"/>
+</g>
+<g fill="none" stroke="#000" stroke-width="1.6" marker-end="url(#a)">
+  <path d="M180,105 L283,110"/>
+  <path d="M180,215 L283,128"/>
+  <path d="M180,395 L215,395 L215,478 L283,478"/>
+  <path d="M440,142 L440,170"/>
+  <path d="M440,224 L440,252"/>
+  <path d="M440,326 L440,354"/>
+  <path d="M440,428 L440,456"/>
+  <path d="M440,510 L440,538"/>
+  <path d="M595,490 L698,490"/>
+  <path d="M595,566 L698,566"/>
+</g>
+<g fill="#000" text-anchor="middle">
+  <text x="105" y="100">链外数据源</text><text x="105" y="123">200</text>
+  <text x="105" y="210">来源注册表</text><text x="105" y="233">400</text>
+  <text x="105" y="390">变更授权</text><text x="105" y="413">单元 70</text>
+  <text x="440" y="66">无人值守出具系统 100</text>
+  <text x="440" y="122">数据源准入单元 10</text>
+  <text x="440" y="204">新鲜性判定单元 20</text>
+  <text x="440" y="284">内容边界校验单元 30</text>
+  <text x="440" y="308">类别校验器 31 / 必需性校验器 32</text>
+  <text x="440" y="386">校验器有效性验证单元 40</text>
+  <text x="440" y="410">规范反例调用与失效判定</text>
+  <text x="440" y="490">签名出具单元 50</text>
+  <text x="440" y="572">出具留痕单元 60</text>
+  <text x="775" y="480">消费方</text><text x="775" y="503">300</text>
+  <text x="775" y="562">留痕存储</text><text x="775" y="585">500</text>
+  <text x="440" y="678">图 1</text>
+</g>
+</svg>

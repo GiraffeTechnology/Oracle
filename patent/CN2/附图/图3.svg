@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="720" viewBox="0 0 880 720" font-family="WenQuanYi Zen Hei, SimSun, serif" font-size="14">
+<defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="3.2" orient="auto"><path d="M0,0 L9,3.2 L0,6.4 Z" fill="#000"/></marker></defs>
+<rect width="880" height="720" fill="#fff"/>
+<g fill="none" stroke="#000" stroke-width="1.6">
+  <rect x="40" y="50" width="160" height="60"/>
+  <rect x="40" y="170" width="160" height="60"/>
+  <rect x="300" y="105" width="180" height="70"/>
+  <rect x="580" y="50" width="240" height="60"/>
+  <rect x="580" y="170" width="240" height="60"/>
+  <rect x="40" y="280" width="780" height="1"/>
+</g>
+<g fill="none" stroke="#000" stroke-width="1.6" marker-end="url(#a)">
+  <path d="M200,80 L298,125"/>
+  <path d="M200,200 L298,158"/>
+  <path d="M480,125 L578,85"/>
+  <path d="M480,155 L578,195"/>
+</g>
+<g fill="#000" text-anchor="middle">
+  <text x="120" y="76">规范反例</text><text x="120" y="99">应当被拒绝的输入</text>
+  <text x="120" y="196">规范正例</text><text x="120" y="219">应当被通过的输入</text>
+  <text x="390" y="133">校验器 31 或 32</text><text x="390" y="156">单元 40 发起调用</text>
+  <text x="700" y="75">返回拒绝：当次有效</text><text x="700" y="98">送至签名出具单元 50</text>
+  <text x="700" y="195">返回非拒绝：标记为失效</text><text x="700" y="218">终止其守护的本次出具</text>
+</g>
+<g fill="none" stroke="#000" stroke-width="1.6">
+  <path d="M80,400 L800,400"/>
+  <path d="M80,392 L80,408"/><path d="M240,392 L240,408"/><path d="M400,392 L400,408"/><path d="M560,392 L560,408"/><path d="M720,392 L720,408"/>
+  <path d="M80,600 L800,600"/>
+  <path d="M80,592 L80,608"/><path d="M240,592 L240,608"/><path d="M400,592 L400,608"/><path d="M560,592 L560,608"/><path d="M720,592 L720,608"/>
+  <rect x="60" y="360" width="40" height="20"/>
+  <rect x="220" y="560" width="40" height="20"/>
+  <rect x="380" y="560" width="40" height="20"/>
+  <rect x="540" y="560" width="40" height="20"/>
+  <rect x="700" y="560" width="40" height="20"/>
+</g>
+<g fill="none" stroke="#000" stroke-width="1.6" marker-end="url(#a)">
+  <path d="M320,440 L320,466"/>
+  <path d="M400,640 L400,666"/>
+</g>
+<g fill="#000" text-anchor="middle">
+  <text x="440" y="320">运行时序对比</text>
+  <text x="80" y="430">t0</text><text x="240" y="430">t1</text><text x="400" y="430">t2</text><text x="560" y="430">t3</text><text x="720" y="430">tn</text>
+  <text x="80" y="352">自检</text>
+  <text x="440" y="484">现有技术：仅 t0 自检</text>
+  <text x="80" y="630">t0</text><text x="240" y="630">t1</text><text x="400" y="630">t2</text><text x="560" y="630">t3</text><text x="720" y="630">tn</text>
+  <text x="240" y="552">验证</text><text x="400" y="552">验证</text><text x="560" y="552">验证</text><text x="720" y="552">验证</text>
+  <text x="440" y="684">本发明：每次出具运行内验证</text>
+  <text x="440" y="712">图 3</text>
+</g>
+</svg>
