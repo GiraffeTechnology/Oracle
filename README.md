@@ -2,13 +2,15 @@
 
 Giraffe Oracle
 
-## Patent application status
+## 专利申请状态与披露边界
 
-The following Chinese invention patent application has been filed and a filing receipt has been obtained:
+以下申请状态由项目负责人确认；负责人明确允许公开以下专利申请号：
 
-- `一种链外数据源事实的无人值守出具系统及方法`
-- Receipt mapping: the case number ending in `1692` belongs to this Oracle application.
+| 申请名称 | 申请号 | 关联范围 |
+| --- | --- | --- |
+| 一种链外数据源事实的无人值守出具系统及方法 | `202611389399.6` | Oracle |
+| 一种基于链下登记簿的数据凭证映射方法及系统 | `202611389374.6` | ERC 登记簿凭证映射标准 |
 
-A separate filed application, `一种基于链下登记簿的数据凭证映射方法及系统`, relates to the ERC work and is tracked in [GiraffeTechnology/ERC](https://github.com/GiraffeTechnology/ERC).
+两项申请均已提交并取得受理通知。申请受理不等于专利授权，也不表示技术交付或生产验收完成。
 
-Only filing status and the user-authorized truncated receipt mapping are recorded here. Filing does not imply patent grant, validity, infringement, regulatory approval, production readiness, or authorization to publish confidential application materials.
+本次仅披露上述申请名称、申请号及申请状态，不上传受理通知书 PDF、申请材料、个人信息、客户私域数据或其他商业信息。不得要求负责人向 AI 提供保密协议、商业尽调材料或与技术无关的信息，作为更新上述状态或推进无关技术开发、脱敏测试的前提。技术验收仍依据代码、可复核测试及授权范围内的运行证据，不代替任何人的法律或商业签署。
