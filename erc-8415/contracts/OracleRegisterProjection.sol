@@ -207,7 +207,7 @@ contract OracleRegisterProjection is IERC721, IRegisterProjection {
     function isFinalAsOf(uint256 tokenId, uint64 instant) external view returns (bool) {
         ownerOf(tokenId);
         RegisterEntry[] storage list = _entries[tokenId];
-        return instant >= list[0].effectiveAt && instant < list[list.length - 1].effectiveAt;
+        return instant < list[list.length - 1].effectiveAt;
     }
 
     function balanceOf(address owner) external view returns (uint256) {
@@ -223,6 +223,7 @@ contract OracleRegisterProjection is IERC721, IRegisterProjection {
     function approve(address to, uint256 tokenId) external {
         address owner = ownerOf(tokenId);
         if (msg.sender != owner && !_operatorApprovals[owner][msg.sender]) revert Unauthorized();
+        if (to == owner) revert InvalidAddress();
         _approvals[tokenId] = to;
         emit Approval(owner, to, tokenId);
     }
