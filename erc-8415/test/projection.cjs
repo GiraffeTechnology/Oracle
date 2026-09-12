@@ -205,15 +205,25 @@ describe("ERC-8415 projection conformance", function () {
     assert.equal(await projection.holderAsOf(tokenId, 2000n), buyer.address);
   });
 
-  it("reports finality only between the first and latest effective instants", async () => {
+  it("reports finality for every instant before the latest effective instant", async () => {
     await initialize();
-    assert.equal(await projection.isFinalAsOf(tokenId, 999n), false);
+    assert.equal(await projection.isFinalAsOf(tokenId, 999n), true);
     assert.equal(await projection.isFinalAsOf(tokenId, 1000n), false);
     await projection.appendFromSource(tokenId, commitment2, reference2, buyer.address, 2000n);
-    assert.equal(await projection.isFinalAsOf(tokenId, 999n), false);
+    assert.equal(await projection.isFinalAsOf(tokenId, 999n), true);
     assert.equal(await projection.isFinalAsOf(tokenId, 1000n), true);
     assert.equal(await projection.isFinalAsOf(tokenId, 1999n), true);
     assert.equal(await projection.isFinalAsOf(tokenId, 2000n), false);
+  });
+
+  it("rejects approving the current ERC-721 owner", async () => {
+    await initialize();
+    await rejectsCustom(
+      projection.interface,
+      projection.connect(owner).approve(owner.address, tokenId),
+      "InvalidAddress"
+    );
+    assert.equal(await projection.getApproved(tokenId), ethers.ZeroAddress);
   });
 
   it("keeps ERC-721 trading independent from the register projection", async () => {
