@@ -42,7 +42,11 @@ export function validateProtocolProfile(profile) {
   if (Object.entries(STATUS_MAPPING).some(([key, value]) => profile.oracleStatusMapping[key] !== value)) throw new Error("PROTOCOL_ORACLE_MAPPING_INVALID");
   exactKeys(profile.rules, ["ownerRemainsFromWhilePending", "allTransfersBlockedWhilePending", "finalizeAtomic", "certificateVersionIncrement", "cancelChangesCertificate", "errorsAreStableAbi", "eventOrderIsConsensus", "authorityDataEncoding"], "PROTOCOL_RULES");
   const rules = profile.rules;
-  if (rules.ownerRemainsFromWhilePending !== true || rules.allTransfersBlockedWhilePending !== true || rules.finalizeAtomic !== true || rules.certificateVersionIncrement !== 1 || rules.cancelChangesCertificate !== false || rules.errorsAreStableAbi !== false || rules.eventOrderIsConsensus !== false || rules.authorityDataEncoding !== "abi.encode(uint64 validUntil,uint256 nonce,bytes signature)") throw new Error("PROTOCOL_RULES_INVALID");
+  // ERC-8415: "Ordinary ERC-721 transfers MUST NOT be blocked while a projection gap is open",
+  // and an implementation "MUST NOT infer the confirmed holder from ownerOf". Both rules below
+  // are therefore asserted false. They were true while this profile encoded the PRD v0.3 freeze
+  // model, which D-008 removed; the names are kept so the published profile shape is unchanged.
+  if (rules.ownerRemainsFromWhilePending !== false || rules.allTransfersBlockedWhilePending !== false || rules.finalizeAtomic !== true || rules.certificateVersionIncrement !== 1 || rules.cancelChangesCertificate !== false || rules.errorsAreStableAbi !== false || rules.eventOrderIsConsensus !== false || rules.authorityDataEncoding !== "abi.encode(uint64 validUntil,uint256 nonce,bytes signature)") throw new Error("PROTOCOL_RULES_INVALID");
   return freeze(structuredClone(profile));
 }
 
@@ -83,8 +87,11 @@ export function verifyProtocolObservation(profile, observation) {
   requireProtocolInterfaces(valid, observation?.advertisedInterfaces);
   const oracleStatus = mapProtocolSettlementStatus(valid, observation?.settlementStatus);
   if (observation.settlementStatus === valid.settlementStatuses.PENDING) {
-    if (observation.owner !== observation.from) throw new Error("PROTOCOL_PENDING_OWNER_MISMATCH");
-    if (observation.transfersBlocked !== true) throw new Error("PROTOCOL_PENDING_TRANSFER_GATE_MISSING");
+    // The gate is inverted from what it was: a contract that blocks ordinary transfers while a
+    // gap is open does not conform to ERC-8415, so such an observation is rejected rather than
+    // required. The owner is no longer compared against `from` either — ownerOf moves freely
+    // during the gap, and the confirmed holder is resolved from the projection, not from it.
+    if (observation.transfersBlocked === true) throw new Error("PROTOCOL_PENDING_TRANSFER_MUST_NOT_BE_BLOCKED");
   }
   if (observation.settlementStatus === valid.settlementStatuses.FINALIZED) {
     if (observation.atomic !== true) throw new Error("PROTOCOL_FINALIZE_NOT_ATOMIC");

@@ -23,7 +23,11 @@
   },
   "marketplaceObservation": {
     "access": "READ_ONLY_PUBLIC",
-    "observations": ["LISTING_STATUS", "SALE_STATUS", "SALE_HISTORY"],
+    "observations": [
+      "LISTING_STATUS",
+      "SALE_STATUS",
+      "SALE_HISTORY"
+    ],
     "oracleAuthority": false,
     "sourceProviderRequired": true,
     "separateFromOracleEvidence": true
@@ -31,5 +35,8 @@
   "oracleRuntimeCoupling": false,
   "verificationBoundary": "READ_ONLY_SDK_AND_PROOF_FORMAT",
   "stateMappingRef": "config/layer-state-mapping.v1.json",
-  "pendingBlockedOperations": ["transfer", "redeem", "pledge", "relist"]
+  "pendingBlockedOperations": [
+    "pledge",
+    "redeem"
+  ]
 }

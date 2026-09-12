@@ -38,22 +38,59 @@ test("layer state contract maps every settlement outcome fail closed", async () 
   assert.throws(() => mapLayerSettlementState(mapping, "UNKNOWN"), /LAYER_SETTLEMENT_STATE_UNKNOWN/);
 });
 
-test("pending observation preserves owner and blocks all controlled operations", async () => {
+test("pending observation refuses only the perishable operations and lets the owner move", async () => {
   const mapping = await loadLayerStateMapping(MAPPING_FILE);
   const observation = {
     settlementState: "PENDING",
-    owner: "holder-a",
+    owner: "holder-b",
     from: "holder-a",
-    blockedOperations: ["transfer", "redeem", "pledge", "relist"],
+    blockedOperations: ["pledge", "redeem"],
   };
+  // holder-a sold to holder-b while the gap was open. ERC-8415 requires that to be possible, so
+  // the observation is accepted rather than rejected for the owner having moved.
   assert.equal(verifyLayerSettlementObservation(mapping, observation).oracleStatus, "TRANSFER_PENDING");
+
+  // Reverse checks: the two operations ERC-8415 says must stay available cannot be added back.
+  for (const reinstated of ["transfer", "relist"]) {
+    assert.throws(
+      () =>
+        verifyLayerSettlementObservation(mapping, {
+          ...observation,
+          blockedOperations: [...observation.blockedOperations, reinstated],
+        }),
+      /LAYER_PENDING_OPERATION_GATES_INVALID/,
+    );
+  }
+
   assert.throws(
-    () => verifyLayerSettlementObservation(mapping, { ...observation, owner: "holder-b" }),
-    /LAYER_PENDING_OWNER_MISMATCH/,
+    () => verifyLayerSettlementObservation(mapping, { ...observation, owner: "" }),
+    /LAYER_PENDING_OWNER_MISSING/,
+  );
+});
+
+test("the mapping cannot reinstate the freeze model", async () => {
+  const mapping = await loadLayerStateMapping(MAPPING_FILE);
+  assert.equal(mapping.pendingRules.ownerRemainsFrom, false);
+  assert.deepEqual([...mapping.pendingRules.blockedOperations].sort(), ["pledge", "redeem"]);
+
+  assert.throws(
+    () =>
+      validateLayerStateMapping({
+        ...mapping,
+        pendingRules: { ...mapping.pendingRules, ownerRemainsFrom: true },
+      }),
+    /LAYER_PENDING_OWNER_RULE_INVALID/,
   );
   assert.throws(
-    () => verifyLayerSettlementObservation(mapping, { ...observation, blockedOperations: ["transfer"] }),
-    /LAYER_PENDING_OPERATION_GATES_INVALID/,
+    () =>
+      validateLayerStateMapping({
+        ...mapping,
+        pendingRules: {
+          ...mapping.pendingRules,
+          blockedOperations: ["transfer", "redeem", "pledge", "relist"],
+        },
+      }),
+    /LAYER_PENDING_OPERATIONS_INVALID/,
   );
 });
 
@@ -140,51 +177,58 @@ test("external consumer fixture fixes non-custodial market and charity boundarie
 });
 
 /**
- * D-007: the mapping must keep saying which ERC revision it was built against. It encodes the
- * PRD's freeze model against the superseded proposal, while the current one keeps the token
- * trading — a disagreement the product has not settled. The label is what stops the mapping
- * from being read as current, so dropping it must fail rather than pass quietly.
+ * The mapping must keep saying which proposal superseded the one it was originally built
+ * against, and that reference is now a number rather than a branch commit: ERC-8415 is the
+ * normative authority under AGENTS.md section 1, submitted upstream as ethereum/ERCs#2006.
+ * The label is what stops the archived proposal under docs/erc/ from being read as current.
  */
-test("D-007 layer state mapping declares the ERC revision it maps to", async () => {
+test("layer state mapping names ERC-8415 as the proposal that supersedes it", async () => {
   const mapping = await loadLayerStateMapping(MAPPING_FILE);
   const ref = mapping.ercRevisionRef;
   assert.equal(ref.mappedProposalStatus, "SUPERSEDED");
-  assert.equal(ref.supersededBy.commit, "dce21639d3053ab1ebc78ff85e6f617ff99ea5a3");
-  assert.equal(ref.divergenceUnresolved, true);
+  assert.equal(ref.supersededBy.ercNumber, 8415);
+  assert.equal(ref.supersededBy.upstreamPullRequest, 2006);
+  assert.equal(ref.supersededBy.pendingTransfersBlocked, false);
   assert.ok(
     ref.supersededBy.settlementStatusEnum.includes("ADMITTED"),
-    "the current proposal's enum must be recorded so the difference is visible",
+    "the standard's enum must be recorded so the difference from the archive stays visible",
+  );
+  assert.ok(
+    !Object.hasOwn(ref, "divergenceUnresolved"),
+    "the freeze divergence was settled by D-008; a field asserting it is open would be false",
   );
 });
 
-test("D-007 an undeclared or unpinned ERC revision is rejected", async () => {
+test("an undeclared or misnumbered ERC reference is rejected", async () => {
   const mapping = await loadLayerStateMapping(MAPPING_FILE);
 
   const withoutRef = { ...mapping };
   delete withoutRef.ercRevisionRef;
   assert.throws(() => validateLayerStateMapping(withoutRef), /LAYER_STATE_MAPPING/);
 
-  for (const invalidCommit of [
-    "0000000000000000000000000000000000000000",
-    "1111111111111111111111111111111111111111",
-    "dce2163",
-  ]) {
-    const unpinned = {
+  for (const wrong of [{ ercNumber: 9999 }, { ercNumber: 8416 }, { upstreamPullRequest: 18 }]) {
+    const misnumbered = {
       ...mapping,
       ercRevisionRef: {
         ...mapping.ercRevisionRef,
-        supersededBy: { ...mapping.ercRevisionRef.supersededBy, commit: invalidCommit },
+        supersededBy: { ...mapping.ercRevisionRef.supersededBy, ...wrong },
       },
     };
-    assert.throws(() => validateLayerStateMapping(unpinned), /LAYER_ERC_SUPERSEDED_COMMIT_INVALID/);
+    assert.throws(
+      () => validateLayerStateMapping(misnumbered),
+      /LAYER_ERC_SUPERSEDED_REFERENCE_INVALID/,
+    );
   }
 
-  const divergenceHidden = {
+  const freezeReinstated = {
     ...mapping,
-    ercRevisionRef: { ...mapping.ercRevisionRef, divergenceUnresolved: false },
+    ercRevisionRef: {
+      ...mapping.ercRevisionRef,
+      supersededBy: { ...mapping.ercRevisionRef.supersededBy, pendingTransfersBlocked: true },
+    },
   };
   assert.throws(
-    () => validateLayerStateMapping(divergenceHidden),
-    /LAYER_ERC_DIVERGENCE_MUST_BE_DECLARED/,
+    () => validateLayerStateMapping(freezeReinstated),
+    /LAYER_ERC_PENDING_TRANSFERS_MUST_NOT_BE_BLOCKED/,
   );
 });

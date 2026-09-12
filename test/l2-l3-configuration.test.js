@@ -4,7 +4,7 @@ import test from "node:test";
 import { createHash } from "node:crypto";
 import { assembleProductionConfiguration } from "../src/config/production-assembly.js";
 import { loadL2DeploymentProfile, publicL2Profile, validateL2DeploymentProfile } from "../src/config/deployment-profile.js";
-import { loadProtocolProfile, mapProtocolSettlementStatus, publicProtocolProfile, requireProtocolInterfaces, verifyProtocolArtifactBytes, verifyProtocolObservation } from "../src/protocol/protocol-profile.js";
+import { loadProtocolProfile, mapProtocolSettlementStatus, publicProtocolProfile, requireProtocolInterfaces, validateProtocolProfile, verifyProtocolArtifactBytes, verifyProtocolObservation } from "../src/protocol/protocol-profile.js";
 
 const L2_FILE = path.resolve("config/l2.production.json");
 const L3_FILE = path.resolve("config/l3.protocol.wd-0.1.1.json");
@@ -49,21 +49,40 @@ test("L3 artifact intake verifies exact bytes and fails closed on changes", asyn
   assert.throws(() => verifyProtocolArtifactBytes(fixtureProfile, { ...artifacts, formalEnSha256: Buffer.from("changed") }), /PROTOCOL_ARTIFACT_HASH_MISMATCH/);
 });
 
-test("L3 pending observation preserves owner and blocks transfers", async () => {
+test("L3 pending observation accepts a moved owner and rejects blocked transfers", async () => {
   const profile = await loadProtocolProfile(L3_FILE);
   const input = {
     advertisedInterfaces: profile.requiredAdvertisedInterfaces,
     settlementStatus: 1,
-    owner: "holder-a",
+    owner: "holder-b",
     from: "holder-a",
-    transfersBlocked: true,
+    transfersBlocked: false,
   };
+  // The token changed hands while the gap was open. ERC-8415 requires exactly this to be
+  // possible, so the observation is compatible even though owner no longer equals from.
   assert.deepEqual(verifyProtocolObservation(profile, input), {
     compatible: true,
     profileId: profile.profileId,
     oracleStatus: "TRANSFER_PENDING",
   });
-  assert.throws(() => verifyProtocolObservation(profile, { ...input, transfersBlocked: false }), /PROTOCOL_PENDING_TRANSFER_GATE_MISSING/);
+  // Reverse check: an implementation that blocks ordinary transfers during the gap contradicts
+  // "Ordinary ERC-721 transfers MUST NOT be blocked" and must be rejected, not accepted.
+  assert.throws(
+    () => verifyProtocolObservation(profile, { ...input, transfersBlocked: true }),
+    /PROTOCOL_PENDING_TRANSFER_MUST_NOT_BE_BLOCKED/,
+  );
+});
+
+test("L3 profile rules cannot reinstate the freeze model", async () => {
+  const profile = await loadProtocolProfile(L3_FILE);
+  assert.equal(profile.rules.allTransfersBlockedWhilePending, false);
+  assert.equal(profile.rules.ownerRemainsFromWhilePending, false);
+  for (const rule of ["allTransfersBlockedWhilePending", "ownerRemainsFromWhilePending"]) {
+    assert.throws(
+      () => validateProtocolProfile({ ...profile, rules: { ...profile.rules, [rule]: true } }),
+      /PROTOCOL_RULES_INVALID/,
+    );
+  }
 });
 
 test("L3 finalize observation verifies atomic version and event set without relying on event order", async () => {

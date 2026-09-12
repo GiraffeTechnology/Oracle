@@ -40,8 +40,8 @@
     "CANCELLED": "REVIEW_REQUIRED"
   },
   "rules": {
-    "ownerRemainsFromWhilePending": true,
-    "allTransfersBlockedWhilePending": true,
+    "ownerRemainsFromWhilePending": false,
+    "allTransfersBlockedWhilePending": false,
     "finalizeAtomic": true,
     "certificateVersionIncrement": 1,
     "cancelChangesCertificate": false,
