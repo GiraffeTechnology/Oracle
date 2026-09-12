@@ -154,7 +154,7 @@ describe("ERC-8415 projection conformance", function () {
     assert.equal(await projection.entryCount(tokenId), 2n);
   });
 
-  it("rejects non-increasing time, repeated commitments, overwrite, and skipped versions", async () => {
+  it("rejects equal time, repeated commitments, and duplicate initialization", async () => {
     await initialize();
     await rejectsCustom(
       projection.interface,
@@ -166,9 +166,32 @@ describe("ERC-8415 projection conformance", function () {
       projection.appendFromSource(tokenId, commitment1, reference2, buyer.address, 2000n),
       "CommitmentReused"
     );
+    await rejectsCustom(
+      projection.interface,
+      projection.mintFromSource(
+        buyer.address, tokenId, commitment2, reference2, buyer.address, 2000n
+      ),
+      "InvalidEntry"
+    );
     assert.equal((await projection.currentEntry(tokenId)).version, 1n);
     assert.equal((await projection.entryAt(tokenId, 1n)).supersededAt, 0n);
-    await rejectsCustom(projection.interface, projection.entryAt(tokenId, 2n), "InvalidEntry");
+  });
+
+  it("rejects decreasing time and invalid or nonexistent version queries", async () => {
+    await initialize();
+    await projection.appendFromSource(tokenId, commitment2, reference2, buyer.address, 2000n);
+    await rejectsCustom(
+      projection.interface,
+      projection.appendFromSource(
+        tokenId, b32("entry-3"), b32("source-proof-3"), outsider.address, 1500n
+      ),
+      "EffectiveAtNotIncreasing"
+    );
+    await rejectsCustom(projection.interface, projection.entryAt(tokenId, 0n), "InvalidEntry");
+    await rejectsCustom(projection.interface, projection.entryAt(tokenId, 3n), "InvalidEntry");
+    await rejectsCustom(projection.interface, projection.currentEntry(999n), "TokenNotFound");
+    await rejectsCustom(projection.interface, projection.entryAsOf(999n, 1000n), "TokenNotFound");
+    assert.equal((await projection.currentEntry(tokenId)).version, 2n);
   });
 
   it("resolves entry and holder at exact interval boundaries", async () => {
