@@ -4,6 +4,7 @@ const { Contract, ZeroHash } = require("ethers");
 const PROJECTION_INTERFACE_ID = "0x6309e170";
 
 const READ_ONLY_ABI = [
+  "error NoEntryAsOf()",
   "function registerId() view returns (bytes32)",
   "function entryCount(uint256 tokenId) view returns (uint64)",
   "function currentEntry(uint256 tokenId) view returns ((bytes32 recordCommitment, bytes32 previousCommitment, bytes32 registryReference, address holder, uint64 version, uint64 effectiveAt, uint64 supersededAt) entry)",
@@ -55,35 +56,48 @@ function assertOrderedHistory(history) {
 
 async function readProjection({ runner, address, tokenId, instant }) {
   const projection = new Contract(address, READ_ONLY_ABI, runner);
+  const provider = runner.provider ?? runner;
+  assert.equal(typeof provider?.getBlockNumber, "function", "runner must expose a provider");
+  const blockTag = await provider.getBlockNumber();
+  const atBlock = { blockTag };
   assert.equal(
-    await projection.supportsInterface(PROJECTION_INTERFACE_ID),
+    await projection.supportsInterface(PROJECTION_INTERFACE_ID, atBlock),
     true,
     "target does not expose IRegisterProjection"
   );
 
-  const registerId = await projection.registerId();
+  const registerId = await projection.registerId(atBlock);
   assert.notEqual(registerId, ZeroHash, "register identity must be non-zero");
-  const count = await projection.entryCount(tokenId);
+  const count = await projection.entryCount(tokenId, atBlock);
   assert.ok(count > 0n, "token must have projection history");
 
   const history = [];
   for (let version = 1n; version <= count; version += 1n) {
-    history.push(normalizeEntry(await projection.entryAt(tokenId, version)));
+    history.push(normalizeEntry(await projection.entryAt(tokenId, version, atBlock)));
   }
   assertOrderedHistory(history);
 
-  const current = normalizeEntry(await projection.currentEntry(tokenId));
-  const asOf = normalizeEntry(await projection.entryAsOf(tokenId, instant));
-  const holderAsOf = await projection.holderAsOf(tokenId, instant);
-  const finalAsOf = await projection.isFinalAsOf(tokenId, instant);
+  const current = normalizeEntry(await projection.currentEntry(tokenId, atBlock));
+  let asOf = null;
+  let holderAsOf = null;
+  try {
+    asOf = normalizeEntry(await projection.entryAsOf(tokenId, instant, atBlock));
+    holderAsOf = await projection.holderAsOf(tokenId, instant, atBlock);
+  } catch (error) {
+    const data = error?.data ?? error?.error?.data ?? error?.info?.error?.data;
+    const noEntrySelector = projection.interface.getError("NoEntryAsOf").selector;
+    if (typeof data !== "string" || !data.startsWith(noEntrySelector)) throw error;
+  }
+  const finalAsOf = await projection.isFinalAsOf(tokenId, instant, atBlock);
   assert.equal(current.recordCommitment, history.at(-1).recordCommitment);
-  assert.equal(asOf.holder, holderAsOf);
+  if (asOf !== null) assert.equal(asOf.holder, holderAsOf);
 
   return Object.freeze({
     interfaceId: PROJECTION_INTERFACE_ID,
     registerId,
     tokenId: tokenId.toString(),
     instant: instant.toString(),
+    blockNumber: blockTag.toString(),
     entryCount: count.toString(),
     current,
     asOf,

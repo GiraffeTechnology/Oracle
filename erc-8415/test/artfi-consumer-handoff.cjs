@@ -85,5 +85,16 @@ describe("ArtFi read-only projection handoff", function () {
     assert.equal(snapshot.holderAsOf, owner.address);
     assert.equal(snapshot.current.holder, nextHolder.address);
     assert.equal(snapshot.finalAsOf, fixture.fixture.expectedFinalAsOf);
+
+    const beforeInitialization = await readProjection({
+      runner: ethers.provider,
+      address: await projection.getAddress(),
+      tokenId: BigInt(fixture.fixture.tokenId),
+      instant: 500n
+    });
+    assert.equal(beforeInitialization.asOf, null);
+    assert.equal(beforeInitialization.holderAsOf, null);
+    assert.equal(beforeInitialization.finalAsOf, true);
+    assert.equal(beforeInitialization.entryCount, "2");
   });
 });
