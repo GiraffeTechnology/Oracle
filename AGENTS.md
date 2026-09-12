@@ -244,3 +244,32 @@ Before claiming a bounded stage is complete:
 - do not create a new protocol requirement while reporting completion.
 
 The objective is convergence: implement ERC-8415 faithfully, realize the necessary institutional-verification infrastructure described by the research design, add only necessary implementation mechanics, preserve useful engineering, freeze each completed stage, and then proceed.
+
+## Stage-Based Delivery Rule
+
+Agents must work on the current stage only.
+
+Agents MUST NOT:
+
+- move future-stage requirements into current acceptance;
+- create additional gates;
+- redefine protocol semantics;
+- expand PRD scope.
+
+Agents MUST:
+
+- implement;
+- test;
+- provide evidence;
+- freeze completed stages.
+
+Preserve existing code.
+
+Classification:
+
+- KEEP
+- FINISH-NOW
+- FREEZE-LATER
+- REMOVE
+
+The client-approved [ArtFi + Oracle Delivery Stage Framework v1.1](https://github.com/GiraffeTechnology/ArtFi/issues/100) separates stage acceptance without lowering engineering standards or expanding product scope. Each stage has independent acceptance. Future-stage capabilities MUST NOT block current-stage delivery.
