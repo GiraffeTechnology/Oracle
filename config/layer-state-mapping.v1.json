@@ -44,12 +44,10 @@
     }
   },
   "pendingRules": {
-    "ownerRemainsFrom": true,
+    "ownerRemainsFrom": false,
     "blockedOperations": [
-      "transfer",
-      "redeem",
       "pledge",
-      "relist"
+      "redeem"
     ]
   },
   "finalizationRules": {
@@ -73,8 +71,8 @@
     "archivePath": "docs/erc/",
     "supersededBy": {
       "proposalTitle": "Asynchronous Register Projection for NFTs",
-      "pullRequest": 18,
-      "commit": "dce21639d3053ab1ebc78ff85e6f617ff99ea5a3",
+      "ercNumber": 8415,
+      "upstreamPullRequest": 2006,
       "settlementStatusEnum": [
         "NONE",
         "OPEN",
@@ -82,16 +80,8 @@
         "CANCELLED",
         "SUPERSEDED"
       ],
-      "pendingTransfersBlocked": false,
-      "verifiedProperties": [
-        "both interface ids present",
-        "GapStatus has the five recorded values",
-        "RegisterEntry has seven fields",
-        "the specification still says ordinary ERC-721 transfers MUST NOT be blocked"
-      ]
+      "pendingTransfersBlocked": false
     },
-    "divergenceUnresolved": true,
-    "divergenceNote": "This mapping encodes the PRD v0.3 freeze model (pendingRules.ownerRemainsFrom). The current ERC keeps the token trading and has a five-value GapStatus. The two disagree; the product decision is open, so neither side is changed here. See DECISIONS_ZH.md D-007.",
-    "verificationRule": "Re-anchor when erc/ERCS/erc-xxxx.md changes, not on every commit to the branch. The branch also carries an internal review ledger and a file index that move often and cannot affect this mapping. `commit` is the commit at which verifiedProperties were last checked, not a claim about the branch head."
+    "verificationRule": "ERC-8415 is the normative authority (AGENTS.md section 1). Re-check the mapped properties when the upstream proposal text changes at ethereum/ERCs#2006; the archive under archivePath is provenance only and is not normative."
   }
 }

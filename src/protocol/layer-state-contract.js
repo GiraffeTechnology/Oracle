@@ -11,8 +11,15 @@ const EXPECTED_MAPPINGS = Object.freeze({
   DISPUTED: Object.freeze({ oracleStatus: "REVIEW_REQUIRED", l3SettlementStatus: "CANCELLED" }),
   TIMED_OUT: Object.freeze({ oracleStatus: "REVIEW_REQUIRED", l3SettlementStatus: "CANCELLED" }),
 });
-const APPROVED_ERC_SUPERSEDING_COMMIT = "dce21639d3053ab1ebc78ff85e6f617ff99ea5a3";
-const BLOCKED_OPERATIONS = Object.freeze(["transfer", "redeem", "pledge", "relist"]);
+const APPROVED_ERC_NUMBER = 8415;
+const APPROVED_ERC_UPSTREAM_PULL_REQUEST = 2006;
+/**
+ * Operations refused while a gap is open. Transfer and relist are absent deliberately: ERC-8415
+ * says ordinary ERC-721 transfers MUST NOT be blocked, and D-008 refuses the perishable exercise
+ * rather than the token's transferability. The set matches OPERATION_CLASS in
+ * src/domain/consumer-state-machine.js, where redeem and pledge are the perishable pair.
+ */
+const BLOCKED_OPERATIONS = Object.freeze(["pledge", "redeem"]);
 const FINALIZATION_EVENTS = Object.freeze([
   "CertificateSuperseded",
   "Transfer",
@@ -41,17 +48,16 @@ function freeze(value) {
 }
 
 /**
- * D-007 requires every reference to ERC content to name the commit it relies on, because the
- * proposal lives on branch claude/erc-standard-feasibility-audit-90ypms and keeps moving.
- * Its pull request number is only a view onto that branch and has already changed twice
- * (#3, #13, #16), so the branch is what this pins against, not the number.
+ * The proposal that supersedes this mapping's original subject now has an assigned number,
+ * ERC-8415, and an upstream submission at ethereum/ERCs#2006. AGENTS.md section 1 makes that
+ * standard the normative authority for protocol semantics, so the reference is pinned to the
+ * number and the upstream pull request rather than to a commit on a draft branch: a branch
+ * commit was the right anchor only while no number existed.
  *
- * This mapping was built against the superseded proposal and encodes the PRD's freeze model.
- * The current proposal reverses that position and carries a five-value status enum, so the
- * mapping is knowingly out of date on a point the product has not yet decided. Recording that
- * is the honest state; silently carrying an unlabelled mapping is not. The fields are
- * validated so the label cannot be dropped, and so the day someone updates the mapping they
- * must consciously restate what it maps to.
+ * The divergence this ref used to declare has been resolved. It was the freeze model: the
+ * mapping blocked transfers while a gap was open, the standard forbids that, and the product
+ * decision was recorded as open. D-008 decided it, and the mapping now follows the standard,
+ * so a field asserting an unresolved divergence would be false.
  */
 function validateErcRevisionRef(ref) {
   if (ref === null || typeof ref !== "object" || Array.isArray(ref)) {
@@ -64,8 +70,6 @@ function validateErcRevisionRef(ref) {
       "mappedProposalStatus",
       "archivePath",
       "supersededBy",
-      "divergenceUnresolved",
-      "divergenceNote",
       "verificationRule",
     ],
     "LAYER_ERC_REVISION_REF",
@@ -76,14 +80,14 @@ function validateErcRevisionRef(ref) {
   if (ref.mappedProposalStatus === "SUPERSEDED") {
     const by = ref.supersededBy;
     if (by === null || typeof by !== "object") throw new Error("LAYER_ERC_SUPERSEDED_BY_MISSING");
-    if (by.commit !== APPROVED_ERC_SUPERSEDING_COMMIT) {
-      throw new Error("LAYER_ERC_SUPERSEDED_COMMIT_INVALID");
+    if (by.ercNumber !== APPROVED_ERC_NUMBER || by.upstreamPullRequest !== APPROVED_ERC_UPSTREAM_PULL_REQUEST) {
+      throw new Error("LAYER_ERC_SUPERSEDED_REFERENCE_INVALID");
     }
     if (!Array.isArray(by.settlementStatusEnum) || by.settlementStatusEnum.length === 0) {
       throw new Error("LAYER_ERC_SUPERSEDED_ENUM_INVALID");
     }
-    if (ref.divergenceUnresolved !== true) {
-      throw new Error("LAYER_ERC_DIVERGENCE_MUST_BE_DECLARED");
+    if (by.pendingTransfersBlocked !== false) {
+      throw new Error("LAYER_ERC_PENDING_TRANSFERS_MUST_NOT_BE_BLOCKED");
     }
   }
   return ref;
@@ -129,7 +133,9 @@ export function validateLayerStateMapping(mapping) {
     }
   }
   exactKeys(mapping.pendingRules, ["ownerRemainsFrom", "blockedOperations"], "LAYER_PENDING_RULES");
-  if (mapping.pendingRules.ownerRemainsFrom !== true) throw new Error("LAYER_PENDING_OWNER_RULE_INVALID");
+  // False, not true: ERC-8415 forbids inferring the confirmed holder from ownerOf, and the token
+  // keeps trading while the gap is open, so the on-chain owner does not remain the pre-gap one.
+  if (mapping.pendingRules.ownerRemainsFrom !== false) throw new Error("LAYER_PENDING_OWNER_RULE_INVALID");
   exactSet(mapping.pendingRules.blockedOperations, BLOCKED_OPERATIONS, "LAYER_PENDING_OPERATIONS");
   exactKeys(
     mapping.finalizationRules,
@@ -278,9 +284,12 @@ export function verifyLayerSettlementObservation(mapping, observation) {
   const valid = validateLayerStateMapping(mapping);
   const result = mapLayerSettlementState(valid, observation?.settlementState);
   if (observation?.settlementState === "PENDING") {
-    if (typeof observation.owner !== "string" || observation.owner.length === 0 || observation.owner !== observation.from) {
-      throw new Error("LAYER_PENDING_OWNER_MISMATCH");
+    if (typeof observation.owner !== "string" || observation.owner.length === 0) {
+      throw new Error("LAYER_PENDING_OWNER_MISSING");
     }
+    // The owner is no longer required to equal `from`: the token trades throughout the gap. What
+    // is checked is that the refused set is exactly the perishable one, so an implementation that
+    // also refuses transfer or relist fails here rather than passing as conforming.
     exactSet(observation.blockedOperations, valid.pendingRules.blockedOperations, "LAYER_PENDING_OPERATION_GATES");
   }
   if (observation?.settlementState === "FINALIZED") {
