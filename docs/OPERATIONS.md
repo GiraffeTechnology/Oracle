@@ -1,0 +1,43 @@
+# Operations and production gates
+
+The normative synthetic NFR-004 load and fault profile is `config/nfr-004-load-profile.json`. An acceptance report must cover exactly 240,000 measured requests, all twelve fault cases, the declared latency/backlog/resource limits, and zero application 5xx or process restarts. A shorter loopback smoke test is preflight evidence only.
+
+## Environments
+
+- `development`: local, loopback only, no external writes.
+- `test`: synthetic evidence and ephemeral signing keys only.
+- `production`: starts only through an absolute, regular deployment module whose SHA-256 is pinned by the
+  controlled host. The module supplies persistent storage, a synchronous protected signer boundary,
+  authenticated fixed-reference sources, admin authentication and operations adapters. Missing or changed
+  pins fail before the listener starts.
+
+## Required production dependencies
+
+- MySQL with encrypted transport, least-privilege service identity, point-in-time recovery and audit logging.
+- Protected signing service or HSM; keys must never be supplied through source control or application logs.
+- Durable queue/outbox consumer with idempotent delivery.
+- Approved source adapters whose endpoint and credentials are injected by the controlled deployment layer.
+- Central logs with field allowlists and retention controls.
+
+The application stores each authoritative projection, audit/outbox delta, durable idempotency result and a
+hash-verified recovery snapshot in one MySQL transaction. A durability failure marks the runtime compromised;
+all readiness, query and write routes then return fail-closed until a clean restart restores the last committed
+snapshot. Production verification accepts only fixed source record references and never caller-submitted facts.
+The production readiness route also requires an affirmative result from the deployment-owned dependency health
+boundary; a truthy adapter object alone is never considered ready.
+Production writes are serialized across runtime mutation, snapshot capture and commit. A durability failure
+poisons the runtime before the next queued write begins; queued work is rejected until a clean restart.
+
+## Recovery objectives for production approval
+
+- Proposed RPO: no acknowledged authoritative input may be lost.
+- Proposed RTO: four hours for query restoration; final value requires operational approval.
+- Quarterly restore, signer rotation and source-outage exercises.
+- Reconciliation must compare asset, certificate, warehouse, settlement and audit-chain projections.
+
+## Go/no-go
+
+The repository is not sufficient to authorize production. Production requires accepted security, privacy
+and legal reviews; verified backups; signer ceremony; source contracts; deployment inventory; rollback;
+and written approval for each real asset class and jurisdiction.
+

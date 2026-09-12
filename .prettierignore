@@ -1,0 +1,25 @@
+node_modules/
+dist/
+coverage/
+output/
+pnpm-lock.yaml
+docs/
+erc-reference/
+schemas/
+db/
+config/
+# The L2 implementation merged from feature/oracle-all-iterations keeps its own style.
+# Reformatting it here would bury the integration in an unreviewable diff; it is covered
+# by scripts/syntax-check.mjs instead.
+src/**/*.js
+test/
+scripts/*.cjs
+scripts/erc-*.mjs
+scripts/run-*.mjs
+scripts/repository-scan.mjs
+scripts/product-boundary-scan.mjs
+scripts/syntax-check.mjs
+scripts/verify-*.mjs
+scripts/test-erc-*.mjs
+hardhat.config.cjs
+evidence/

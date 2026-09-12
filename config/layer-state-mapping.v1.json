@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "contractId": "giraffe-oracle/layer-state-mapping-v1",
+  "oracleStatuses": [
+    "VALID",
+    "INVALID",
+    "TRANSFER_PENDING",
+    "FROZEN",
+    "REVOKED",
+    "EXPIRED",
+    "REVIEW_REQUIRED",
+    "NOT_VERIFIED"
+  ],
+  "l3SettlementStatuses": {
+    "NONE": 0,
+    "PENDING": 1,
+    "FINALIZED": 2,
+    "CANCELLED": 3
+  },
+  "settlementMappings": {
+    "NONE": {
+      "oracleStatus": "VALID",
+      "l3SettlementStatus": "NONE"
+    },
+    "PENDING": {
+      "oracleStatus": "TRANSFER_PENDING",
+      "l3SettlementStatus": "PENDING"
+    },
+    "FINALIZED": {
+      "oracleStatus": "VALID",
+      "l3SettlementStatus": "FINALIZED"
+    },
+    "CANCELLED": {
+      "oracleStatus": "REVIEW_REQUIRED",
+      "l3SettlementStatus": "CANCELLED"
+    },
+    "DISPUTED": {
+      "oracleStatus": "REVIEW_REQUIRED",
+      "l3SettlementStatus": "CANCELLED"
+    },
+    "TIMED_OUT": {
+      "oracleStatus": "REVIEW_REQUIRED",
+      "l3SettlementStatus": "CANCELLED"
+    }
+  },
+  "pendingRules": {
+    "ownerRemainsFrom": true,
+    "blockedOperations": [
+      "transfer",
+      "redeem",
+      "pledge",
+      "relist"
+    ]
+  },
+  "finalizationRules": {
+    "atomic": true,
+    "certificateVersionIncrement": 1,
+    "requiredEvents": [
+      "CertificateSuperseded",
+      "Transfer",
+      "SettlementFinalized"
+    ]
+  },
+  "noneSemantics": {
+    "meansNoIncompleteSettlementObserved": true,
+    "prerequisiteOracleVerificationRequired": true
+  },
+  "wenbaoProfileRef": "config/settlement.wenbao-sandbox.json",
+  "l3ProfileRef": "config/l3.protocol.wd-0.1.1.json",
+  "ercRevisionRef": {
+    "mappedProposalTitle": "Versioned RWA Certificate Settlement",
+    "mappedProposalStatus": "SUPERSEDED",
+    "archivePath": "docs/erc/",
+    "supersededBy": {
+      "proposalTitle": "Asynchronous Register Projection for NFTs",
+      "pullRequest": 18,
+      "commit": "dce21639d3053ab1ebc78ff85e6f617ff99ea5a3",
+      "settlementStatusEnum": [
+        "NONE",
+        "OPEN",
+        "ADMITTED",
+        "CANCELLED",
+        "SUPERSEDED"
+      ],
+      "pendingTransfersBlocked": false,
+      "verifiedProperties": [
+        "both interface ids present",
+        "GapStatus has the five recorded values",
+        "RegisterEntry has seven fields",
+        "the specification still says ordinary ERC-721 transfers MUST NOT be blocked"
+      ]
+    },
+    "divergenceUnresolved": true,
+    "divergenceNote": "This mapping encodes the PRD v0.3 freeze model (pendingRules.ownerRemainsFrom). The current ERC keeps the token trading and has a five-value GapStatus. The two disagree; the product decision is open, so neither side is changed here. See DECISIONS_ZH.md D-007.",
+    "verificationRule": "Re-anchor when erc/ERCS/erc-xxxx.md changes, not on every commit to the branch. The branch also carries an internal review ledger and a file index that move often and cannot affect this mapping. `commit` is the commit at which verifiedProperties were last checked, not a claim about the branch head."
+  }
+}

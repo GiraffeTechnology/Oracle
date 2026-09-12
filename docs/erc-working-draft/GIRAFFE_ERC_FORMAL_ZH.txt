@@ -1,0 +1,490 @@
+版本化 RWA 证书交割
+
+正式中文文本版
+
+状态：Working Draft；尚未提交，尚未分配 ERC 编号
+作者：github-username (@github-username), Giraffe Technology Holding Limited
+类型：Standards Track
+类别：ERC
+依赖：ERC-165、ERC-721、EIP-712、ERC-1271、ERC-8325
+创建日期：2026-08-24
+讨论地址：待创建
+
+注意：在 Ethereum/ERCs 正式分配编号前，本文只能称为 Working Draft。
+作者 GitHub 用户名和讨论地址必须在提交前替换，不得原样提交占位符。
+
+
+摘要
+
+本提案定义一组面向 ERC-721 的可发现接口，用于公开当前权威证书摘要、证书版本以及不可覆盖的证书替代历史。
+
+本提案同时为完整合规实现定义强制递延交割语义。当 ERC-721 持有人变化依赖链下权威登记系统完成证书更新时，Token 进入 Pending 交割。在 Pending 期间，ownerOf(tokenId) 保持原持有人，普通 ERC-721 转移不得执行。
+
+权威登记系统完成处理并产生新证书后，合约在同一交易中原子完成证书替代、ERC-721 持有人变化和交割终结。外部流程可以在实现定义的 T+n 完成；本提案不规定 n 的数值。
+
+本提案不认定链下资产的法律所有权，不规定具体登记机构、司法辖区、证书格式、KYC/AML 实现、Oracle 网络、支付或金融业务。
+
+
+动机
+
+ERC-721 可以表示唯一 Token 及其链上持有人，但没有统一接口表达：
+
+1. 当前权威证书摘要和版本；
+2. 新证书如何替代旧证书；
+3. 历史证书是否被不可覆盖地保留；
+4. 链下登记尚未完成时，Token 是否处于递延交割中；
+5. 证书替代和 ERC-721 持有人变化是否构成同一个最终结果。
+
+如果 Token 在链下登记完成前直接转给拟议接收方，应用可能错误地认为外部登记已经完成。如果 Token 在链下处理期间仍能继续转移，则可能出现并发交割、交割乱序或证书与 Token 持有人不一致。
+
+本提案通过版本化证书替代和证书绑定的递延交割，为多个登记系统、Token 合约、钱包和索引器提供最小互操作语义。
+
+
+范围
+
+本提案规范：
+
+- 当前证书摘要、版本、生效时间和追加式历史；
+- 证书替代关系和统一事件；
+- ERC-165 接口发现；
+- 递延交割开始、最终确认和取消；
+- Pending 期间的 ERC-721 转移限制；
+- 权威授权的防重放字段；
+- 证书替代与 ERC-721 转移的原子性。
+
+本提案不规范：
+
+- 链下资产锚点注册表；
+- 多持有人、份额化、拆分或合并；
+- 证券发行、贷款、质押、收益或其他金融业务；
+- KYC、AML、制裁或身份系统的内部实现；
+- 跨链消息或跨链最终性；
+- 估值、价格或抵押率；
+- 证书文件格式、业务字段、URI 或存储介质；
+- 具体登记机构、Oracle 运营方、司法辖区或监管结论；
+- 支付、托管、退款、撮合、API、SaaS 或 SLA；
+- 链下权利的创设、执行或法律效力；
+- 实物提取、权益行使或赎回流程。
+
+
+信任模型和法律边界
+
+本提案区分链上 Token 状态、链下权威事实和验证结果。它只使合约能够引用并验证链下证据。
+
+实现不得仅因 Token 存在、证书摘要已上链或某地址是 ownerOf(tokenId)，便宣称该地址必然拥有链下资产的法定所有权、提货权、许可或其他法律权利。
+
+certificateAuthority(tokenId) 返回合约接受的链上验证权威。该地址不必等同于链下证书签发方，也不表示该地址获得政府或监管授权。
+
+
+规范性语言
+
+本文中的“必须”“不得”“应当”“不应”和“可以”分别对应 RFC 2119 和 RFC 8174 中的 MUST、MUST NOT、SHOULD、SHOULD NOT 和 MAY。
+
+
+术语
+
+Certificate：能够按照实现 Profile 进行规范化并计算摘要的外部权威记录。
+
+Certificate Commitment：对证书作出的非零 bytes32 承诺值。实现 Profile 必须规定承诺算法、域分离和确定性规范化流程。ABI 字段名 certificateHash 为保持兼容而保留，其承载的是该承诺值，并不强制使用 Keccak-256。
+
+Certificate Version：从 1 开始并逐次增加一的证书版本号。
+
+Authority Reference：登记记录、签发记录或证据包的非敏感 bytes32 引用。
+
+Certificate Authority：能够授权或验证证书更新的账户或合约。
+
+Settlement：从转移意图产生到最终确认或取消的递延交割流程。
+
+Settlement Deadline：Pending 交割允许被最终确认的最后时间。
+
+Ordinary Transfer：ERC-721 的 transferFrom 或任一 safeTransferFrom。
+
+Finalization：在同一交易中替代证书、变更 ERC-721 持有人并终结交割。
+
+
+规范
+
+一、证书版本规则
+
+初始证书版本必须为 1，初始记录的 previousCertificateHash 必须为 bytes32(0)。
+
+每次替代证书时：
+
+- 新证书摘要必须非零；
+- 新版本必须严格等于旧版本加一；
+- previousCertificateHash 必须等于旧的当前证书摘要；
+- 旧记录不得删除、覆盖或重排；
+- 旧记录的 supersededAt 必须被设置；
+- 新记录的 supersededAt 必须为零；
+- 必须发出 CertificateSuperseded。
+
+同一 Token 和版本的重复写入必须回退。版本不得跳号、回退或形成循环引用。
+
+查询不存在的 Token 或不存在的证书版本必须回退。
+
+
+二、核心接口
+
+// SPDX-License-Identifier: CC0-1.0
+pragma solidity ^0.8.20;
+
+import {IERC165} from
+    "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+
+interface IVersionedRWACertificate is IERC165 {
+    struct CertificateRecord {
+        bytes32 certificateHash;
+        bytes32 previousCertificateHash;
+        bytes32 authorityReference;
+        uint64 version;
+        uint64 effectiveAt;
+        uint64 supersededAt;
+    }
+
+    event CertificateInitialized(
+        uint256 indexed tokenId,
+        bytes32 indexed certificateHash,
+        bytes32 indexed authorityReference,
+        uint64 version,
+        uint64 effectiveAt
+    );
+
+    event CertificateSuperseded(
+        uint256 indexed tokenId,
+        uint64 indexed version,
+        bytes32 indexed certificateHash,
+        bytes32 previousCertificateHash,
+        bytes32 authorityReference,
+        uint64 effectiveAt
+    );
+
+    function currentCertificate(uint256 tokenId)
+        external
+        view
+        returns (CertificateRecord memory record);
+
+    function certificateAt(uint256 tokenId, uint64 version)
+        external
+        view
+        returns (CertificateRecord memory record);
+
+    function certificateAuthority(uint256 tokenId)
+        external
+        view
+        returns (address authority);
+}
+
+核心接口不规定通用外部证书写入函数。实现可以通过构造流程、受控管理函数或递延交割扩展更新证书，但所有路径都必须遵守相同的版本、历史、查询和事件语义。
+
+实现必须通过 ERC-165 声明支持 IVersionedRWACertificate。经 Solidity 编译和逐 selector XOR 测试复核，该接口的 interface ID 为 0xebaa86a0。只实现该读取接口的合约不得宣称完整符合本 ERC。
+
+
+三、递延交割状态
+
+交割状态编码固定为：
+
+0 NONE
+1 PENDING
+2 FINALIZED
+3 CANCELLED
+
+每个 settlementId 必须全局唯一。交割只能从 PENDING 进入 FINALIZED 或 CANCELLED。每个 Token 同一时点最多只能存在一个 Pending 交割。
+
+
+四、开始交割
+
+beginSettlement 成功前必须验证：
+
+- Token 存在；
+- Token 实现 ERC-8325 IAssetBoundTokenId，anchorIdOf(tokenId) 返回非零且不可变的锚点，并且 isAnchorActiveFor(tokenId) 返回 true；
+- Token 不存在其他 Pending 交割；
+- 调用者是当前持有人、获批准地址或操作方；
+- to 非零且不等于当前持有人；
+- settlementId 尚未使用；
+- snapshotHash 非零；
+- deadline 晚于当前区块时间；
+- 实现要求的附加转移检查已经通过。
+
+成功后，实现必须记录 from、to、snapshotHash、initiatedAt 和 deadline，并发出 SettlementStarted。
+
+Pending 期间：
+
+- ownerOf(tokenId) 必须继续返回 from；
+- 当前证书摘要和版本必须保持不变；
+- 所有 Ordinary Transfer 必须回退；
+- 拟议接收方不得被描述为已经完成最终交割的持有人。
+
+
+五、最终确认
+
+finalizeSettlement 只能处理未超过 deadline 的 Pending 交割。
+
+授权必须来自当前 certificateAuthority(tokenId)，或能够由该 Authority 验证。
+
+最终确认必须在同一交易中原子完成：
+
+1. 标记旧证书已被替代；
+2. 追加新证书，新版本等于旧版本加一；
+3. 将 ERC-721 Token 从 from 转给 to；
+4. 将交割状态设置为 FINALIZED；
+5. 消费授权 nonce；
+6. 发出 CertificateSuperseded、Transfer 和 SettlementFinalized。
+
+实现应当按上述顺序发出三个事件，以便索引器确定性处理；消费者不得仅凭事件顺序判断交割有效。
+
+任一步骤失败必须使整笔交易回退，不得留下部分证书更新、部分交割状态或单独的持有人变化。
+
+
+六、取消交割
+
+Pending 交割可以通过下文规定的规范化 Authority 取消授权进行取消。超过 deadline 后，记录中的 from 可以使用空 authorityData 取消。
+
+取消不得改变 ERC-721 持有人、当前证书摘要或当前证书版本。取消必须将交割状态设置为 CANCELLED 并发出 SettlementCancelled。
+
+如果存在证书冲突、Authority 失陷或资产争议，实现可以通过 ERC-7943 或其他合规机制冻结 Token。本提案不重新定义通用冻结接口。
+
+
+七、递延交割接口
+
+// SPDX-License-Identifier: CC0-1.0
+pragma solidity ^0.8.20;
+
+import {IERC165} from
+    "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+
+interface IDeferredCertificateSettlement is IERC165 {
+    enum SettlementStatus {
+        NONE,
+        PENDING,
+        FINALIZED,
+        CANCELLED
+    }
+
+    struct SettlementRecord {
+        uint256 tokenId;
+        address from;
+        address to;
+        bytes32 snapshotHash;
+        uint64 initiatedAt;
+        uint64 deadline;
+        SettlementStatus status;
+    }
+
+    event SettlementStarted(
+        bytes32 indexed settlementId,
+        uint256 indexed tokenId,
+        address indexed from,
+        address to,
+        bytes32 snapshotHash,
+        uint64 deadline
+    );
+
+    event SettlementFinalized(
+        bytes32 indexed settlementId,
+        uint256 indexed tokenId,
+        bytes32 indexed certificateHash,
+        uint64 certificateVersion,
+        uint64 effectiveAt
+    );
+
+    event SettlementCancelled(
+        bytes32 indexed settlementId,
+        uint256 indexed tokenId,
+        bytes32 indexed reasonHash
+    );
+
+    function settlement(bytes32 settlementId)
+        external
+        view
+        returns (SettlementRecord memory record);
+
+    function pendingSettlementOf(uint256 tokenId)
+        external
+        view
+        returns (bytes32 settlementId);
+
+    function beginSettlement(
+        uint256 tokenId,
+        bytes32 settlementId,
+        address to,
+        bytes32 snapshotHash,
+        uint64 deadline
+    ) external;
+
+    function finalizeSettlement(
+        bytes32 settlementId,
+        bytes32 newCertificateHash,
+        bytes32 authorityReference,
+        uint64 effectiveAt,
+        bytes calldata authorityData
+    ) external;
+
+    function cancelSettlement(
+        bytes32 settlementId,
+        bytes32 reasonHash,
+        bytes calldata authorityData
+    ) external;
+}
+
+每个完整合规实现必须同时实现 IVersionedRWACertificate 和 IDeferredCertificateSettlement，并通过 ERC-165 声明支持两者。经 Solidity 编译和逐 selector XOR 测试复核，IDeferredCertificateSettlement 的 interface ID 为 0x2773d4c9。
+
+
+八、Authority 授权
+
+实现必须使用 EIP-712，域结构为：
+
+EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)
+
+name 必须为 "Versioned RWA Certificate Settlement"，version 必须为 "1"。
+
+最终确认授权必须使用以下精确类型：
+
+SettlementAuthorization(uint256 tokenId,bytes32 settlementId,address from,address to,bytes32 previousCertificateHash,bytes32 newCertificateHash,uint64 newCertificateVersion,uint64 effectiveAt,uint64 validUntil,uint256 nonce)
+
+其 type hash 必须为上述无换行规范类型字符串的 keccak256。
+
+Authority 取消授权必须使用以下精确类型：
+
+CancellationAuthorization(bytes32 settlementId,uint256 tokenId,bytes32 reasonHash,uint64 validUntil,uint256 nonce)
+
+其 type hash 必须为上述规范类型字符串的 keccak256。
+
+两种授权的 authorityData 必须编码为：
+
+abi.encode(uint64 validUntil, uint256 nonce, bytes signature)
+
+authorityData 中的 validUntil 和 nonce 必须等于已签名字段。deadline 后由记录中的 from 执行超时取消时，authorityData 必须为空。
+
+缺少或改变任一必需字段的授权不得被接受。授权不得跨链、跨合约、跨 Token、跨交割、跨用途或跨 Authority 纪元重放。
+
+成功使用的 nonce 必须在两种授权类型之间对相应 Authority 永久消费；交易回退时不得错误消费 nonce。
+
+Authority 为外部账户时，实现必须验证规范 low-s ECDSA 签名；Authority 为合约时，实现必须通过 ERC-1271 验证。Authority 轮换必须可审计；Authority 失陷或轮换后，实现必须拒绝旧 Authority 的授权。
+
+
+九、ERC-721 转移语义
+
+Pending 期间，transferFrom 和两个 safeTransferFrom 重载必须回退。实现不得允许 approved operator 绕过 Pending 限制。
+
+进入 Pending 后，实现应清除或冻结单 Token approval。即使 approval 仍然存在，Ordinary Transfer 也必须回退。
+
+最终确认使用开始交割时记录的持有人授权和有效 Authority 授权，不依赖最终确认时仍存在的 approve。
+
+
+十、互操作性
+
+资产锚定：每个完整合规 Token 必须实现 ERC-8325 IAssetBoundTokenId。每个合规 tokenId 必须由 anchorIdOf(tokenId) 返回唯一的非零、不可变锚点，anchorRegistry() 必须不可变，isAnchorActiveFor(tokenId) 必须反映登记生命周期状态。登记方与 Token 端声明必须构成 ERC-8325 下相互声明的 token-ID binding。一个合规 tokenId 必须表示一个链下资产主张，不得表示份额、多人共有份额或多个资产集合。本提案不定义竞争性的通用资产锚定接口。
+
+转移控制：实现可以使用 ERC-7943 公开 canSend、canReceive、canTransfer、冻结和强制转移能力。若实现 ERC-7943，Pending 时 canTransfer 必须返回 false，forcedTransfer 不得静默绕过证书版本规则。
+
+元数据：证书更新导致 tokenURI 表示的数据变化时，实现应发出 ERC-4906 MetadataUpdate。
+
+
+理由
+
+本提案不采用通用 assetId 接口，因为 ERC-8325 已经处理注册表范围内的资产锚定、绑定状态和绑定历史。ERC-8325 是强制组合依赖，使资产关联保持可发现而不重复其接口。
+
+本提案不定义通用冻结或合规接口，因为 ERC-7943 已经提供相应能力。
+
+本提案不采用 ERC-6997 作为直接依赖。ERC-6997 处理通用转移及批准验证，不定义证书承诺、版本历史、外部登记绑定、交割 deadline、取消或证书绑定的 EIP-712 授权，并允许获批准账户直接转移。本提案允许获批准账户发起交割，但 Pending 建立后，持有人、获批准地址和操作方均不得绕过；最终确认在一个 settlementId 下原子完成证书替代和 Token 转移。
+
+仅组合 ERC-8325、ERC-6997 和 ERC-7943 仍不足以形成可互操作的证书交割，因为三者不定义统一交割记录、本文规定的规范 Authority 载荷、连续证书替代，以及证书更新与 ERC-721 转移必须共同成功或共同回退的不变量。
+
+追加式证书历史用于发现覆盖、回退和乱序。连续版本和 previousCertificateHash 形成可审计的替代链。
+
+本提案不规定证书 schema，因为证书内容取决于行业、登记系统和司法辖区。链上只统一摘要、版本、引用和时间。
+
+本提案使用 deadline、effectiveAt 和 T+n，而不规定固定处理期限。
+
+
+向后兼容性
+
+本提案是 ERC-721 的可选扩展，不改变 ERC-721 ABI；但宣称符合本 ERC 的合约必须实现 ERC-8325 IAssetBoundTokenId、IVersionedRWACertificate 和 IDeferredCertificateSettlement。不识别本提案的应用仍可读取标准 ERC-721 状态，但可能无法识别 Pending 交割和证书版本。
+
+Pending 限制必须由 Token 合约强制执行，不能只依赖前端或外部注册表。不可升级的旧 ERC-721 只有在所有转移入口都能被底层机制约束时，才可以声明实现递延交割扩展。
+
+
+安全考虑
+
+- Authority 密钥可以影响证书和交割，应采用多签或门限签名、硬件隔离、轮换和撤销。
+- 单一管理员不得绕过 Authority 授权完成最终确认。
+- 授权必须绑定完整域和前后状态，防止跨链、跨 Token、跨交割和旧版本重放。
+- 并发授权必须验证当前证书摘要和预期版本，确保只有一个授权可以成功。
+- 最终确认包含 ERC-721 转移，实现必须在外部调用前锁定状态并防止重入。
+- deadline 使用区块时间，不应被解释为严格的现实世界 SLA。
+- Authority 拒绝服务时可以超时取消；发生冲突时不得猜测链下事实。
+- settlementId、参与方、快照和 nonce 必须绑定，防止 calldata 复制和抢跑。
+- forcedTransfer 本身不是证书变更完成的证据。
+- 合约升级不得删除证书历史、重用 nonce 或改变已经终结的交割。
+- Profile 必须规定证书规范化字节序列；视觉相同不代表文件字节或摘要相同。
+
+
+隐私考虑
+
+链上字段和事件只应保存不可逆摘要、版本、非敏感时间和不透明引用。
+
+实现不得直接写入姓名、证件号码、联系方式、钱包实名映射、完整证书、精确仓储位置、KYC/AML 原始材料或可逆低熵哈希。
+
+对低熵标识计算普通哈希不能提供充分隐私。实现应采用随机化承诺、访问控制和链下最小化存储。
+
+
+测试要求
+
+以下与实现无关的向量具有规范性：
+
+1. IVersionedRWACertificate interface ID 为 0xebaa86a0；
+2. IDeferredCertificateSettlement interface ID 为 0x2773d4c9；
+3. SettlementAuthorization 规范类型字符串的 keccak256 等于实现使用的 SETTLEMENT_AUTHORIZATION_TYPEHASH；
+4. CancellationAuthorization 规范类型字符串的 keccak256 等于实现使用的 CANCELLATION_AUTHORIZATION_TYPEHASH；
+5. authorityData 可按 (uint64 validUntil, uint256 nonce, bytes signature) 解码，且前两个值等于已签名字段。
+
+参考实现还必须至少测试：
+
+1. 初始证书版本为 1；
+2. 证书替代后版本严格增加一；
+3. 历史记录不得覆盖或重排；
+4. Pending 开始后 ownerOf 保持不变；
+5. Pending 期间全部 Ordinary Transfer 入口均失败；
+6. 获批准账户不能绕过 Pending；
+7. T+n 在 deadline 前完成最终确认；
+8. 最终确认原子更新证书版本和持有人；
+9. 超时取消不改变持有人和证书；
+10. 任一授权域字段变化都会使旧授权失效；
+11. 并发 Pending、版本跳号和重复终结全部失败；
+12. nonce 最多成功使用一次。
+
+属性测试必须证明：
+
+- 一个 Token 同一时点只有一个当前证书；
+- 一个 Token 同一时点只有一个 Pending 交割；
+- 证书历史只能增加且版本连续；
+- Pending 期间 ownerOf 不变；
+- 只有最终确认能同时改变持有人和证书版本；
+- 取消不改变持有人和证书；
+- 一个 nonce 不能成功使用两次。
+
+
+参考实现
+
+随附的 CC0 Solidity 参考实现为 VersionedRWACertificateReference.sol。随附 protocol.cjs 使用 Solidity 0.8.26、optimizer runs 200 和 viaIR 编译，并在本地 EVM 上执行接口、ERC-8325 绑定、EIP-712、ERC-1271、交割、防重放、取消和追加式历史测试。参考实现中的管理和部署选择仅供说明，不属于规范性要求。
+
+
+参考标准
+
+ERC-8325：Asset Anchor Registry。
+ERC-6997：ERC-721 with transaction validation step。
+ERC-6956：Asset-bound NFTs。
+ERC-7943：uRWA - Universal Real World Asset Interface。
+ERC-6454：Minimal Transferable NFT。
+ERC-7066：Lockable ERC-721。
+ERC-4906：EIP-721 Metadata Update Extension。
+ERC-8048：On-Chain Metadata。
+ERC-3643：T-REX Token Standard。
+ERC-8106：Compliance Events。
+ERC-7578、ERC-7498、ERC-7765：实物信息、赎回和权益相关标准。
+ERC-7891：NFT Split and Merge。
+
+
+版权
+
+Copyright and related rights waived via [CC0](/LICENSE).

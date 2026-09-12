@@ -1,0 +1,72 @@
+Claude Code 审计整改报告
+
+日期：2026-08-24
+提案：Versioned RWA Certificate Settlement
+主体：Giraffe Technology Holding Limited
+范围：SUBMISSION_REVIEW_ZH.zip 中的 Claude Code 检查意见
+
+一、总体结论
+
+审计列出的 F1-F7 格式问题和 T1-T7 技术问题已经逐项处理。可由本地文本、代码和测试关闭的项目均已关闭。F4 所需真实 Ethereum Magicians 讨论 URL、作者 GitHub 用户名和正式 ERC 编号属于外部流程输入，目前保留占位符，构成提交前阻断项而不是实现失败。
+
+二、格式问题整改
+
+F1 缺少 Markdown/YAML front matter：已关闭。新建 ERC_SUBMISSION_CANDIDATE_EN.md，并使用标准 Markdown 和 YAML front matter。
+
+F2 缺少 description：已关闭。增加不含自定编号、长度适当的技术描述。
+
+F3 状态不是 Draft：已关闭。提交候选稿使用 status: Draft；中英文 txt 仍明确标为未提交 Working Draft，避免误称已进入 EIP 流程。
+
+F4 discussions-to 不是有效 URL：外部阻断。候选稿保留可识别占位符。必须先完成 Ethereum Magicians 讨论后替换，不能虚构 URL。
+
+F5 CC0 格式不精确：已关闭。改为 Copyright and related rights waived via [CC0](/LICENSE).
+
+F6 requires 不是数字：已关闭。候选稿使用 requires: 165, 721, 712, 1271, 8325。
+
+F7 Solidity 未使用 fenced code block：已关闭。两个拟议接口均置于 solidity fenced code block。
+
+三、技术问题整改
+
+T1 authorityData/EIP-712 不足以互操作：已关闭。固定 EIP-712 domain name/version、SettlementAuthorization、CancellationAuthorization、authorityData tuple、validUntil/nonce 一致性、共享 nonce 空间、低 s ECDSA 和 ERC-1271 规则。参考实现与测试同步落实。
+
+T2 Core 只有只读接口、状态变更依赖可选扩展：已关闭。不改变已冻结 ABI，而是在合规规则中明确：完整实现必须同时实现 IVersionedRWACertificate 与 IDeferredCertificateSettlement；只实现只读接口不得宣称合规。
+
+T3 缺少一资产一 Token 的规范性绑定：已关闭。要求完整实现采用 ERC-8325 IAssetBoundTokenId；每个 tokenId 返回唯一非零不可变 anchor，登记表不可变并反映活跃状态。beginSettlement 必须拒绝非活跃锚点。规范明确排除份额、多人共有份额和多资产集合。
+
+T4 与 ERC-6997 差异不足：已关闭。补充说明 ERC-6997 是面向防盗的 ERC-721 转移/批准验证步骤，不定义证书承诺、版本历史、外部登记绑定、交割 deadline、取消或证书绑定的 EIP-712 授权；并解释 ERC-8325 + ERC-6997 + ERC-7943 组合仍缺少统一交割记录、规范 Authority 载荷、连续证书替代和证书/持有人原子更新。
+
+T5 只有测试义务，没有测试向量或参考实现：已关闭。增加固定 interface ID、规范类型字符串、authorityData tuple、活跃锚点、Pending 转移封锁、原子性和追加历史向量；引用 CC0 Solidity 参考实现和可执行测试。
+
+T6 强制事件顺序过严：已关闭。三个事件仍必须发出，但顺序改为 SHOULD；消费者不得仅以事件顺序判断有效性。测试只验证事件齐备，不再把顺序作为必要条件。
+
+T7 固定 Keccak 可能限制证书生态：已关闭。certificateHash ABI 名称保留，但语义改为 Profile 定义的 bytes32 Certificate Commitment。Profile 必须定义算法、域分离和确定性规范化；通用 ERC 不强制 Keccak-256。
+
+四、对原审计限制的处理
+
+原报告说明“未复现测试”。本轮已实际执行：
+
+- ERC：17 passing，0 failing；
+- Oracle：36 passing，0 failing；
+- syntax-check：PASS，32 files；
+- repository-scan：PASS。
+
+因此该限制已由可复现的本地执行结果替代。完整证据见 PRE_SUBMISSION_TEST_REPORT_ZH.txt。
+
+五、变更文件
+
+1. docs/erc-working-draft/GIRAFFE_ERC_FORMAL_ZH.txt
+2. docs/erc-working-draft/GIRAFFE_ERC_FORMAL_EN.txt
+3. docs/erc-working-draft/ERC_SUBMISSION_CANDIDATE_EN.md
+4. erc-reference/contracts/VersionedRWACertificateReference.sol
+5. erc-reference/test/protocol.cjs
+6. docs/erc-working-draft/PRE_SUBMISSION_TEST_REPORT_ZH.txt
+
+六、仍未关闭的外部门禁
+
+1. 实际 GitHub 用户名；
+2. 实际 Ethereum Magicians discussions-to URL；
+3. ERC 编辑分配的编号；
+4. CC0 与专利/必要权利授权结论；
+5. 用户对外发布和 PR 的明确授权。
+
+在上述项目完成前，文件仅供校对和提交准备，不得原样向 ethereum/ERCs 提交。

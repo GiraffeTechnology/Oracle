@@ -1,0 +1,26 @@
+{
+  "profileId": "oracle-nfr004-mixed-synthetic-v1",
+  "syntheticOnly": true,
+  "network": "none",
+  "resources": { "cpuCount": 2, "memoryMiB": 1024, "pidsMaximum": 256 },
+  "phases": [
+    { "name": "warmup", "durationSeconds": 300, "requestsPerSecond": 50, "measured": false },
+    { "name": "steady", "durationSeconds": 1800, "requestsPerSecond": 100, "measured": true },
+    { "name": "burst", "durationSeconds": 300, "requestsPerSecond": 200, "measured": true }
+  ],
+  "measuredRequests": 240000,
+  "concurrencyMaximum": 64,
+  "thresholds": {
+    "unexpectedFailureRatePercentMaximum": 0.1,
+    "application5xxMaximum": 0,
+    "restartMaximum": 0,
+    "steadyP95MillisecondsMaximum": 150,
+    "burstP95MillisecondsMaximum": 300,
+    "steadyBacklogMaximum": 64,
+    "burstBacklogMaximum": 256,
+    "backlogDrainSecondsMaximum": 60,
+    "cpuFiveMinuteAveragePercentMaximum": 80,
+    "memoryPeakPercentMaximum": 85
+  },
+  "faultMatrix": ["invalid-input", "unauthorized-write", "source-timeout", "source-invalid-proof", "mysql-interruption", "durability-failure", "outbox-pause", "evidence-storage-failure", "process-restart", "resource-reduction", "restore-tamper", "clock-skew"]
+}

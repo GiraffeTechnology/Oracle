@@ -1,0 +1,171 @@
+name: Oracle PRD v0.3 CI
+
+on:
+  # Branch pushes must trigger CI too. The workflow merged from
+  # feature/oracle-all-iterations only listened for pull_request, so a push to a branch
+  # without an open PR produced no run at all — silence that reads exactly like a green
+  # build unless someone checks the Actions tab.
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CI: 'true'
+
+jobs:
+  locked-install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.33.0, run_install: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+
+  format-lint-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: node scripts/syntax-check.mjs
+
+  unit-negative:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: node --test --test-reporter=spec "test/*.test.js"
+
+  production-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: node scripts/syntax-check.mjs
+      - run: node scripts/verify-release.mjs
+
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.33.0, run_install: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm run test:erc
+
+  consumer-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: node --test --test-reporter=spec test/prd-v0.4-acceptance.test.js test/control-plane.test.js test/l2-l3-configuration.test.js
+
+  mysql-migrate-backup-restore:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: synthetic-ci-only
+          MYSQL_DATABASE: oracle_ci
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -psynthetic-ci-only"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - name: Apply migration to an empty schema
+        env: { MYSQL_PWD: synthetic-ci-only }
+        run: mysql --protocol=TCP -h 127.0.0.1 -uroot oracle_ci < db/mysql/001_initial.sql
+      - name: Backup and restore into an independent empty schema
+        env: { MYSQL_PWD: synthetic-ci-only }
+        run: |
+          mysqldump --protocol=TCP -h 127.0.0.1 -uroot --no-data oracle_ci > /tmp/oracle-schema.sql
+          mysql --protocol=TCP -h 127.0.0.1 -uroot -e 'CREATE DATABASE oracle_restore'
+          mysql --protocol=TCP -h 127.0.0.1 -uroot oracle_restore < /tmp/oracle-schema.sql
+          test "$(mysql --batch --skip-column-names --protocol=TCP -h 127.0.0.1 -uroot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='oracle_ci'")" = "$(mysql --batch --skip-column-names --protocol=TCP -h 127.0.0.1 -uroot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='oracle_restore'")"
+      - name: Validate migration contract tests
+        run: node --test --test-reporter=spec --test-name-pattern="MySQL migration|backup manifest" "test/*.test.js"
+
+  financial-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: node scripts/product-boundary-scan.mjs
+      - run: node --test --test-reporter=spec --test-name-pattern="ORACLE-005 and ORACLE-006|financial" "test/*.test.js"
+
+  subject-compliance-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: node --test --test-reporter=spec --test-name-pattern="ORACLE-005" "test/*.test.js"
+
+  personal-information-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: node --test --test-reporter=spec --test-name-pattern="ORACLE-007" "test/*.test.js"
+
+  secret-credential-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: node scripts/repository-scan.mjs
+
+  integration-gates:
+    name: integration gates (decisions, scope, hygiene, frozen ERC)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Decision consistency (DECISIONS_ZH.md)
+        run: node scripts/check-decision-consistency.mjs
+      - name: Layer state consistency (L1 / L2 / L3)
+        run: node scripts/check-layer-state-consistency.mjs
+      - name: Scope coverage (acceptance 8.4)
+        run: node scripts/check-scope-coverage.mjs
+      - name: Financial output gate (ORACLE-006)
+        run: node scripts/check-no-financial-output.mjs
+      - name: Secrets and personal data gate (NFR-001 / ORACLE-007)
+        run: node scripts/check-repository-hygiene.mjs
+      - name: Frozen ERC constants
+        run: node scripts/check-frozen-erc-constants.ts
