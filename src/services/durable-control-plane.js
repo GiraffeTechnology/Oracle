@@ -1,5 +1,6 @@
 import { evidenceHash } from "../domain/canonical-json.js";
 import { captureProductionState } from "./production-state.js";
+import { MySqlTransactionError } from "../adapters/mysql-repository.js";
 
 const WRITE_METHODS = Object.freeze(["verifyAsset", "bindToken", "issueAttestation", "requestRevocation", "approveAction", "requestSourceDisable", "executeSourceDisable", "requestSignerRotation", "executeSignerRotation", "reconcileSignerRotation", "exportAudit", "executeRevocation", "beginSettlement", "finalizeSettlement", "cancelSettlement", "disputeSettlement", "timeoutSettlement"]);
 
@@ -22,6 +23,30 @@ export class DurableOracleControlPlane {
 
   async execute(method, args) {
     return this.executeResolved(method, args, async () => args);
+  }
+
+  // Read-only reconciliation observation, NOT permission to resume writes.
+  // An absent record on an unverified/lagging target never proves non-commit.
+  async inspectCommandRecovery(method, commandInput) {
+    if (!WRITE_METHODS.includes(method)) throw new Error("COMMAND_METHOD_INVALID");
+    if (typeof commandInput?.idempotencyKey !== "string" || commandInput.idempotencyKey.length < 1 || commandInput.idempotencyKey.length > 128) throw new Error("IDEMPOTENCY_KEY_REQUIRED");
+    if (typeof this.controlPlane.authorizeCommand !== "function") throw new Error("COMMAND_AUTHORIZATION_UNAVAILABLE");
+    this.controlPlane.authorizeCommand(method, commandInput);
+    const commandHash = evidenceHash({ method, input: durableInput(method, commandInput) });
+    let prior;
+    try { prior = await this.repository.getCommand(commandInput.idempotencyKey); }
+    catch { throw new Error("MYSQL_RECOVERY_READ_FAILED"); }
+    const status = !prior ? "UNRESOLVED"
+      : prior.commandHash !== commandHash ? "CONFLICT"
+        : prior.status === "COMPLETED" ? "COMPLETED_OBSERVED" : "UNRESOLVED";
+    return Object.freeze({ status, writeResumptionAllowed: false });
+  }
+
+  #failDurability(error) {
+    this.runtime.operationalState.compromised = true;
+    const failure = error instanceof MySqlTransactionError ? error : new Error("MYSQL_DURABILITY_FAILURE");
+    this.runtime.operationalState.errorCode = failure.message;
+    throw failure;
   }
 
   async executeResolved(method, commandInput, resolveOperationInput) {
@@ -85,10 +110,8 @@ export class DurableOracleControlPlane {
             commandHash: durableCommandHash,
             stateSnapshot: captureProductionState(this.runtime, this.dualControl),
           });
-        } catch {
-          this.runtime.operationalState.compromised = true;
-          this.runtime.operationalState.errorCode = "MYSQL_DURABILITY_FAILURE";
-          throw new Error("MYSQL_DURABILITY_FAILURE");
+        } catch (error) {
+          this.#failDurability(error);
         }
       }
       throw error;
@@ -110,10 +133,8 @@ export class DurableOracleControlPlane {
       });
       for (const { eventId } of outboxEvents) this.runtime.outbox.markDurable(eventId);
       return result;
-    } catch {
-      this.runtime.operationalState.compromised = true;
-      this.runtime.operationalState.errorCode = "MYSQL_DURABILITY_FAILURE";
-      throw new Error("MYSQL_DURABILITY_FAILURE");
+    } catch (error) {
+      this.#failDurability(error);
     }
   }
 }

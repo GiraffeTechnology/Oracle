@@ -66,6 +66,7 @@ export function publicSettlement(settlement) {
 }
 
 function adminErrorStatus(errorCode) {
+  if (errorCode === "REPOSITORY_ADMISSION_CLOSED" || errorCode === "REPOSITORY_SCOPE_CLOSED") return 503;
   if (errorCode === "ADMIN_OPERATION_FAILED") return 500;
   if (errorCode === "ADMIN_AUTHENTICATION_REQUIRED") return 401;
   if (errorCode.startsWith("PERMISSION_DENIED") || errorCode === "ACTOR_NOT_REGISTERED") return 403;
@@ -101,10 +102,14 @@ function assertSameOriginAdminWrite(request) {
   return true;
 }
 
-export function createApp({ config, sourceRegistry, runtime = null, controlPlane = null, adminOperations = null, authenticateAdmin = null, readinessCheck = null, l2Profile = null, protocolProfile = null, verificationRateLimiter = new FixedWindowRateLimiter({ limit: 60, windowMs: 60000 }) }) {
+export function createApp(options) {
+  return http.createServer(createRequestHandler(options));
+}
+
+export function createRequestHandler({ config, sourceRegistry, runtime = null, controlPlane = null, adminOperations = null, authenticateAdmin = null, readinessCheck = null, l2Profile = null, protocolProfile = null, verificationRateLimiter = new FixedWindowRateLimiter({ limit: 60, windowMs: 60000 }) }) {
   if (!config || !sourceRegistry) throw new Error("APP_DEPENDENCY_MISSING");
 
-  return http.createServer(async (request, response) => {
+  return async (request, response) => {
     const requestUrl = new URL(request.url, "http://localhost");
     if (runtime?.operationalState?.compromised && requestUrl.pathname !== "/healthz") {
       sendJson(response, 503, { ok: false, errorCode: "DURABLE_STATE_COMPROMISED" });
@@ -372,5 +377,5 @@ export function createApp({ config, sourceRegistry, runtime = null, controlPlane
     }
 
     sendJson(response, 404, { ok: false, errorCode: "NOT_FOUND" });
-  });
+  };
 }

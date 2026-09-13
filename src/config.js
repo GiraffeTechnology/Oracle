@@ -30,10 +30,18 @@ export function loadConfig(env = process.env) {
     throw new Error("NON_LOOPBACK_BIND_NOT_AUTHORIZED");
   }
 
+  const lifecycle = env.GIRAFFE_ORACLE_PROCESS_LIFECYCLE ?? "false";
+  if (!["false", "true"].includes(lifecycle)) throw new Error("CONFIG_PROCESS_LIFECYCLE_INVALID");
+  if (lifecycle === "true" && runtimeEnvironment !== "production") throw new Error("PROCESS_LIFECYCLE_REQUIRES_PRODUCTION");
+  const shutdownTimeout = env.GIRAFFE_ORACLE_SHUTDOWN_TIMEOUT_MS ?? "30000";
+  if (env.GIRAFFE_ORACLE_SHUTDOWN_TIMEOUT_MS !== undefined && lifecycle !== "true") throw new Error("SHUTDOWN_TIMEOUT_REQUIRES_LIFECYCLE");
+  if (lifecycle === "true" && (!/^[1-9][0-9]*$/.test(shutdownTimeout) || !Number.isSafeInteger(Number(shutdownTimeout)) || Number(shutdownTimeout) > 2147483647)) throw new Error("CONFIG_SHUTDOWN_TIMEOUT_INVALID");
+
   return Object.freeze({
     environment: runtimeEnvironment,
     host,
     port: parsePort(env.GIRAFFE_ORACLE_PORT ?? "8780"),
+    ...(lifecycle === "true" ? { processLifecycleEnabled: true, shutdownTimeoutMs: Number(shutdownTimeout) } : {}),
     externalWritesEnabled: parseExternalWrites(
       env.GIRAFFE_ORACLE_EXTERNAL_WRITES ?? "false",
       runtimeEnvironment,

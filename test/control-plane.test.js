@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MySqlOracleRepository } from "../src/adapters/mysql-repository.js";
+import { MySqlOracleRepository, getMySqlTransactionDiagnostics } from "../src/adapters/mysql-repository.js";
 import { ProtectedSignerAdapter } from "../src/adapters/protected-signer.js";
 import { FixedSourceTransportAdapter } from "../src/adapters/fixed-source-transport.js";
 import { createSyntheticRuntime } from "../src/oracle-runtime.js";
@@ -18,6 +18,14 @@ const NOW = new Date("2026-08-24T00:00:00.000Z");
 const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
 const HASH_C = "c".repeat(64);
+
+function transactionCause(message) {
+  return (error) => {
+    assert.equal(error.outcome, "ROLLED_BACK");
+    assert.equal(getMySqlTransactionDiagnostics(error)?.primaryError.message, message);
+    return true;
+  };
+}
 
 function evidenceBundle(assetId, assetFingerprintHash = HASH_A, certificateHash = HASH_B, warehouseReceiptHash = HASH_C) {
   return {
@@ -378,7 +386,7 @@ test("MySQL adapter commits success and rolls back failure", async () => {
   assert.equal(await repository.transaction(async () => "ok"), "ok");
   assert.deepEqual(events, ["begin", "commit", "release"]);
   events.length = 0;
-  await assert.rejects(() => repository.transaction(async () => { throw new Error("failure"); }), /failure/);
+  await assert.rejects(() => repository.transaction(async () => { throw new Error("failure"); }), transactionCause("failure"));
   assert.deepEqual(events, ["begin", "rollback", "release"]);
 });
 
@@ -505,7 +513,7 @@ test("MySQL finalization rolls back when the current certificate cannot be super
   const repository = new MySqlOracleRepository({ pool: { async getConnection() { return connection; } } });
   const certificate = { assetId: "asset-db", tokenId: "1", certificateVersion: 2, certificateHash: HASH_C, previousCertificateHash: HASH_B, wenbaoChangeRef: "change-db", warehouseReceiptHash: HASH_A, effectiveAt: NOW.toISOString(), status: "CURRENT" };
   const record = { settlementId: "settlement-final-conflict", assetId: "asset-db", token: { chainId: "560048", contract: "test-only", tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", snapshotHash: HASH_A, externalExecutionRef: "execution", oldCertificateHash: HASH_B, newCertificateHash: HASH_C, registryChangeRef: "change-db", status: "FINALIZED", deadlineAt: "2026-08-27T00:00:00.000Z", startedAt: NOW.toISOString(), finalizedAt: NOW.toISOString() };
-  await assert.rejects(() => repository.persistMutation({ method: "finalizeSettlement", idempotencyKey: "db-finalize-conflict", commandHash: HASH_A, input: { request: { certificate, certificateSourceId: "certificate-authority", newOwnerCommitment: HASH_C, evidenceVersion: 3 } }, result: record, auditEvents: [], outboxEvents: [], stateSnapshot: { state: { testOnly: true }, stateHash: HASH_B } }), /CERTIFICATE_SUPERSEDE_CONFLICT/);
+  await assert.rejects(() => repository.persistMutation({ method: "finalizeSettlement", idempotencyKey: "db-finalize-conflict", commandHash: HASH_A, input: { request: { certificate, certificateSourceId: "certificate-authority", newOwnerCommitment: HASH_C, evidenceVersion: 3 } }, result: record, auditEvents: [], outboxEvents: [], stateSnapshot: { state: { testOnly: true }, stateHash: HASH_B } }), transactionCause("CERTIFICATE_SUPERSEDE_CONFLICT"));
   assert.equal(rolledBack, true);
   assert.equal(executeCount, 3);
 });
@@ -655,7 +663,7 @@ test("MySQL outbox delivery updates reject missing or stale rows", async () => {
     () => repository.markOutboxPublished("event", NOW.toISOString()),
     () => repository.markOutboxDeadLettered("event", NOW.toISOString()),
   ];
-  for (const call of calls) await assert.rejects(call, /OUTBOX_DELIVERY_UPDATE_CONFLICT/);
+  for (const call of calls) await assert.rejects(call, transactionCause("OUTBOX_DELIVERY_UPDATE_CONFLICT"));
   assert.equal(rolledBack, calls.length);
 });
 
@@ -841,7 +849,7 @@ test("MySQL source disable rejects an absent relational projection and accepts v
     return { operation, events };
   };
   const missing = await run([]);
-  await assert.rejects(missing.operation, /SOURCE_PROJECTION_CONFLICT/);
+  await assert.rejects(missing.operation, transactionCause("SOURCE_PROJECTION_CONFLICT"));
   assert.deepEqual(missing.events, ["begin", "rollback", "release"]);
   const inactive = await run([{ active: 0 }]);
   assert.equal((await inactive.operation).persisted, true);
