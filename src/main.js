@@ -134,10 +134,10 @@ export function startApplication({
     );
   };
   const onDependencyBlocked = (code) => {
-    blockers.add(code);
-    fail();
     if (failureDrainStarted) return;
     failureDrainStarted = true;
+    blockers.add(code);
+    fail();
     // Dependency observers invoke this proactively. Shutdown closes the same
     // admission gate and stops workers even if nobody reads a snapshot.
     void shutdown().then(

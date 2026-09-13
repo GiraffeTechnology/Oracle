@@ -171,15 +171,15 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
             }
           });
         } catch {
-          await reportAlert("reportFailure", "OUTBOX_DISPATCH_FAILED");
           if (repositoryExecution?.snapshot().state === "BLOCKED") {
-            // A terminal repository outcome must proactively close application
-            // admission; waiting for an HTTP snapshot would leave the listener live.
+            // Safety notification precedes the alerting port: a stalled alert
+            // must not leave HTTP admission open or keep the interval scheduled.
             stopped = true;
             clearInterval(timer);
             try { await onBlocked(lifecycleSnapshot()); }
             catch { await reportAlert("reportFailure", "BACKGROUND_FAILURE_OBSERVER_FAILED"); }
           }
+          await reportAlert("reportFailure", "OUTBOX_DISPATCH_FAILED");
         } finally {
           draining = false;
           backgroundInFlight = false;
