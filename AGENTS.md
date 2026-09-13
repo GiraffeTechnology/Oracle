@@ -244,3 +244,49 @@ Before claiming a bounded stage is complete:
 - do not create a new protocol requirement while reporting completion.
 
 The objective is convergence: implement ERC-8415 faithfully, realize the necessary institutional-verification infrastructure described by the research design, add only necessary implementation mechanics, preserve useful engineering, freeze each completed stage, and then proceed.
+
+## Stage-Based Delivery Rule
+
+Agents must work on the current stage only.
+
+### Current stage declaration
+
+The current stage is **Stage 1: ERC-8415 register projection reference slice**. Its bounded FINISH-NOW scope is:
+
+- immutable, non-zero register identity;
+- the normative `RegisterEntry` model;
+- ordered append-only history;
+- strictly increasing `effectiveAt`;
+- per-token commitment uniqueness;
+- historical entry and holder queries;
+- finality queries aligned with the existing consumer state machine;
+- ERC-8415 interface conformance.
+
+Implementation and acceptance of this slice are handled separately from this documentation PR. This declaration selects the current work scope; it does not make a branch or pull request normative.
+
+Settlement conformance, advanced proof networks, production registry integration, and custody workflows are **FREEZE-LATER** for this stage. Preserve compatible work in those areas, but do not expand it or use it to block the bounded Stage 1 slice.
+
+Agents MUST NOT:
+
+- move future-stage requirements into current acceptance;
+- create additional gates;
+- redefine protocol semantics;
+- expand PRD scope.
+
+Agents MUST:
+
+- implement;
+- test;
+- provide evidence;
+- freeze completed stages.
+
+Preserve existing code.
+
+Classification:
+
+- KEEP
+- FINISH-NOW
+- FREEZE-LATER
+- REMOVE
+
+The client-approved [ArtFi + Oracle Delivery Stage Framework v1.1](https://github.com/GiraffeTechnology/ArtFi/issues/100) separates stage acceptance without lowering engineering standards or expanding product scope. Each stage has independent acceptance. Future-stage capabilities MUST NOT block current-stage delivery.
