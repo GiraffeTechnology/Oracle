@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "consumer": "GiraffeTechnology/ArtFi",
+  "sourceRepository": "GiraffeTechnology/Oracle",
+  "sourcePullRequest": 35,
+  "implementationCommit": "660c3216cdb90b30a1e557d1ab134c6dabd1743b",
+  "implementationTree": "e21a02081511de7b198cab8d303ce9c717897131",
+  "contractPath": "erc-8415/contracts/OracleRegisterProjection.sol",
+  "contractName": "OracleRegisterProjection",
+  "interfaceId": "0x6309e170",
+  "readSurface": [
+    "registerId()",
+    "entryCount(uint256)",
+    "currentEntry(uint256)",
+    "entryAt(uint256,uint64)",
+    "entryAsOf(uint256,uint64)",
+    "holderAsOf(uint256,uint64)",
+    "isFinalAsOf(uint256,uint64)",
+    "supportsInterface(bytes4)"
+  ],
+  "registerEntry": [
+    "recordCommitment:bytes32",
+    "previousCommitment:bytes32",
+    "registryReference:bytes32",
+    "holder:address",
+    "version:uint64",
+    "effectiveAt:uint64",
+    "supersededAt:uint64"
+  ],
+  "writeBoundary": {
+    "methods": [
+      "mintFromSource(address,uint256,bytes32,bytes32,address,uint64)",
+      "appendFromSource(uint256,bytes32,bytes32,address,uint64)"
+    ],
+    "authority": "sourceAuthority only",
+    "normalUserUi": false
+  },
+  "fixture": {
+    "profile": "TEST_ONLY_NO_REAL_VALUE",
+    "tokenId": "1",
+    "registerIdLabel": "artfi/register/test-only/v1",
+    "entries": [
+      {
+        "recordCommitmentLabel": "artfi/record/1/v1",
+        "registryReferenceLabel": "artfi/source-proof/1/v1",
+        "holder": "owner",
+        "effectiveAt": "1000"
+      },
+      {
+        "recordCommitmentLabel": "artfi/record/1/v2",
+        "registryReferenceLabel": "artfi/source-proof/1/v2",
+        "holder": "nextHolder",
+        "effectiveAt": "2000"
+      }
+    ],
+    "queryInstant": "1500",
+    "expectedVersionAsOf": "1",
+    "expectedCurrentVersion": "2",
+    "expectedFinalAsOf": true
+  },
+  "scopeBoundary": {
+    "erc721OwnershipIndependent": true,
+    "settlementInterfaceExcluded": "0xf4a7d71b",
+    "realValueAuthority": false,
+    "standaloneOracleUi": false
+  }
+}

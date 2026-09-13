@@ -9,14 +9,11 @@ module.exports = {
     }
   },
   paths: {
-    sources: "./erc-reference/contracts",
-    tests: "./erc-reference/test",
-    cache: "./erc-reference/cache",
-    artifacts: "./erc-reference/artifacts"
+    sources: "./erc-8415/contracts",
+    tests: "./erc-8415/test",
+    cache: "./.hardhat/cache",
+    artifacts: "./.hardhat/artifacts"
   },
-  networks: {
-    hardhat: {
-      chainId: 31337
-    }
-  }
+  networks: { hardhat: { chainId: 31337 } }
 };
+
