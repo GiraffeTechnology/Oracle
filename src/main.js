@@ -33,7 +33,6 @@ export function startApplication({
   let signalReported = false;
   let failureMarked = false;
   let drainStarted = false;
-  let failureDrainStarted = false;
   const blockers = new Set();
   const waiters = new Set();
   const fail = () => {
@@ -133,24 +132,19 @@ export function startApplication({
       },
     );
   };
-  const onDependencyBlocked = (code) => {
-    if (failureDrainStarted) return;
-    failureDrainStarted = true;
-    blockers.add(code);
+  const onHttpBlocked = () => {
+    blockers.add('APPLICATION_HTTP_BLOCKED');
     fail();
-    // Dependency observers invoke this proactively. Shutdown closes the same
-    // admission gate and stops workers even if nobody reads a snapshot.
+    // The coordinator invokes this once. shutdown closes the same admission
+    // gate and stops workers even if nobody ever reads an application snapshot.
     void shutdown().then(
-      () => emit({ event: 'server.failed', errorCode: code }),
+      () => emit({ event: 'server.failed', errorCode: 'APPLICATION_HTTP_BLOCKED' }),
       () => {
         blockers.add('APPLICATION_DRAIN_FAILED');
         fail();
       },
     );
   };
-  const onHttpBlocked = () => onDependencyBlocked('APPLICATION_HTTP_BLOCKED');
-  const onRepositoryBlocked = () =>
-    onDependencyBlocked('APPLICATION_REPOSITORY_BLOCKED');
   if (enabled) {
     signalSource.on('SIGTERM', onSignal);
     signalSource.on('SIGINT', onSignal);
@@ -200,7 +194,7 @@ export function startApplication({
         // A signal during DNS/listen must not start a worker or emit started.
         if (!stopping) {
           if (enabled && coordinator.snapshot().state !== 'ACCEPTING') throw new Error();
-          assembly?.startBackgroundWorkers?.(enabled ? { onBlocked: onRepositoryBlocked } : undefined);
+          assembly?.startBackgroundWorkers?.();
           emit({
             event: 'server.started',
             service: 'giraffe-rwa-oracle',

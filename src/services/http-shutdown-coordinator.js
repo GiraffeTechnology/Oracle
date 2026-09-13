@@ -13,6 +13,8 @@ export function createHttpShutdownCoordinator({
     typeof requestHandler !== 'function' ||
     typeof repositoryLifecycle?.quiesce !== 'function' ||
     typeof repositoryLifecycle.snapshot !== 'function' ||
+    (repositoryLifecycle.observeBlocked !== undefined &&
+      typeof repositoryLifecycle.observeBlocked !== 'function') ||
     typeof onBlocked !== 'function'
   )
     throw new Error('HTTP_SHUTDOWN_DEPENDENCY_INVALID');
@@ -101,6 +103,9 @@ export function createHttpShutdownCoordinator({
     blockers.add(code);
     settle();
   };
+  // The production lifecycle exposes this one-shot seam. Synthetic legacy
+  // lifecycles may omit it; snapshot/quiesce validation remains unchanged.
+  repositoryLifecycle.observeBlocked?.(() => block('REPOSITORY_BLOCKED'));
   const respond = (response, statusCode, code) => {
     if (response.destroyed || response.writableEnded) return;
     try {

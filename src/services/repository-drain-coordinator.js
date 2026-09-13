@@ -131,6 +131,8 @@ export class RepositoryDrainCoordinator {
   #unresolvedOperations = 0;
   #blockers = new Set();
   #waiters = new Set();
+  #blockedObserver = null;
+  #blockedNotified = false;
 
   constructor({ pool }) {
     if (!pool || typeof pool.getConnection !== 'function' || typeof pool.execute !== 'function') {
@@ -150,6 +152,13 @@ export class RepositoryDrainCoordinator {
         this.#settleWaiters();
       },
     );
+  }
+
+  observeBlocked(observer) {
+    if (typeof observer !== 'function') throw new Error('REPOSITORY_BLOCK_OBSERVER_INVALID');
+    if (this.#blockedObserver) throw new Error('REPOSITORY_BLOCK_OBSERVER_ALREADY_SET');
+    this.#blockedObserver = observer;
+    this.#settleWaiters();
   }
 
   snapshot() {
@@ -265,6 +274,18 @@ export class RepositoryDrainCoordinator {
   }
 
   #settleWaiters() {
+    if (this.#blockers.size && this.#blockedObserver && !this.#blockedNotified) {
+      // Notify at the transition, before foreground cleanup or a background
+      // alert can stall. Mark first because the observer may re-enter drain.
+      this.#blockedNotified = true;
+      try {
+        const observed = this.#blockedObserver(this.snapshot());
+        if (observed && typeof observed.then === 'function')
+          void Promise.resolve(observed).catch(() => this.#blockers.add('BLOCK_OBSERVER_FAILED'));
+      } catch {
+        this.#blockers.add('BLOCK_OBSERVER_FAILED');
+      }
+    }
     if (!this.#closed || (this.#inFlight && !this.#blockers.size)) return;
     const result = this.snapshot();
     for (const waiter of this.#waiters) {

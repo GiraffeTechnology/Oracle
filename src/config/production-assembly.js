@@ -136,9 +136,8 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
   let activeBackground = Promise.resolve();
   let backgroundInFlight = false;
   let backgroundDrainTimedOut = false;
-  const startBackgroundWorkers = ({ intervalMs = 1000, onBlocked = () => {} } = {}) => {
+  const startBackgroundWorkers = ({ intervalMs = 1000 } = {}) => {
     if (!Number.isInteger(intervalMs) || intervalMs < 100) throw new Error("PRODUCTION_WORKER_INTERVAL_INVALID");
-    if (typeof onBlocked !== "function") throw new Error("PRODUCTION_WORKER_BLOCK_OBSERVER_INVALID");
     if (repositoryExecution && repositoryExecution.snapshot().state !== "ACCEPTING") throw new Error("REPOSITORY_ADMISSION_CLOSED");
     if (backgroundWorker) return backgroundWorker;
     let stopped = false;
@@ -172,12 +171,10 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
           });
         } catch {
           if (repositoryExecution?.snapshot().state === "BLOCKED") {
-            // Safety notification precedes the alerting port: a stalled alert
-            // must not leave HTTP admission open or keep the interval scheduled.
+            // The repository coordinator has already notified the application.
+            // Stop scheduling before an independent alerting port can stall.
             stopped = true;
             clearInterval(timer);
-            try { await onBlocked(lifecycleSnapshot()); }
-            catch { await reportAlert("reportFailure", "BACKGROUND_FAILURE_OBSERVER_FAILED"); }
           }
           await reportAlert("reportFailure", "OUTBOX_DISPATCH_FAILED");
         } finally {
@@ -204,6 +201,7 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
   });
   const repositoryLifecycle = repositoryExecution ? Object.freeze({
     snapshot: lifecycleSnapshot,
+    observeBlocked: (observer) => repositoryExecution.observeBlocked(observer),
     async quiesce({ timeoutMs } = {}) {
       if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 2147483647) throw new Error("REPOSITORY_DRAIN_TIMEOUT_INVALID");
       const deadline = Date.now() + timeoutMs;

@@ -265,14 +265,12 @@ test('background terminal repository failure proactively notifies its observer o
   const f = await fixture({ failCommit: true });
   const observed = deferred();
   let notifications = 0;
-  f.enqueue();
-  const worker = f.assembly.startBackgroundWorkers({
-    intervalMs: 100,
-    onBlocked(snapshot) {
-      notifications += 1;
-      observed.resolve(snapshot);
-    },
+  f.assembly.repositoryLifecycle.observeBlocked((snapshot) => {
+    notifications += 1;
+    observed.resolve(snapshot);
   });
+  f.enqueue();
+  const worker = f.assembly.startBackgroundWorkers({ intervalMs: 100 });
   try {
     const snapshot = await observed.promise;
     assert.equal(snapshot.state, 'BLOCKED');

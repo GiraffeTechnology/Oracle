@@ -98,6 +98,7 @@ export function createRepositoryExecutionScope({ repository, isCompromised }) {
       return outcome.result;
     },
     drain: (options) => coordinator.drain(options),
+    observeBlocked: (observer) => coordinator.observeBlocked(observer),
     snapshot: () =>
       Object.freeze({
         ...coordinator.snapshot(),

@@ -81,6 +81,34 @@ function fixture({
   return { coordinator, events, write };
 }
 
+test('foreground driver failure notifies once before cleanup settles', async () => {
+  const cleanup = deferred();
+  const f = fixture({ writeFails: true, rollback: cleanup });
+  const observed = deferred();
+  let notifications = 0;
+  f.coordinator.observeBlocked((snapshot) => {
+    notifications += 1;
+    observed.resolve(snapshot);
+  });
+  const work = f.write();
+  const outcome = work.then(
+    () => null,
+    (error) => error,
+  );
+  try {
+    while (!f.events.includes('rollback')) await Promise.resolve();
+    const snapshot = await observed.promise;
+    assert.equal(snapshot.state, 'BLOCKED');
+    assert.equal(snapshot.inFlight, 1);
+    assert.equal(notifications, 1);
+  } finally {
+    cleanup.resolve();
+    await outcome;
+  }
+  assert.equal(notifications, 1);
+  assert.equal(f.coordinator.snapshot().inFlight, 0);
+});
+
 test('drain closes admission synchronously, including acquisitions already in flight', async () => {
   const acquire = deferred();
   const f = fixture({ acquire });

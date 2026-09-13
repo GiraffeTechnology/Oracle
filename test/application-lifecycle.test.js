@@ -58,11 +58,11 @@ test('background repository block proactively marks failed and drains without sn
     assert.equal(f.app.server.listening, false);
     const stopped = await f.app.shutdown();
     assert.equal(stopped.state, 'BLOCKED');
-    assert.ok(stopped.blockers.includes('APPLICATION_REPOSITORY_BLOCKED'));
+    assert.ok(stopped.blockers.includes('APPLICATION_HTTP_BLOCKED'));
     assert.ok(
       f.reports.some(
         ({ event, errorCode }) =>
-          event === 'server.failed' && errorCode === 'APPLICATION_REPOSITORY_BLOCKED',
+          event === 'server.failed' && errorCode === 'APPLICATION_HTTP_BLOCKED',
       ),
     );
   } finally {
@@ -134,7 +134,11 @@ function fixture({ bootstrapGate, bootstrapFailure, readiness, workerFailure, wo
   const calls = [],
     reports = [],
     signals = new EventEmitter();
+  let blockedObserver;
   const repositoryLifecycle = lifecycle ?? {
+    observeBlocked(observer) {
+      blockedObserver = observer;
+    },
     snapshot: () => ({
       state: repositoryState,
       inFlight: 0,
@@ -159,10 +163,14 @@ function fixture({ bootstrapGate, bootstrapFailure, readiness, workerFailure, wo
         repositoryLifecycle,
         sourceRegistry: new SourceRegistry(),
         readinessCheck: readiness,
-        startBackgroundWorkers({ onBlocked } = {}) {
+        startBackgroundWorkers() {
           calls.push(['worker']);
           if (workerFailure) throw new Error('private-worker-error');
-          if (workerBlock) setImmediate(onBlocked);
+          if (workerBlock)
+            setImmediate(() => {
+              repositoryState = 'BLOCKED';
+              blockedObserver?.(repositoryLifecycle.snapshot());
+            });
         },
       };
     },
