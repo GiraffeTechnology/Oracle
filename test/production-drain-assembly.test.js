@@ -190,7 +190,7 @@ async function fixture({
   return { assembly, events, input, command, commitEntered, publishEntered, enqueue, commands };
 }
 
-test('opt-in production assembly exposes scoped lifecycle without a raw repository bypass', async () => {
+test('opt-in production assembly exposes scoped lifecycle without raw repository or signer bypasses', async () => {
   const f = await fixture();
   assert.equal(f.assembly.repositoryLifecycle.snapshot().state, 'ACCEPTING');
   assert.equal(f.assembly.ports.repository.pool, undefined);
@@ -198,6 +198,20 @@ test('opt-in production assembly exposes scoped lifecycle without a raw reposito
     async () => f.assembly.ports.repository.getCommand('synthetic'),
     /REPOSITORY_EXECUTION_SCOPE_REQUIRED/,
   );
+  for (const method of [
+    'signBytes',
+    'verifyBytes',
+    'verifyHistoricalBytes',
+    'rotate',
+    'reconcile',
+    'activateRuntime',
+  ]) {
+    await assert.rejects(
+      async () => f.assembly.ports.signer[method](),
+      /REPOSITORY_EXECUTION_SCOPE_REQUIRED/,
+    );
+  }
+  assert.equal(f.assembly.ports.signer.signerSetId, 'synthetic-signers');
   await f.assembly.repositoryLifecycle.quiesce({ timeoutMs: 100 });
   await assert.rejects(f.command(), /REPOSITORY_ADMISSION_CLOSED/);
   assert.equal(f.events.includes('acquire'), false);

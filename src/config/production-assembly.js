@@ -63,15 +63,22 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
   if (repositoryExecution) assembled = Object.freeze({ ...assembled, ports: Object.freeze({ ...assembled.ports, repository: repositoryExecution.repository }) });
   const inRepositoryScope = (operation) => repositoryExecution ? repositoryExecution.run(operation) : operation();
   const dualControl = new DualControlQueue();
-  const rawSignerRotationBroker = assembled.ports.signer;
-  if (typeof rawSignerRotationBroker.rotate !== "function" || typeof rawSignerRotationBroker.reconcile !== "function" || typeof rawSignerRotationBroker.activateRuntime !== "function") throw new Error("PRODUCTION_SIGNER_ROTATION_BROKER_INVALID");
-  // Recheck each dispatch, including activation after an awaited broker reply.
-  // Blocking activation never proves the already dispatched rotation did not apply.
-  const signerRotationBroker = repositoryExecution ? Object.freeze(Object.fromEntries(
-    ["rotate", "reconcile", "activateRuntime"].map((method) => [method,
-      (...args) => repositoryExecution.guardSideEffect(() => rawSignerRotationBroker[method](...args)),
-    ]),
-  )) : rawSignerRotationBroker;
+  const rawSigner = assembled.ports.signer;
+  if (typeof rawSigner.rotate !== "function" || typeof rawSigner.reconcile !== "function" || typeof rawSigner.activateRuntime !== "function") throw new Error("PRODUCTION_SIGNER_ROTATION_BROKER_INVALID");
+  // The raw signer stays assembly-private. Recheck every callable dispatch,
+  // including activation after an awaited broker reply; public port consumers
+  // cannot sign or rotate outside an admitted repository execution scope.
+  const signer = repositoryExecution ? Object.freeze({
+    signerSetId: rawSigner.signerSetId,
+    signerPolicy: rawSigner.signerPolicy,
+    ...Object.fromEntries(
+      ["signBytes", "verifyBytes", "verifyHistoricalBytes", "rotate", "reconcile", "activateRuntime"].map((method) => [method,
+        (...args) => repositoryExecution.guardSideEffect(() => rawSigner[method](...args)),
+      ]),
+    ),
+  }) : rawSigner;
+  const signerRotationBroker = signer;
+  if (repositoryExecution) assembled = Object.freeze({ ...assembled, ports: Object.freeze({ ...assembled.ports, signer }) });
   if (typeof assembled.ports.repository.loadStateSnapshot !== "function") throw new Error("PRODUCTION_STATE_RESTORE_UNAVAILABLE");
   if (["recordOutboxAttempt", "recordOutboxDeliveryStateAttempt", "recordOutboxDeadLetterAttempt", "recordOutboxDeadLetterStateAttempt", "markOutboxPublished", "markOutboxDeadLettered"].some((method) => typeof assembled.ports.repository[method] !== "function")) throw new Error("PRODUCTION_OUTBOX_DELIVERY_STORE_INVALID");
   restoreProductionState(runtime, dualControl, await inRepositoryScope(() => assembled.ports.repository.loadStateSnapshot()));
