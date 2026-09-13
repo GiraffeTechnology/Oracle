@@ -136,8 +136,9 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
   let activeBackground = Promise.resolve();
   let backgroundInFlight = false;
   let backgroundDrainTimedOut = false;
-  const startBackgroundWorkers = ({ intervalMs = 1000 } = {}) => {
+  const startBackgroundWorkers = ({ intervalMs = 1000, onBlocked = () => {} } = {}) => {
     if (!Number.isInteger(intervalMs) || intervalMs < 100) throw new Error("PRODUCTION_WORKER_INTERVAL_INVALID");
+    if (typeof onBlocked !== "function") throw new Error("PRODUCTION_WORKER_BLOCK_OBSERVER_INVALID");
     if (repositoryExecution && repositoryExecution.snapshot().state !== "ACCEPTING") throw new Error("REPOSITORY_ADMISSION_CLOSED");
     if (backgroundWorker) return backgroundWorker;
     let stopped = false;
@@ -171,6 +172,14 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
           });
         } catch {
           await reportAlert("reportFailure", "OUTBOX_DISPATCH_FAILED");
+          if (repositoryExecution?.snapshot().state === "BLOCKED") {
+            // A terminal repository outcome must proactively close application
+            // admission; waiting for an HTTP snapshot would leave the listener live.
+            stopped = true;
+            clearInterval(timer);
+            try { await onBlocked(lifecycleSnapshot()); }
+            catch { await reportAlert("reportFailure", "BACKGROUND_FAILURE_OBSERVER_FAILED"); }
+          }
         } finally {
           draining = false;
           backgroundInFlight = false;

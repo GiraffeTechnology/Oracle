@@ -46,6 +46,33 @@ test('runtime HTTP server failure proactively marks failed and quiesces without 
   }
 });
 
+test('background repository block proactively marks failed and drains without snapshot polling', async () => {
+  const f = fixture({ workerBlock: true });
+  await f.app.ready;
+  try {
+    await tick();
+    await tick();
+    // Do not call snapshot before these assertions: the worker callback drives safety.
+    assert.equal(f.calls.filter(([name]) => name === 'failed').length, 1);
+    assert.equal(f.calls.filter(([name]) => name === 'quiesce').length, 1);
+    assert.equal(f.app.server.listening, false);
+    const stopped = await f.app.shutdown();
+    assert.equal(stopped.state, 'BLOCKED');
+    assert.ok(stopped.blockers.includes('APPLICATION_REPOSITORY_BLOCKED'));
+    assert.ok(
+      f.reports.some(
+        ({ event, errorCode }) =>
+          event === 'server.failed' && errorCode === 'APPLICATION_REPOSITORY_BLOCKED',
+      ),
+    );
+  } finally {
+    if (f.app.server.listening) {
+      f.app.server.close();
+      await once(f.app.server, 'close');
+    }
+  }
+});
+
 test('actual async request-handler failure proactively closes admission without reading snapshot', async () => {
   const f = fixture();
   await f.app.ready;
@@ -102,7 +129,7 @@ function deferred() {
   });
   return { promise, resolve };
 }
-function fixture({ bootstrapGate, bootstrapFailure, readiness, workerFailure, lifecycle } = {}) {
+function fixture({ bootstrapGate, bootstrapFailure, readiness, workerFailure, workerBlock, lifecycle } = {}) {
   let repositoryState = 'ACCEPTING';
   const calls = [],
     reports = [],
@@ -132,9 +159,10 @@ function fixture({ bootstrapGate, bootstrapFailure, readiness, workerFailure, li
         repositoryLifecycle,
         sourceRegistry: new SourceRegistry(),
         readinessCheck: readiness,
-        startBackgroundWorkers() {
+        startBackgroundWorkers({ onBlocked } = {}) {
           calls.push(['worker']);
           if (workerFailure) throw new Error('private-worker-error');
+          if (workerBlock) setImmediate(onBlocked);
         },
       };
     },

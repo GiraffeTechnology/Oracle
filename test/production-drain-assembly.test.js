@@ -261,6 +261,29 @@ test('driver failure cannot be exempted by a forged business error code', async 
   assert.equal(f.events.filter((event) => event === 'acquire').length, 1);
 });
 
+test('background terminal repository failure proactively notifies its observer once', async () => {
+  const f = await fixture({ failCommit: true });
+  const observed = deferred();
+  let notifications = 0;
+  f.enqueue();
+  const worker = f.assembly.startBackgroundWorkers({
+    intervalMs: 100,
+    onBlocked(snapshot) {
+      notifications += 1;
+      observed.resolve(snapshot);
+    },
+  });
+  try {
+    const snapshot = await observed.promise;
+    assert.equal(snapshot.state, 'BLOCKED');
+    assert.equal(notifications, 1);
+    assert.equal(f.events.filter((event) => event === 'commit').length, 1);
+    await assert.rejects(f.assembly.outboxDispatcher.drain(), /REPOSITORY_ADMISSION_CLOSED/);
+  } finally {
+    worker.stop();
+  }
+});
+
 test('whole background batch shares the command gate and quiesce stops scheduling', async () => {
   const publishing = deferred();
   const f = await fixture({ publishGate: publishing });
