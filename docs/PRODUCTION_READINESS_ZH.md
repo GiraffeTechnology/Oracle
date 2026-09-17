@@ -3,7 +3,7 @@
 | 项目 | 内容 |
 | --- | --- |
 | 依据 | `ACCEPTANCE_RWA_ORACLE_ZH.md` §7 交付定义、`PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` §14 发布阻断项 |
-| 被审对象 | 本文件所在提交，分支 `claude/ci-reading-v3bnc2` |
+| 被审对象 | 本文件所在提交（候选分支，现已合入 `main`） |
 | 日期 | 2026-08-25 |
 | **结论** | **不是生产候选。必须阻断生产发布。** |
 

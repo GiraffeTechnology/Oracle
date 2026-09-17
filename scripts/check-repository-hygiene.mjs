@@ -70,7 +70,7 @@ const PERSONAL_DATA_PATTERNS = [
 ];
 
 /** Emails that identify the project rather than a private individual. */
-const ALLOWED_EMAILS = [/noreply@anthropic\.com/, /@example\.(?:com|invalid)/, /address@dom\.ain/];
+const ALLOWED_EMAILS = [/@example\.(?:com|invalid)/, /address@dom\.ain/];
 
 async function collect(directory) {
   const entries = await readdir(directory, { withFileTypes: true });

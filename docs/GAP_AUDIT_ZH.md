@@ -3,7 +3,7 @@
 | 项目 | 内容 |
 | --- | --- |
 | 依据 | `PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` v0.3、`ACCEPTANCE_RWA_ORACLE_ZH.md` v0.3 |
-| 审计范围 | **整个仓库**：`main`、`claude/ci-reading-v3bnc2`、`feature/oracle-all-iterations` |
+| 审计范围 | **整个仓库**：`main`、候选分支、`feature/oracle-all-iterations` |
 | 审计方法 | 验收标准 §8；证据单元为源文件路径与具名测试 |
 | 审计日期 | 2026-08-25 |
 
@@ -69,7 +69,7 @@ CONSUMER-008→CONSUMER-004/009、ORACLE-009→ORACLE-005/006、ORACLE-010→CON
 
 | 分支 | 有 | 无 |
 | --- | --- | --- |
-| `claude/ci-reading-v3bnc2` | PRD v0.3、验收标准、CI（4 job）、追溯快照 | 实质实现（仅 3 个只读端点） |
+| 候选分支 | PRD v0.3、验收标准、CI（4 job）、追溯快照 | 实质实现（仅 3 个只读端点） |
 | `feature/oracle-all-iterations` | 完整实现与 83 项测试 | **无 `.github/`，即无任何 CI**；PRD 为 v0.4，ID 体系为 I0–I12 |
 
 依验收标准 §3（"来自其他 commit、分支的测试结果"不构成证据）与 §8.1（审计确切 commit SHA），

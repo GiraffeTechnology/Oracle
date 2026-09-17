@@ -1,4 +1,4 @@
-# Claude Code CI 与审计交接（PRD v0.3）
+# CI 与审计交接（PRD v0.3）
 
 ## 权威对照
 
