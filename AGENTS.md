@@ -204,7 +204,7 @@ Such additions must be labeled as implementation-specific and must not be used t
 
 ## 11. Research-to-implementation traceability
 
-Implementation work may use the research draft to explain *why* a mechanism exists, but not to invent unstated ERC semantics.
+Implementation work may use the research draft to explain _why_ a mechanism exists, but not to invent unstated ERC semantics.
 
 Where useful, trace implementation mechanisms to institutional requirements using this pattern:
 
