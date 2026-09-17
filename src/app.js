@@ -24,6 +24,10 @@ function sendJson(response, statusCode, body) {
   response.writeHead(statusCode, JSON_HEADERS);
   response.end(`${JSON.stringify(body)}\n`);
 }
+import {
+  APPLICATION_PROJECTION_PREFIX,
+  createApplicationProjectionApi,
+} from "./services/application-projection-api.js";
 
 export function responseEtag(body) {
   return `"${createHash("sha256").update(JSON.stringify(body)).digest("hex")}"`;
@@ -106,7 +110,7 @@ export function createApp(options) {
   return http.createServer(createRequestHandler(options));
 }
 
-export function createRequestHandler({ config, sourceRegistry, runtime = null, controlPlane = null, adminOperations = null, authenticateAdmin = null, readinessCheck = null, l2Profile = null, protocolProfile = null, verificationRateLimiter = new FixedWindowRateLimiter({ limit: 60, windowMs: 60000 }) }) {
+export function createRequestHandler({ config, sourceRegistry, runtime = null, controlPlane = null, adminOperations = null, authenticateAdmin = null, readinessCheck = null, l2Profile = null, protocolProfile = null, projectionSource = null, positionSource = null, verificationRateLimiter = new FixedWindowRateLimiter({ limit: 60, windowMs: 60000 }) }) {
   if (!config || !sourceRegistry) throw new Error("APP_DEPENDENCY_MISSING");
 
   return async (request, response) => {
@@ -255,6 +259,21 @@ export function createRequestHandler({ config, sourceRegistry, runtime = null, c
       response.end(renderAssetDetailHtml({ asset: publicAsset(runtime, asset), certificate: publicCertificate(runtime, runtime.recordStore.currentCertificate(asset.assetId)), warehouse: publicWarehouse(runtime, runtime.recordStore.getWarehouse(asset.assetId)), status: runtime.stateEngine.current(asset.assetId), settlement, scriptNonce }));
       return;
     }
+    if (requestUrl.pathname.startsWith(APPLICATION_PROJECTION_PREFIX)) {
+      if (!projectionSource) {
+        sendJson(response, 503, { ok: false, errorCode: "PROJECTION_SOURCE_NOT_CONFIGURED" });
+        return;
+      }
+      const projectionApi = createApplicationProjectionApi({ projectionSource, positionSource });
+      const result = await projectionApi.handle(request.method, requestUrl.pathname);
+      if (result) {
+        sendJson(response, result.status, result.body);
+        return;
+      }
+      sendJson(response, 404, { ok: false, errorCode: "PROJECTION_ROUTE_NOT_FOUND" });
+      return;
+    }
+
     if (requestUrl.pathname === "/healthz") {
       sendJson(response, 200, {
         ok: true,
