@@ -92,9 +92,12 @@ describe("ArtFi read-only projection handoff", function () {
       tokenId: BigInt(fixture.fixture.tokenId),
       instant: 500n
     });
+    // The instant precedes the first entry, so the projection does not cover
+    // it: there is no entry and no holder to read. It is therefore not final
+    // either, and isFinalAsOf answers false rather than reverting.
     assert.equal(beforeInitialization.asOf, null);
     assert.equal(beforeInitialization.holderAsOf, null);
-    assert.equal(beforeInitialization.finalAsOf, true);
+    assert.equal(beforeInitialization.finalAsOf, false);
     assert.equal(beforeInitialization.entryCount, "2");
   });
 });
