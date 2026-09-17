@@ -221,6 +221,62 @@ describe("ERC-8415 projection conformance", function () {
     assert.equal(await projection.isFinalAsOf(tokenId, 2000n), false, "the latest interval is open-ended");
   });
 
+  it("reproduces the shared ERC-8415 projection vectors", async () => {
+    // The same file the Kit and the consumer state machine run against. The
+    // missing lower bound this catches was live here as well as in the JS
+    // model, and each had its own passing tests at the time.
+    const vectors = JSON.parse(
+      require("node:fs").readFileSync(
+        require("node:path").join(__dirname, "..", "conformance", "projection-vectors.json"),
+        "utf8"
+      )
+    );
+    const holders = { A: owner.address, B: buyer.address, C: outsider.address };
+
+    for (const testCase of vectors.cases) {
+      if (testCase.entries.length === 0) continue; // no token exists to query
+
+      const caseToken = BigInt(1000 + vectors.cases.indexOf(testCase));
+      const first = testCase.entries[0];
+      await projection.mintFromSource(
+        holders[first.holder],
+        caseToken,
+        b32(`${testCase.id}-1`),
+        b32(`${testCase.id}-ref-1`),
+        holders[first.holder],
+        BigInt(first.effectiveAt)
+      );
+      for (let i = 1; i < testCase.entries.length; i += 1) {
+        const entry = testCase.entries[i];
+        await projection.appendFromSource(
+          caseToken,
+          b32(`${testCase.id}-${i + 1}`),
+          b32(`${testCase.id}-ref-${i + 1}`),
+          holders[entry.holder],
+          BigInt(entry.effectiveAt)
+        );
+      }
+
+      for (const expectation of testCase.expect) {
+        const instant = BigInt(expectation.instant);
+        assert.equal(
+          await projection.isFinalAsOf(caseToken, instant),
+          expectation.final,
+          `${testCase.id}: isFinalAsOf(${expectation.instant})`
+        );
+        if (expectation.holder === null) {
+          await rejectsCustom(projection.interface, projection.holderAsOf(caseToken, instant), "NoEntryAsOf");
+        } else {
+          assert.equal(
+            await projection.holderAsOf(caseToken, instant),
+            holders[expectation.holder],
+            `${testCase.id}: holderAsOf(${expectation.instant})`
+          );
+        }
+      }
+    }
+  });
+
   it("rejects approving the current ERC-721 owner", async () => {
     await initialize();
     await rejectsCustom(
