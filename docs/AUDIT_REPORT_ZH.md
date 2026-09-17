@@ -2,7 +2,7 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 被审 commit | `62bfeed6184ecfb1140c8b7bebb6bfc866b5cd32`（分支 `claude/ci-reading-v3bnc2`） |
+| 被审 commit | `62bfeed6184ecfb1140c8b7bebb6bfc866b5cd32`（候选分支，现已合入 `main`） |
 | 审计日期 | 2026-09-03 |
 | 权威需求 | `PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` v0.3（依 D-001、D-005） |
 | 权威验收 | `ACCEPTANCE_RWA_ORACLE_ZH.md` v0.3 |
@@ -120,7 +120,7 @@
 ### 2.4 查重、新颖性与专利起草（新增工作流）
 
 本节内容来自 L3 侧提供的 `patent/AUDIT_REPORT_INSERT_ZH.md`，锚定 PR #18 的 head
-`dce2163`（分支 `claude/erc-standard-feasibility-audit-90ypms`）。
+`dce2163`（草案分支存证；现行权威为 ERC-8415，上游 `ethereum/ERCs#2006`）。
 
 | 交付物 | 位置 | 状态 |
 | --- | --- | --- |
@@ -248,7 +248,7 @@ D6 不同——ERC 提交流程一旦推进到「发帖取 `discussions-to` 链�
 ### 4.1 `docs/erc/` 已被取代，且原 README 会误导实现者
 
 `docs/erc/` 归档的是旧提案 _Versioned RWA Certificate Settlement_，现行提案为
-_Asynchronous Register Projection for NFTs_（分支 `claude/erc-standard-feasibility-audit-90ypms`）。
+_Asynchronous Register Projection for NFTs_（ERC-8415，上游 `ethereum/ERCs#2006`）。
 两者**接口 ID、requires 列表、状态枚举、以及登记在途期间是否冻结全部不同**。
 
 原 README 写着「候选稿为唯一规范源」——在该归档目录内部为真，**在仓库范围内已误导**。
