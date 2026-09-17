@@ -117,14 +117,29 @@ export class SyntheticConsumerStateMachine {
   }
 
   /**
-   * An instant is final when no later entry could still change its answer: some admitted entry
-   * already takes effect after it, and no gap is open that could admit one at or before it.
+   * ERC-8415, "Finality of a resolved instant": an instant is final if and only if it is at or
+   * after the first entry's effectiveAt and strictly before the latest entry's. Nothing else
+   * enters this answer.
+   *
+   * In particular an open gap does not, which the standard states normatively and again in its
+   * rationale: a gap says what is *expected*, not what can still arrive. Cancelling a gap does
+   * not make any instant final either — CONSUMER-006 — and that follows from this rule without
+   * being special-cased, because cancelling admits no entry.
+   *
+   * CONSUMER-007's rule for a perishable exercise is "final AND no open gap". That conjunction
+   * belongs to the exercise, and lives in assertOperationAllowed, which checks openGapOf
+   * separately. Folding the gap in here would answer a different question than the one asked,
+   * and would double-count the same condition the caller already applies.
+   *
+   * Never throws. An instant the projection does not cover is not final, which is not the same
+   * as an error.
    */
   isFinalAsOf(tokenRef, instant) {
-    const gap = this.#gaps.get(tokenRef);
-    if (gap !== undefined && gap.openedAt <= instant) return false;
     const entries = this.#entries.get(tokenRef) ?? [];
-    return entries.some((entry) => entry.effectiveAt > instant);
+    const first = entries[0];
+    const latest = entries.at(-1);
+    if (first === undefined || latest === undefined) return false;
+    return instant >= first.effectiveAt && instant < latest.effectiveAt;
   }
 
   /**

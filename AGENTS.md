@@ -259,7 +259,7 @@ The current stage is **Stage 1: ERC-8415 register projection reference slice**. 
 - strictly increasing `effectiveAt`;
 - per-token commitment uniqueness;
 - historical entry and holder queries;
-- finality queries aligned with the existing consumer state machine;
+- finality queries answering ERC-8415's rule — final if and only if the instant is at or after the first entry's `effectiveAt` and strictly before the latest entry's, independent of whether a gap is open;
 - ERC-8415 interface conformance.
 
 Implementation and acceptance of this slice are handled separately from this documentation PR. This declaration selects the current work scope; it does not make a branch or pull request normative.

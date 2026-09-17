@@ -209,7 +209,7 @@ test("CONSUMER-004 does not block ordinary transfer while a registry gap is open
 test("CONSUMER-005 settles to the holder confirmed at the T+0 instant, not the current holder", () => {
   const machine = new SyntheticConsumerStateMachine();
   machine.openGap("t5", { openedAt: 500 });
-  assert.equal(machine.isFinalAsOf("t5", 500), false, "an open gap leaves its own instant unresolved");
+  assert.equal(machine.isFinalAsOf("t5", 500), false, "nothing is admitted yet, so no instant is final");
 
   machine.closeGap("t5", { effectiveAt: 500, holder: "wallet-buyer" });
   machine.openGap("t5", { openedAt: 900 });
