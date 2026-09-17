@@ -205,15 +205,20 @@ describe("ERC-8415 projection conformance", function () {
     assert.equal(await projection.holderAsOf(tokenId, 2000n), buyer.address);
   });
 
-  it("reports finality for every instant before the latest effective instant", async () => {
+  it("reports finality only inside the interval the register has closed", async () => {
     await initialize();
-    assert.equal(await projection.isFinalAsOf(tokenId, 999n), true);
+    // 999 precedes the first entry, so the projection does not cover it. entryAsOf reverts
+    // there; isFinalAsOf must answer false without reverting.
+    assert.equal(await projection.isFinalAsOf(tokenId, 999n), false);
+    // A single entry closes no interval behind it, so its own instant is still provisional.
     assert.equal(await projection.isFinalAsOf(tokenId, 1000n), false);
+
     await projection.appendFromSource(tokenId, commitment2, reference2, buyer.address, 2000n);
-    assert.equal(await projection.isFinalAsOf(tokenId, 999n), true);
-    assert.equal(await projection.isFinalAsOf(tokenId, 1000n), true);
-    assert.equal(await projection.isFinalAsOf(tokenId, 1999n), true);
-    assert.equal(await projection.isFinalAsOf(tokenId, 2000n), false);
+
+    assert.equal(await projection.isFinalAsOf(tokenId, 999n), false, "still outside the projection");
+    assert.equal(await projection.isFinalAsOf(tokenId, 1000n), true, "at the first effective instant");
+    assert.equal(await projection.isFinalAsOf(tokenId, 1999n), true, "up to but excluding the latest");
+    assert.equal(await projection.isFinalAsOf(tokenId, 2000n), false, "the latest interval is open-ended");
   });
 
   it("rejects approving the current ERC-721 owner", async () => {

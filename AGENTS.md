@@ -267,6 +267,8 @@ Agents must work on the current bounded stage only.
 
 The completed ERC-8415 temporal register-projection slice is KEEP. Preserve its implementation, conformance tests, and historical evidence. Do not rewrite history or reinterpret completed projection evidence as delivery of later settlement capabilities.
 
+Its finality query answers ERC-8415's own rule: an instant is final if and only if it is at or after the first entry's `effectiveAt` and strictly before the latest entry's, independent of whether a gap is open. A gap says what is expected, not what can still arrive. `test/erc-8415-finality-conformance.test.js` pins that rule, and it MUST NOT regress. Where a product rule needs both facts — CONSUMER-007's perishable exercise requires final AND no open gap — the conjunction belongs to the exercise, not to the accessor.
+
 ### Current bounded direction
 
 The next implementation direction is the Oracle-owned application integration boundary:

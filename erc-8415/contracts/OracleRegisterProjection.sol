@@ -204,10 +204,14 @@ contract OracleRegisterProjection is IERC721, IRegisterProjection {
         return entryAsOf(tokenId, instant).holder;
     }
 
+    /// @dev Final if and only if the instant is at or after the first entry's effectiveAt and
+    /// strictly before the latest entry's. The lower bound matters: an instant preceding the
+    /// first entry is not covered by the projection, so it is not final, and this MUST NOT
+    /// revert there.
     function isFinalAsOf(uint256 tokenId, uint64 instant) external view returns (bool) {
         ownerOf(tokenId);
         RegisterEntry[] storage list = _entries[tokenId];
-        return instant < list[list.length - 1].effectiveAt;
+        return instant >= list[0].effectiveAt && instant < list[list.length - 1].effectiveAt;
     }
 
     function balanceOf(address owner) external view returns (uint256) {
