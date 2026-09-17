@@ -12,3 +12,4 @@ tmp/
 erc-reference/artifacts/
 erc-reference/cache/
 output/
+.hardhat/
