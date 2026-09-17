@@ -55,7 +55,19 @@ Historical proposal branches and archived draft ERC material are not normative o
 
 ## 4. What this repository is responsible for
 
-The Oracle repository is the operational information-system layer that makes ERC-8415 usable against asynchronous institutional or registry sources.
+The final application-to-authority architecture is:
+
+`ArtFi → Oracle → ERC8415-Kit → ERC-8415`
+
+Within that architecture:
+
+- ArtFi consumes only the Oracle application-facing API.
+- ArtFi MUST NOT integrate ERC8415-Kit directly, implement an ERC-8415 adapter, or own projection or settlement infrastructure.
+- Oracle integrates institutional sources, verifies their authority and data, creates attestations, consumes ERC8415-Kit, owns the ERC-8415 integration boundary, and exposes the application-facing API.
+- ERC8415-Kit owns reusable projection and settlement infrastructure.
+- ERC-8415 remains the normative protocol authority.
+
+The Oracle repository is the operational business and institutional integration layer that makes ERC-8415 usable against asynchronous institutional or registry sources. It is not an ArtFi vertical application, and it must not redefine the standard.
 
 It should implement, where necessary:
 
@@ -63,10 +75,8 @@ It should implement, where necessary:
 - source identity and authority configuration;
 - authoritative source verification;
 - proof-only or minimum-disclosure projection where source data should not be replicated;
-- projection state construction;
-- append-only history and point-in-time resolution support;
 - evidence and attestation generation;
-- verification APIs and SDKs;
+- application-facing verification APIs and SDKs;
 - status, history, revocation, and reconciliation behavior;
 - progressive-state handling where institutional decisions are not instantaneous;
 - persistence and idempotency;
@@ -75,9 +85,9 @@ It should implement, where necessary:
 - observability and recovery required for reliable Oracle operation;
 - compatibility evidence showing that the implementation honors ERC-8415 semantics.
 
-These are implementation concerns. They must not be presented as additional ERC-8415 normative requirements unless the standard itself says so.
+Reusable projection and settlement mechanics belong in ERC8415-Kit and are consumed by Oracle. These are implementation concerns. They must not be presented as additional ERC-8415 normative requirements unless the standard itself says so.
 
-## 5. Separation of authority, evidence, and execution
+## 5. Separation of authority, infrastructure, integration, and application
 
 Keep these layers distinct:
 
@@ -85,17 +95,21 @@ Keep these layers distinct:
 
 Defines or records the authoritative external fact according to the applicable institutional process.
 
-### Oracle implementation layer
+### Oracle integration layer
 
-Authenticates, verifies, normalizes, timestamps, projects, reconciles, and exposes evidence about that external fact.
+Authenticates, verifies, normalizes, timestamps, reconciles, and attests to external facts; consumes ERC8415-Kit; owns the ERC-8415 integration boundary; and exposes the application-facing API.
+
+### ERC8415-Kit infrastructure layer
+
+Provides reusable projection and settlement infrastructure under the authority of ERC-8415. It does not own institutional authority or ArtFi application behavior.
 
 ### ERC-8415 protocol layer
 
-Defines interoperable projection semantics and interfaces.
+Defines the normative interoperable projection semantics and interfaces. Neither Oracle nor ERC8415-Kit may redefine them.
 
-### Token / application / market layer
+### ArtFi application layer
 
-Consumes the projected state for downstream application behavior.
+Consumes only the Oracle application-facing API. It does not directly consume ERC8415-Kit, implement an ERC-8415 adapter, or own projection or settlement infrastructure.
 
 The Oracle MUST NOT infer that a market action, token balance, wallet signature, or submitted proof independently creates the institutional fact it is intended to evidence.
 
@@ -247,12 +261,13 @@ The objective is convergence: implement ERC-8415 faithfully, realize the necessa
 
 ## Stage-Based Delivery Rule
 
-Agents must work on the current stage only.
+Agents must work on the current bounded stage only.
 
-### Current stage declaration
+### Completed slice
 
-The current stage is **Stage 1: ERC-8415 register projection reference slice**. Its bounded FINISH-NOW scope is:
+The completed ERC-8415 temporal register-projection slice is KEEP. Preserve its implementation, conformance tests, and historical evidence. Do not rewrite history or reinterpret completed projection evidence as delivery of later settlement capabilities.
 
+<<<<<<< HEAD
 - immutable, non-zero register identity;
 - the normative `RegisterEntry` model;
 - ordered append-only history;
@@ -261,26 +276,40 @@ The current stage is **Stage 1: ERC-8415 register projection reference slice**. 
 - historical entry and holder queries;
 - finality queries answering ERC-8415's rule — final if and only if the instant is at or after the first entry's `effectiveAt` and strictly before the latest entry's, independent of whether a gap is open;
 - ERC-8415 interface conformance.
+=======
+### Current bounded direction
+>>>>>>> origin/main
 
-Implementation and acceptance of this slice are handled separately from this documentation PR. This declaration selects the current work scope; it does not make a branch or pull request normative.
+The next implementation direction is the Oracle-owned application integration boundary:
 
-Settlement conformance, advanced proof networks, production registry integration, and custody workflows are **FREEZE-LATER** for this stage. Preserve compatible work in those areas, but do not expand it or use it to block the bounded Stage 1 slice.
+- preserve the architecture `ArtFi → Oracle → ERC8415-Kit → ERC-8415`;
+- expose an Oracle application-facing API for ArtFi;
+- consume the pinned ERC8415-Kit temporal projection surface inside Oracle;
+- keep institutional-source integration, verification, attestation, and ERC-8415 adaptation in Oracle;
+- keep reusable projection and settlement infrastructure in ERC8415-Kit;
+- keep ERC-8415 as the normative protocol authority.
+
+The current verified ERC8415-Kit handoff covers the v2.0 temporal projection surface only. Optional gap behavior and the legacy `settle()` surface MUST NOT be represented as a v2.1 or v2.2 settlement product.
+
+No new settlement engine, payment implementation, custody workflow, release workflow, or refund workflow is authorized by this documentation alignment.
 
 Agents MUST NOT:
 
+- make ArtFi integrate ERC8415-Kit directly;
+- place an ERC-8415 adapter or projection or settlement infrastructure in ArtFi;
+- redefine ERC-8415 interfaces or business semantics;
+- convert documentation alignment into a delivery claim;
 - move future-stage requirements into current acceptance;
 - create additional gates;
-- redefine protocol semantics;
 - expand PRD scope.
 
 Agents MUST:
 
-- implement;
-- test;
-- provide evidence;
+- preserve existing code and completed projection behavior;
+- preserve historical evidence;
+- implement only the separately authorized bounded stage;
+- test and provide commit-bound evidence;
 - freeze completed stages.
-
-Preserve existing code.
 
 Classification:
 

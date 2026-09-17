@@ -44,7 +44,7 @@ L3 ERC 提案及其参考合约已经移交独立任务"ERC"。本仓库可以�
 - **裁决 B：作为 ArtFi 底层**——ArtFi 须放弃份额化改为 1:1 数字权证，M1/M2/M3/M4 全部重写，
   原报价范围作废重谈。本文档 §0.1 冲突表须转为 ArtFi 侧的范围变更单。
 
-裁决未作出不阻塞 Stage A/B，但阻塞任何与 ArtFi 的接口对接。
+The unresolved commercial and token-model decision remains a production gate. It does not change the authorized technical dependency direction: ArtFi may integrate only through the Oracle application-facing API and must not integrate ERC8415-Kit or ERC-8415 directly.
 
 ### 0.2 范围与排期契约（待签署）
 
@@ -57,6 +57,19 @@ L3 ERC 提案及其参考合约已经移交独立任务"ERC"。本仓库可以�
 | 里程碑日历（含 T+3 工作日历口径） | PM | Stage A 退出前 |
 | 第三方审计预算（法律、隐私、安全、合约） | 商务 | Stage E 退出前 |
 | 技术栈决策：本仓库 Node/TypeScript 与 ArtFi 的 Go 后端并行的运维成本 | 架构 | Stage B 退出前 |
+
+### 0.3 Authorized integration architecture and repository responsibilities
+
+The final application-to-authority architecture is:
+
+`ArtFi → Oracle → ERC8415-Kit → ERC-8415`
+
+- ArtFi consumes only the Oracle application-facing API. It must not directly integrate ERC8415-Kit, implement an ERC-8415 adapter, or own projection or settlement infrastructure.
+- Oracle owns institutional-source integration, authority verification, attestation, consumption of ERC8415-Kit, the ERC-8415 integration boundary, and the application-facing API.
+- ERC8415-Kit owns reusable projection and settlement infrastructure.
+- ERC-8415 remains the normative protocol authority.
+
+This allocation preserves existing code, the completed temporal projection slice, and historical evidence. It does not authorize a new settlement engine, payment integration, custody workflow, release workflow, or refund workflow. Documentation alignment is not delivery evidence.
 
 ## 1. 项目前提
 
@@ -111,6 +124,8 @@ P1–P4 是整个产品的监管地基。任一条无法取证，Stage F 必须�
 | L2 验证层 | Giraffe RWA Oracle | 本 PRD 唯一实现范围：查询、核验、签名证明、状态同步、撤销和审计 |
 | L3 协议层 | 独立 ERC/协议项目 | 本 PRD 仅定义消费 Oracle 证明的兼容边界，不实现 NFT 或负责 ERC 提交 |
 | L4 应用层 | 外部市场、钱包、持牌链上金融机构等 | 第三方独立责任；不属于 Giraffe 的金融或交易业务 |
+
+The operational dependency chain is `ArtFi → Oracle → ERC8415-Kit → ERC-8415`. Oracle is the business and institutional integration layer, not an ArtFi vertical application. ArtFi consumes only Oracle's application-facing API. Oracle consumes ERC8415-Kit, and ERC8415-Kit implements reusable infrastructure under the normative authority of ERC-8415.
 
 ### 3.1 Giraffe 的准确角色
 
@@ -635,6 +650,8 @@ fail closed 必须覆盖以下两种情形，二者均不得被当作「证明�
 
 ## 8. Oracle 链上消费适配器
 
+Oracle owns the ERC-8415 adapter and consumes ERC8415-Kit for reusable projection infrastructure. ArtFi must not implement or directly integrate this adapter. The current verified Kit handoff covers the v2.0 temporal projection surface only; optional gap behavior and legacy `settle()` must not be represented as a v2.1 or v2.2 settlement product.
+
 以下接口是现有产品讨论形成的非规范性兼容示例，不是 ERC 草案，也不是 Oracle 生产部署的
 强制 ABI。下游合约实现可以不同，验收口径见 ORACLE-010。
 
@@ -679,6 +696,8 @@ event AssetRedeemed(...);
 ```
 
 ## 9. API 最低接口
+
+This is the application-facing boundary consumed by ArtFi. ArtFi must not bypass it to call ERC8415-Kit or an ERC-8415 adapter directly.
 
 ```text
 GET  /healthz
@@ -783,6 +802,8 @@ UI **不得**把上述任何状态呈现为「代币被锁定」「不可转让�
 托管、清算、AML 和监管责任由该第三方承担。
 
 ## 13. 分阶段交付
+
+The completed temporal projection slice and its historical evidence are preserved. The next bounded implementation direction is Oracle-owned integration of the pinned ERC8415-Kit v2.0 temporal projection surface and exposure of the Oracle application-facing API to ArtFi. It does not authorize a new settlement engine, payment or custody handling, or a delivery claim.
 
 阶段退出条件与需求 ID 的完整对应见 `ACCEPTANCE_RWA_ORACLE_ZH.md` §5。
 

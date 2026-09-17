@@ -56,7 +56,7 @@ Hoodi 的定位是验证者、质押与协议升级测试。技术上两者均�
 
 | 项目 | 内容 |
 | --- | --- |
-| 裁决 | `feature/oracle-all-iterations` 的实现已合入 `claude/ci-reading-v3bnc2`（PR #2），形成首个同时包含需求、验收、实现、测试与 CI 的 commit |
+| 裁决 | `feature/oracle-all-iterations` 的实现已合入候选分支并经 PR #2 合入 `main`，形成首个同时包含需求、验收、实现、测试与 CI 的 commit |
 | 日期 | 2026-08-28 |
 | 关联 | issue #5 |
 
@@ -120,7 +120,7 @@ source/provider 并与 Oracle evidence 分层。`config/external-consumer-state-
 
 | 项目 | 内容 |
 | --- | --- |
-| 裁决 | **ERC 提案的权威位置是分支 `claude/erc-standard-feasibility-audit-90ypms`，不在本仓库主干**；该分支**会持续更新** |
+| 裁决 | **ERC 提案的权威位置在本仓库之外**：已获分配编号 **ERC-8415**，上游提交为 `ethereum/ERCs#2006`；仓库内的草案分支仅为存证 |
 | 当前 PR | **#18**（序列 #3 → #13 → #16 → #18；**#18 正文声明不再轮换**，可以引用，但分支仍是权威标识） |
 | 现行提案 | _Asynchronous Register Projection for NFTs_（`erc/ERCS/erc-xxxx.md`） |
 | 日期 | 2026-09-02 |
