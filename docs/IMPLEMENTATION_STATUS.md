@@ -1,4 +1,4 @@
-# Giraffe RWA Oracle v0.3 实现状态
+# Giraffe RWA Oracle v0.4 实现状态
 
 权威状态见 `STATUS.md` 和机器生成的 `output/prd-v0.4-acceptance-report.json`。本文件只提供工程摘要。
 

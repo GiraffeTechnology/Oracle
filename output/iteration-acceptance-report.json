@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "prdVersion": "v0.3",
-  "generatedAt": "2026-09-03T17:11:01.673Z",
+  "prdVersion": "v0.4",
+  "generatedAt": "2026-09-18T19:58:30.429Z",
   "commands": {
     "syntax": {
       "command": "node scripts/syntax-check.mjs",
@@ -576,7 +576,7 @@
           "passed": true
         },
         {
-          "name": "L3 pending observation preserves owner and blocks transfers",
+          "name": "L3 pending observation accepts a moved owner and rejects blocked transfers",
           "passed": true
         },
         {
@@ -700,5 +700,5 @@
       ]
     }
   ],
-  "reportSha256": "b1ece0cbdb33e679562aff189ec55989f7a898827346a4a627f8f1425d84b985"
+  "reportSha256": "b71d8b7be8131ff0a83ee19751fa556a979909244b0d68fae21394c3c1272ea4"
 }

@@ -1,4 +1,4 @@
-# Giraffe RWA Oracle v0.3 证据快照
+# Giraffe RWA Oracle v0.4 证据快照
 
 本文件是状态索引，不是完成声明。权威需求为 `PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md`，权威验收规则为 `ACCEPTANCE_RWA_ORACLE_ZH.md`。任何提交、推送、PR 或 CI 启动均不自动改变状态。
 
@@ -8,13 +8,39 @@
 候选分支 / PR #2，现已合入 `main`）。整合前实现与需求分处两条分支，依验收标准 §3 与 §8.1
 无法构成任何 commit 的证据。
 
-本地实测（Node 22.22.2）：`node --test "test/*.test.js"` 217 项通过；
-`node scripts/verify-prd-v0.4.mjs` 报 23/24 工程侧已验证，仅 NFR-004 待外部证据；
+本地实测（Node 22.22.2，2026-09-18 复测）：`node --test "test/*.test.js"` **401 项通过**；
+`node scripts/run-erc-tests.mjs`（hardhat）**13 项通过**，含共享 ERC-8415 投影向量；
+`node scripts/verify-prd-v0.4.mjs` 报 23/24 工程侧已验证，仅 NFR-004 待外部证据，退出码 1；
 `node scripts/verify-iterations.mjs` 报 I0–I11 completed、I12 blocked。
 
-**表中"`VERIFIED`（本地工程候选）"仍未转为正式 `VERIFIED`**：验收标准 §6 要求被审 commit 上
-一次绿灯 CI 运行，而 CI 目前因 issue #4 全部作业失败（疑似 Actions 配额耗尽）。该限制属
-基础设施，非代码问题。
+**复测更正**：上一版此处记为 217 项，系整合时的数字，已被后续提交超过。`verify-iterations`
+的那句在复测时一度**不可复现** —— 脚本因 `config/iteration-acceptance.json` 仍写
+`prdVersion: "v0.3"` 而在产出任何报告前抛 `ITERATION_PRD_VERSION_MISMATCH`。依 D-001，
+权威 PRD 已于 2026-09-03 升至 v0.4 且需求 ID 集合未变，故该字段与
+`test/iteration-traceability.test.js` 中同样硬编码的 `v0.3` 断言一并更正。
+另有一处：I11 的验收测试名仍写着 D-008 之前的冻结语义
+（`L3 pending observation preserves owner and blocks transfers`），而套件中的测试早已按
+D-008 改名为 `... accepts a moved owner and rejects blocked transfers`，已同步。
+三处更正均为陈旧指针，未改动任何需求、范围或判定。
+
+**表中"`VERIFIED`（本地工程候选）"仍未转为正式 `VERIFIED`** —— 但阻断原因已经改变，
+此处更正：
+
+issue #4（Actions 配额）**已解除**。CI 现为绿：workflow run #254 在本 commit
+（`f2ba4bc`）上全部作业成功，近期运行亦全部 success。因此"CI 全红"不再是阻断理由。
+
+仍未转正的实际原因是验收标准 §6 的**必需作业清单未被真正覆盖**。`.github/workflows/ci.yml`
+的作业**名称**与 §6 对应（`format-lint-typecheck`、`production-build` 等），但其中两项
+并不执行其名称所指的工作：
+
+| 作业 | §6 要求 | 实际执行 |
+| --- | --- | --- |
+| `format-lint-typecheck` | 格式化、lint、TypeScript 全量类型检查 | 仅 `node scripts/syntax-check.mjs` |
+| `production-build` | 生产构建 | `syntax-check` + `verify-release.mjs`，无构建步骤 |
+
+`pnpm run typecheck`（`tsc --noEmit`）与 `pnpm run format:check` 在本地均通过，但**未在 CI 中运行**，
+因此不构成 §6 所要求的"被审 commit 上的绿灯作业"。这是一处名实不符的门禁，属实现缺口，
+不在本次文档更正范围内，另行处理。
 
 I0–I12 与 ORACLE/CONSUMER/NFR 的追溯映射见 `TRACEABILITY_ZH.md`。
 
