@@ -11,15 +11,15 @@ requirements, gates, or acceptance criteria.
 
 Taken at `f2ba4bc` on `main`.
 
-| | |
-| --- | --- |
-| Tracked files | 220 |
-| Node test suite | 401 passing, 0 failing |
-| Contract suite | 13 passing |
-| Gate scripts | all exit 0 |
-| Requirement scoreboard | 23 of 24, `NFR-004` pending |
-| Stage gates | B, C, E verified; A, D, F pending |
-| Open pull requests | none |
+|                        |                                   |
+| ---------------------- | --------------------------------- |
+| Tracked files          | 220                               |
+| Node test suite        | 401 passing, 0 failing            |
+| Contract suite         | 13 passing                        |
+| Gate scripts           | all exit 0                        |
+| Requirement scoreboard | 23 of 24, `NFR-004` pending       |
+| Stage gates            | B, C, E verified; A, D, F pending |
+| Open pull requests     | none                              |
 
 Reproduce:
 
@@ -52,16 +52,16 @@ The completed ERC-8415 register projection reference slice is KEEP under
 `AGENTS.md`. Each item below is present, with where to look; this is not evidence
 that the next application integration stage is complete.
 
-| Scope item | Where | Note |
-| --- | --- | --- |
-| Immutable, non-zero register identity | `erc-8415/contracts/OracleRegisterProjection.sol:97-110` | rejected at construction if zero; stored `immutable` |
-| Normative `RegisterEntry` model | same file, interface block at `:29` | seven fields, matching the standard |
-| Ordered append-only history | same file, admission path | entries append; no overwrite or delete path exists |
-| Strictly increasing `effectiveAt` | same file, `EffectiveAtNotIncreasing` at `:73`, enforced `:149` | equal times rejected, not just decreasing ones |
-| Per-token commitment uniqueness | `CommitmentReused` at `:74`, enforced `:145` | keyed per token, as the standard scopes it |
-| Historical entry and holder queries | `currentEntry`, `entryAt`, `entryAsOf`, `holderAsOf` | `NoEntryAsOf` reverts for an instant before the first entry |
-| Finality queries | `src/domain/consumer-state-machine.js:137` | `instant >= first.effectiveAt && instant < latest.effectiveAt`, and nothing else |
-| Interface conformance | `supportsInterface` at `:104` | advertises `type(IRegisterProjection).interfaceId`, derived rather than written as a literal |
+| Scope item                            | Where                                                           | Note                                                                                         |
+| ------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Immutable, non-zero register identity | `erc-8415/contracts/OracleRegisterProjection.sol:97-110`        | rejected at construction if zero; stored `immutable`                                         |
+| Normative `RegisterEntry` model       | same file, interface block at `:29`                             | seven fields, matching the standard                                                          |
+| Ordered append-only history           | same file, admission path                                       | entries append; no overwrite or delete path exists                                           |
+| Strictly increasing `effectiveAt`     | same file, `EffectiveAtNotIncreasing` at `:73`, enforced `:149` | equal times rejected, not just decreasing ones                                               |
+| Per-token commitment uniqueness       | `CommitmentReused` at `:74`, enforced `:145`                    | keyed per token, as the standard scopes it                                                   |
+| Historical entry and holder queries   | `currentEntry`, `entryAt`, `entryAsOf`, `holderAsOf`            | `NoEntryAsOf` reverts for an instant before the first entry                                  |
+| Finality queries                      | `src/domain/consumer-state-machine.js:137`                      | `instant >= first.effectiveAt && instant < latest.effectiveAt`, and nothing else             |
+| Interface conformance                 | `supportsInterface` at `:104`                                   | advertises `type(IRegisterProjection).interfaceId`, derived rather than written as a literal |
 
 ### Finality, and why it is stated narrowly
 
