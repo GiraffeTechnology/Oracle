@@ -40,13 +40,17 @@ run.
 ArtFi  →  Oracle  →  ERC8415-Kit  →  ERC-8415
 ```
 
-Oracle consumes the Kit's temporal projection surface. The standard is upstream
-of both. Interface definitions and their identifiers are not authored here.
+This is the target architecture. At the snapshot, Oracle does not yet consume
+ERC8415-Kit as a runtime dependency; the shared conformance vectors are vendored
+from it. Consuming the pinned temporal projection surface and exposing the Oracle
+application-facing boundary are the next bounded direction in `AGENTS.md`.
+The standard remains the authority for interface definitions and identifiers.
 
 ## Stage 1: what exists
 
-The current stage declared in `AGENTS.md` is the ERC-8415 register projection
-reference slice. Each item below is present, with where to look.
+The completed ERC-8415 register projection reference slice is KEEP under
+`AGENTS.md`. Each item below is present, with where to look; this is not evidence
+that the next application integration stage is complete.
 
 | Scope item | Where | Note |
 | --- | --- | --- |
@@ -85,29 +89,29 @@ authored here. `erc-8415/conformance/SOURCE.md` records the upstream path and a
 SHA-256; `test/erc-8415-projection-vectors.test.js` recomputes it on every run,
 so a local edit fails rather than drifting quietly.
 
-Three projection implementations run against the same vectors: the consumer
-state machine, the Solidity contract, and the read-only projection reader in
-`erc-8415/read-projection.cjs`. Per-implementation tests did not catch the
-divergences above, because each implementation was checked against its own
-expectations. Shared vectors are what closed that.
+Two test paths load the shared vectors: `test/erc-8415-projection-vectors.test.js`
+for the consumer state machine and `erc-8415/test/projection.cjs` for the Solidity
+contract. The read-only reader in `erc-8415/read-projection.cjs` has a separate
+fixed-scenario handoff test; it does not load the shared vectors. Shared-vector
+coverage must not be attributed to that reader.
 
 ## Standing items
 
 Facts, classified per `AGENTS.md` section 8. Not a work queue.
 
-**`scripts/check-frozen-erc-constants.ts` — REMOVE or update.** It pins
-`IVersionedRWACertificate` `0xebaa86a0` and `IDeferredCertificateSettlement`
-`0x2773d4c9`, which belong to the superseded proposal, and it runs in the
-`integration-gates` job. Section 12 covers exactly this: an active build or
-acceptance dependency that still treats a superseded draft as normative. It
-also hashes five files under `docs/erc/`, which is why two archived reports
-there still carry a vendor tool name in their filename — they cannot be renamed
-while the guard hashes that directory.
+**`scripts/check-frozen-erc-constants.ts` — KEEP.** This archive-integrity
+check re-derives the superseded proposal's identifiers and verifies recorded
+hashes under `docs/erc/`. Its header explicitly limits it to internal consistency
+of historical material. Running it in `integration-gates` does not make the old
+interfaces normative. Preserve the archived identifiers and hashes; the separate
+supersession-notice check maintains the distinction from current ERC-8415.
 
-**`erc-reference/` — FREEZE-LATER or REMOVE.** It holds the superseded
-reference contract and its tests. `hardhat.config.cjs` now points `sources` and
-`tests` at `erc-8415/`, so this tree no longer compiles or runs. It is off the
-active path but still present.
+**`erc-reference/` — FREEZE-LATER.** This historical tree is excluded from the
+default Hardhat source and test paths, but still has consumers: `gate:erc` reads
+its contract and protocol test, `test:erc:submission-solidity` compiles its
+contract, and the Hoodi helper tests import its signer module. Preserve those
+dependencies without expanding the historical implementation. It is not evidence
+of current ERC-8415 conformance and must not be removed as an unused tree.
 
 **`docs/erc/` — KEEP as provenance.** Archive of the earlier proposal. It
 carries a supersession notice, and `check-decision-consistency` asserts three
