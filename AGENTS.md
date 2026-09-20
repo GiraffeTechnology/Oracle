@@ -310,3 +310,16 @@ Classification:
 - REMOVE
 
 The client-approved [ArtFi + Oracle Delivery Stage Framework v1.1](https://github.com/GiraffeTechnology/ArtFi/issues/100) separates stage acceptance without lowering engineering standards or expanding product scope. Each stage has independent acceptance. Future-stage capabilities MUST NOT block current-stage delivery.
+
+## Execution handoff — 2026-09-20 (non-normative)
+
+This dated record is operational evidence, not a change to the authority order or stage acceptance.
+
+- PR [#42](https://github.com/GiraffeTechnology/Oracle/pull/42) remains the documentation handoff under this task. Before this wrap-up, its head was `bfdae08f592cf31fd3c20b3b96258ba864f46079`. Corrections in `docs/HANDOFF.md` distinguish target architecture from implemented integration, shared vectors from the fixed reader scenario, archive integrity from normative authority, and still-used legacy references from removable code.
+- This turn does not deliver the Oracle-to-Kit application integration or a deployed delivery candidate. No fresh runtime/conformance test results are claimed. Historical test counts are not evidence for the new documentation head.
+- CI run `35493765989` on earlier head `28aebc2335991d8cf47ad37fe870d9a2d7399d6c`, including one retry, reported 12 failed jobs with no returned step/log evidence. The cause was not established. Check CI and review against the latest PR head before acceptance; neither a clean review nor successful CI nor merge is claimed.
+- Read-only SSH to existing alias `giraffe-dev` reached `abcdYi`; `giraffe-mysql-tunnel.service` was active. This proves neither database authentication/schema readiness nor deployment. No service/configuration changes, database writes, signing, or broadcast were performed.
+- Existing deployment material was located in local `服务器配置/ARTFI-SIN-P0-OPERATIONS.md`, `bin/Invoke-ArtFiSinChainCommand.ps1`, and remote `/home/dev/运维/giraffe-zos-readme.md`. Reuse the existing CTYun-to-SIN bridge and protected configuration; do not copy secrets into this repository.
+- The inspected bridge helper's task allowlist did not include this Oracle task (`01a02e3e-8769-7800-81bf-524184931bec`). A narrowly scoped assistance request was sent to ArtFi 总控; authorization has not been confirmed. Do not impersonate another allowed task or transfer PR #42. Only the dependent bridge path is blocked.
+- Resume by reconciling the current PR head, review, and any separately changed archive guard, then inspect existing Oracle API/Kit wiring before implementing the missing bounded integration. Verify valid, expired, revoked, and source-unavailable behavior with commit-bound evidence. Do not take over ArtFi transaction execution.
+- The user requested this wrap-up because usage was nearly exhausted. Periodic monitoring was previously stopped; no new monitoring or background delivery is promised. Preserve unfinished work and do not label documentation alignment as stage completion.
