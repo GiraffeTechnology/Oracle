@@ -126,15 +126,15 @@ Write operations remain disabled unless production controls are explicitly enabl
 
 Read in this order:
 
-| Document | Purpose |
-| --- | --- |
-| `docs/DECISIONS_ZH.md` | Architecture decisions and precedence rules |
-| `docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` | Product requirements |
-| `docs/ACCEPTANCE_RWA_ORACLE_ZH.md` | Acceptance criteria and evidence requirements |
-| `docs/TRACEABILITY_ZH.md` | Requirement traceability |
-| `docs/STATUS.md` | Current implementation status |
-| `docs/GAP_AUDIT_ZH.md` | Remaining gaps |
-| `docs/PRODUCTION_READINESS_ZH.md` | Production readiness assessment |
+| Document                                | Purpose                                       |
+| --------------------------------------- | --------------------------------------------- |
+| `docs/DECISIONS_ZH.md`                  | Architecture decisions and precedence rules   |
+| `docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` | Product requirements                          |
+| `docs/ACCEPTANCE_RWA_ORACLE_ZH.md`      | Acceptance criteria and evidence requirements |
+| `docs/TRACEABILITY_ZH.md`               | Requirement traceability                      |
+| `docs/STATUS.md`                        | Current implementation status                 |
+| `docs/GAP_AUDIT_ZH.md`                  | Remaining gaps                                |
+| `docs/PRODUCTION_READINESS_ZH.md`       | Production readiness assessment               |
 
 Run verification:
 
@@ -146,9 +146,9 @@ pnpm run verify
 
 The following patent application information may be disclosed by project decision:
 
-| Application | Number | Scope |
-| --- | --- | --- |
-| 一种链外数据源事实的无人值守出具系统及方法 | `202611389399.6` | Oracle |
+| Application                                | Number           | Scope                    |
+| ------------------------------------------ | ---------------- | ------------------------ |
+| 一种链外数据源事实的无人值守出具系统及方法 | `202611389399.6` | Oracle                   |
 | 一种基于链下登记簿的数据凭证映射方法及系统 | `202611389374.6` | ERC registration mapping |
 
 Submission and acceptance do not represent grant, production deployment or commercial acceptance.
