@@ -1,85 +1,154 @@
 # Giraffe RWA Oracle
 
-Implementation and deployable configuration for the Giraffe L2 Oracle. L3 is an independent protocol
-project; this repository only provides a synthetic consumer and a read-only verification SDK proving
-that invalid Oracle evidence cannot pass. ERC publication, NFT issuance, trading, custody and financial
-services remain outside this repository.
+Implementation and deployable configuration for the Giraffe RWA Oracle.
+
+Oracle is the institutional integration layer between authoritative real-world sources and ERC-8415 compatible applications. It verifies source evidence, maintains auditable asset state transitions, and exposes controlled application-facing read interfaces.
+
+The architecture boundary is:
+
+```text
+Application
+    |
+    v
+Oracle
+    |
+    v
+ERC-8415 projection infrastructure
+    |
+    v
+Authoritative sources / registers
+```
+
+Applications do not implement ERC-8415 adapters directly. Oracle owns the integration boundary.
+
+## Current implementation status (2026-09-20)
+
+This repository has progressed beyond a verification-only prototype. Current implementation includes:
+
+### Completed implementation
+
+- authoritative source model:
+  - registry source;
+  - certificate authority source;
+  - warehouse source;
+- evidence validation and attestation flow;
+- asset verification pipeline;
+- token binding and provenance tracking;
+- revocation and controlled administrative operations;
+- RBAC and dual-control boundaries;
+- durable command handling and idempotency controls;
+- audit journal and outbox architecture;
+- settlement coordination primitives;
+- ERC-8415 projection reference implementation;
+- ERC-8415 conformance handling including:
+  - temporal holder queries;
+  - historical entries;
+  - finality semantics;
+  - projection identity.
+
+## ERC-8415 integration status
+
+Oracle is the integration layer for ERC-8415 applications.
+
+The intended direction is:
+
+```text
+Application
+    |
+Oracle API
+    |
+ERC-8415 projection layer
+    |
+ERC-8415 standard
+```
+
+The repository contains the projection foundation and integration design. Production application integration, institutional registrar operation and external deployment verification remain separate delivery stages.
+
+Important semantic rules:
+
+- confirmed holder is not replaced by ERC-721 `ownerOf`;
+- finality is not freshness;
+- projection gaps are not rejection events;
+- Oracle does not redefine ERC-8415 semantics.
+
+## Application-facing role
+
+Oracle provides a controlled application boundary:
+
+- applications consume verified projection information through Oracle;
+- applications do not access internal projection infrastructure directly;
+- write operations remain controlled by authentication, authorization and operational safeguards.
+
+Oracle is not a vertical application. ArtFi and other RWA applications consume Oracle services.
 
 ## Security defaults
 
 - The development server binds to `localhost` only.
-- External writes are disabled by default; production writes require both production and authenticated
-  control-plane acknowledgements plus deployment-resolved dependencies.
-- No caller-supplied source endpoint is accepted.
-- No production credentials, personal data, source documents or signing keys belong in this repo.
-- All test fixtures are synthetic.
+- External writes are disabled by default.
+- Production writes require authenticated control-plane execution.
+- No caller-supplied source authority is accepted.
+- No production credentials, personal data, source documents or signing keys belong in this repository.
+- Test fixtures are synthetic unless explicitly documented otherwise.
 
-## Local verification
+## Verification status
 
-Use Node.js 24 or the pinned workspace runtime and run:
+Repository verification includes:
 
-```text
-node scripts/syntax-check.mjs
-node --test "test/*.test.js"
-node scripts/repository-scan.mjs
-node scripts/verify-prd-v0.4.mjs
-```
+- unit and integration tests;
+- ERC-8415 projection conformance tests;
+- evidence validation tests;
+- negative security boundary tests;
+- production configuration validation.
 
-The public service exposes:
+Production commissioning requires additional external evidence:
 
-- `GET /healthz`
-- `GET /readyz`
-- `GET /v1/oracle/statuses`
-- `GET /v1/oracle/deployment-profile`
-- `GET /v1/oracle/protocol-profile`
-- `GET /v1/rwa/assets/{assetId}`
-- `GET /v1/rwa/assets/{assetId}/certificate-history`
-- `GET /v1/rwa/tokens/{chainId}/{contract}/{tokenId}`
-- `GET /v1/rwa/tokens/{chainId}/{contract}/{tokenId}/certificate-history`
-- `GET /v1/rwa/tokens/{chainId}/{contract}/{tokenId}/transfer-eligibility`
-- `GET /v1/rwa/attestations/{attestationId}`
-- `GET /v1/rwa/settlements/{settlementId}`
-- `POST /v1/rwa/attestations/verify` (computational verification only)
-- `POST /v1/rwa/settlements` (authenticated; disabled by default)
-- `POST /v1/rwa/settlements/{settlementId}/finalize` (authenticated; disabled by default)
-- `POST /v1/rwa/settlements/{settlementId}/cancel` (authenticated; disabled by default)
-- `POST /v1/rwa/revocations` (dual control; disabled by default)
-- `GET /admin` (read-only status page)
+- deployed production environment;
+- institutional source connections;
+- operational monitoring;
+- production signing and governance procedures.
 
-The complete non-secret L2 profile and non-normative L3 compatibility pin live in `config/`. Production mode
-starts only with an absolute, regular deployment module and exact SHA-256 pin; authoritative writes then use
-authenticated fixed-reference sources, RBAC/dual control, protected signing, and atomic MySQL durability.
-Production commissioning and Stage F approval remain deliberate external release gates.
+Code completion is not production commissioning.
 
-See `docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md`, `docs/ACCEPTANCE_RWA_ORACLE_ZH.md`, and `docs/STATUS.md`.
+## Service surface
+
+The service provides health, protocol and asset-related APIs, including:
+
+- health/readiness endpoints;
+- protocol and deployment profile endpoints;
+- asset and certificate query endpoints;
+- token binding and transfer eligibility queries;
+- attestation verification;
+- controlled settlement operations.
+
+Write operations remain disabled unless production controls are explicitly enabled.
 
 ## Documents
 
-Read in this order. `docs/DECISIONS_ZH.md` wins over anything that contradicts it.
+Read in this order:
 
-| Document                                | What it settles                                                                                       |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `docs/DECISIONS_ZH.md`                  | Decisions of record: authoritative PRD, priority testnet, precedence rule, and what remains undecided |
-| `docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` | Requirements (v0.3) — 24 in-scope IDs                                                                 |
-| `docs/ACCEPTANCE_RWA_ORACLE_ZH.md`      | How each requirement must be evidenced, the six-value status vocabulary, and the stage gates          |
-| `docs/TRACEABILITY_ZH.md`               | Maps the I0–I12 iteration scheme onto the ORACLE/CONSUMER/NFR requirement IDs                         |
-| `docs/STATUS.md`                        | Per-requirement status of **this commit**                                                             |
-| `docs/GAP_AUDIT_ZH.md`                  | Gap between the repository and the PRD                                                                |
-| `docs/PRODUCTION_READINESS_ZH.md`       | Assessment against the release blockers and the delivery definition                                   |
-| `docs/TESTNET_TASK_HOODI_ZH.md`         | Testnet execution brief (Hoodi, a test chain — not production)                                        |
-| `docs/erc/`                             | Reference archive for the separate ERC project, with its own README                                   |
+| Document | Purpose |
+| --- | --- |
+| `docs/DECISIONS_ZH.md` | Architecture decisions and precedence rules |
+| `docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` | Product requirements |
+| `docs/ACCEPTANCE_RWA_ORACLE_ZH.md` | Acceptance criteria and evidence requirements |
+| `docs/TRACEABILITY_ZH.md` | Requirement traceability |
+| `docs/STATUS.md` | Current implementation status |
+| `docs/GAP_AUDIT_ZH.md` | Remaining gaps |
+| `docs/PRODUCTION_READINESS_ZH.md` | Production readiness assessment |
 
-Run every gate at once with `pnpm run verify`.
+Run verification:
 
-## 专利申请状态与披露边界
+```sh
+pnpm run verify
+```
 
-以下申请状态由项目负责人确认；负责人明确允许公开以下专利申请号：
+## Patent disclosure boundary
 
-| 申请名称                                   | 申请号           | 关联范围               |
-| ------------------------------------------ | ---------------- | ---------------------- |
-| 一种链外数据源事实的无人值守出具系统及方法 | `202611389399.6` | Oracle                 |
-| 一种基于链下登记簿的数据凭证映射方法及系统 | `202611389374.6` | ERC 登记簿凭证映射标准 |
+The following patent application information may be disclosed by project decision:
 
-两项申请均已提交并取得受理通知。申请受理不等于专利授权，也不表示技术交付或生产验收完成。
+| Application | Number | Scope |
+| --- | --- | --- |
+| 一种链外数据源事实的无人值守出具系统及方法 | `202611389399.6` | Oracle |
+| 一种基于链下登记簿的数据凭证映射方法及系统 | `202611389374.6` | ERC registration mapping |
 
-本次仅披露上述申请名称、申请号及申请状态，不上传受理通知书 PDF、申请材料、个人信息、客户私域数据或其他商业信息。不得要求负责人向 AI 提供保密协议、商业尽调材料或与技术无关的信息，作为更新上述状态或推进无关技术开发、脱敏测试的前提。技术验收仍依据代码、可复核测试及授权范围内的运行证据，不代替任何人的法律或商业签署。
+Submission and acceptance do not represent grant, production deployment or commercial acceptance.
