@@ -1,155 +1,128 @@
-# 仓库与 PRD 的差距审计
+# Gap Audit Between the Repository and the PRD
 
-| 项目 | 内容 |
+| Item | Content |
 | --- | --- |
-| 依据 | `PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` v0.3、`ACCEPTANCE_RWA_ORACLE_ZH.md` v0.3 |
-| 审计范围 | **整个仓库**：`main`、候选分支、`feature/oracle-all-iterations` |
-| 审计方法 | 验收标准 §8；证据单元为源文件路径与具名测试 |
-| 审计日期 | 2026-08-25 |
+| Basis | v0.3 of PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md and ACCEPTANCE_RWA_ORACLE_ZH.md |
+| Audit scope | Entire repository: main, candidate branch, and feature/oracle-all-iterations |
+| Method | Acceptance standard §8; evidence unit is a source-file path plus a named test |
+| Audit date | 2026-08-25 |
 
-> 本文与 `STATUS.md` 的区别：`STATUS.md` 审计**单个 commit**并使用 §2 六值词表；
-> 本文审计**仓库整体**的能力覆盖与差距。依验收标准 §3，跨分支证据不能用于认定某个
-> commit 的状态，故本文一律不授予 `VERIFIED`，只陈述"某处存在何种证据"。
+> Unlike STATUS.md, which audits one commit using the six-value vocabulary in §2, this document audits repository-wide capability coverage and gaps. Under acceptance standard §3, cross-branch evidence cannot establish the status of a commit. This report therefore grants no VERIFIED status; it only states where evidence existed.
 
-> **更新（2026-08-28，issue #5 已处理）**：本节所述的结构性差距**已通过分支整合关闭**。
-> 实现、需求、验收、CI 现处于同一 commit；I0–I12 与 ORACLE/CONSUMER/NFR 的追溯映射见
-> `TRACEABILITY_ZH.md`，并由 `scripts/check-scope-coverage.mjs` 强制。整合后本地实测：
-> `verify-prd-v0.4` 报 23/24 工程侧已验证（仅 NFR-004 待外部证据），217 项测试通过。
-> 下文保留为整合前的记录。
+> **Update (2026-08-28; issue #5 handled):** The structural gap described here was closed by branch integration. Implementation, requirements, acceptance, and CI now share one commit. The I0–I12 to ORACLE/CONSUMER/NFR traceability map is in TRACEABILITY_ZH.md and enforced by scripts/check-scope-coverage.mjs. Post-integration local checks reported 23/24 engineering-side items verified (only NFR-004 awaited external evidence) and 217 tests passed. The sections below remain as a pre-integration record.
 
-## 0. 整合后复审（2026-08-31，对 commit `0bb0d6d`）
+## 0. Post-integration review (2026-08-31, commit 0bb0d6d)
 
-**第 6 节 B 类"真实功能缺失"三项已全部闭合**，本节据实更正 —— 下文第 1–7 节保留为整合前的记录。
+All three items in §6 category B, “actual functional gaps,” were closed. This section corrects the record; §§1–7 below remain the pre-integration record.
 
-| 原 B 类缺口 | 整合后实际状态 | 证据 |
+| Original category-B gap | Actual post-integration state | Evidence |
 | --- | --- | --- |
-| CONSUMER-007 `REDEEMED` 提货终止 | **已实现且已测** | `src/domain/consumer-state-machine.js`：`REDEEMED: new Set()` 无出边、`REDEEMED_TERMINAL` 抛错；测试验证 `REDEEMED → ACTIVE` 被拒 |
-| ORACLE-011 资产详情 UI | **已实现且已测** | `renderAssetDetailHtml` 渲染四种交易期状态（成交锁定／登记处理中／交割完成／交割失败·争议）；具名测试断言四种呈现 |
-| ORACLE-005 合规资格 | **已实现且已测** | `src/services/product-boundary.js`、`docs/openapi.yaml`；两项具名测试 |
+| Terminal redemption semantics for CONSUMER-007 REDEEMED | Implemented and tested | src/domain/consumer-state-machine.js: REDEEMED has no outgoing transitions and raises REDEEMED_TERMINAL; test rejects REDEEMED → ACTIVE |
+| ORACLE-011 asset-detail UI | Implemented and tested | renderAssetDetailHtml renders four transaction-period states (settlement locked / registry pending / settled / failed-disputed); named tests assert all four |
+| ORACLE-005 entity compliance | Implemented and tested | src/services/product-boundary.js and docs/openapi.yaml; two named tests |
 
-整合前"`REDEEMED` 全仓库 0 命中"的结论**已过时**，系当时 `feature` 分支尚未提交该状态机所致。
+The pre-integration “zero REDEEMED hits across the repository” conclusion is obsolete because the state machine had not yet been committed on the feature branch.
 
-### 0.1 新发现：需求—测试绑定的可引用性弱
+### 0.1 New finding: weak referential specificity of requirement-to-test binding
 
-`config/prd-v0.4-acceptance.json` 绑定的测试**全部存在且通过**（无悬空引用），故 `verify-prd-v0.4`
-报 23/24 成立。但 **24 条需求中有 13 条，其绑定的测试名从不提及自身 ID**。多数只是命名描述性
-（如 ORACLE-001 绑定"requires a registered active source and approved schema"），审计员仍可阅读
-判断；但有一类更需注意：**绑定的测试其名称断言的是另一条需求**，包括 CONSUMER-007→CONSUMER-003、
-CONSUMER-008→CONSUMER-004/009、ORACLE-009→ORACLE-005/006、ORACLE-010→CONSUMER-004/009。
+All tests bound in config/prd-v0.4-acceptance.json exist and pass (no dangling references), so verify-prd-v0.4 reports 23/24. However, for 13 of 24 requirements, the bound test name never mentions its own ID. Most names are descriptive (for example, ORACLE-001 is bound to “requires a registered active source and approved schema”) and remain reviewable by a human. A more serious class binds a test whose name asserts a different requirement: CONSUMER-007 → CONSUMER-003; CONSUMER-008 → CONSUMER-004/009; ORACLE-009 → ORACLE-005/006; ORACLE-010 → CONSUMER-004/009.
 
-依验收标准 §8.3（"每条主张必须引用文件路径、测试名"），这会削弱逐 ID 取证的可引用性。
-**机器检查只校验"具名测试存在且通过"，不校验"该测试确立了该需求"** —— 这是本次复审最重要的方法论发现。
+This weakens per-ID evidence citation under acceptance standard §8.3 (“each claim must cite a file path and test name”). The machine check verifies only that a named test exists and passes; it does not verify that the test establishes that requirement. This was the principal methodological finding of this review.
 
-### 0.2 已修复的一处实质不符：CONSUMER-008
+### 0.2 Substantive mismatch fixed: CONSUMER-008
 
-其余 12 条属命名问题，CONSUMER-008 则是**证据与要求实质不符**：
+The other 12 issues are naming problems. CONSUMER-008 had a substantive mismatch between its evidence and requirement:
 
-- 要求（验收 §4.2）：外部事件只能触发待验证 T+0 意图；**不存在订单簿／撮合／对手方／资金控制路径**；
-- 原绑定测试断言的是"无有效证明时 fail closed"与 pending 期操作封锁 —— **未证明任何"不存在"**。
+- Requirement (acceptance §4.2): an external event may trigger only a pending, verifiable T+0 intent; no order-book, matching, counterparty, or funds-control path exists.
+- The originally bound test asserted fail-closed behavior without a valid proof and blocked operations while pending; it did not prove absence of those paths.
 
-缺口本身确实成立（`orderbook`／`counterparty` 全仓库 0 命中；`matching` 的 4 处均为英文行文，
-如 "matching warehouse identities"；`custody` 的 3 处均为 `IN_CUSTODY` 仓储状态，非资金托管），
-但此前**没有任何测试会在该能力被加入时失败**。
+The gap itself existed: repository-wide search found zero orderbook/counterparty hits; the four matching hits were ordinary English prose such as “matching warehouse identities”; the three custody hits referred to IN_CUSTODY warehouse status, not financial custody. But no test would fail if such capabilities were added later.
 
-已补 `test/consumer-008-external-market-boundary.test.js`：对 `src/` 做标识符级扫描（避免误伤英文
-行文），并断言 `src/app.js` 的路由字面量不含交易或支付路径；已反向验证 —— 植入 `orderBook` 即失败。
-`config/prd-v0.4-acceptance.json` 中 CONSUMER-008 的绑定已改为指向该测试。
+Added test/consumer-008-external-market-boundary.test.js: it scans src/ for identifiers (avoiding false positives in ordinary English prose) and asserts that src/app.js route literals contain no trading or payment path. This was reverse-validated by injecting orderBook and observing test failure. The CONSUMER-008 binding in config/prd-v0.4-acceptance.json now points to that test.
 
-**建议**：其余 12 条的绑定宜补具名测试或重命名，使每条需求都能被独立引用。这不影响当前
-`engineeringVerified=23`，属取证可审性改进。
+**Recommendation:** add named tests or rename bindings for the remaining 12 items so every requirement can be cited independently. This does not change the current engineeringVerified=23 result; it is an evidence-auditability improvement.
 
----
+## 1. Primary finding: the main gap was structural, not functional
 
-## 1. 首要结论：主要差距是结构性的，不是功能性的
+feature/oracle-all-iterations implemented most PRD v0.3 L2 capabilities: 34 source modules, 12 test files, 83 passing tests, MySQL migrations, three JSON Schemas, four configuration profiles, and an SBOM.
 
-`feature/oracle-all-iterations` 已实现 PRD v0.3 绝大部分 L2 能力：34 个源模块、12 个测试
-文件、83 项通过测试、MySQL 迁移、三个 JSON Schema、四个配置档、SBOM。
+However, no commit contained requirements, acceptance criteria, implementation, tests, and CI together:
 
-但**没有任何一个 commit 同时具备需求、验收标准、实现、测试与 CI**：
-
-| 分支 | 有 | 无 |
+| Branch | Present | Missing |
 | --- | --- | --- |
-| 候选分支 | PRD v0.3、验收标准、CI（4 job）、追溯快照 | 实质实现（仅 3 个只读端点） |
-| `feature/oracle-all-iterations` | 完整实现与 83 项测试 | **无 `.github/`，即无任何 CI**；PRD 为 v0.4，ID 体系为 I0–I12 |
+| Candidate branch | PRD v0.3, acceptance standard, CI (4 jobs), traceability snapshot | Substantive implementation (only 3 read-only endpoints) |
+| feature/oracle-all-iterations | Full implementation and 83 tests | No .github/ directory or CI; PRD was v0.4 and IDs were I0–I12 |
 
-依验收标准 §3（"来自其他 commit、分支的测试结果"不构成证据）与 §8.1（审计确切 commit SHA），
-**当前不存在可通过验收的 commit**。这不是实现问题，是分支与 ID 体系分叉问题。
+Under acceptance standard §3 (test results from another commit/branch are not evidence) and §8.1 (audit the exact commit SHA), no acceptable commit existed at that time. This was a branch and ID-system divergence, not an implementation issue.
 
-第二个结构性差距：`feature` 分支按 I0–I12 迭代编号组织，PRD v0.3 按 ORACLE/CONSUMER/NFR
-编号组织，两套体系之间**没有追溯映射**。验收标准 §8.4 要求逐 ID 双向覆盖，当前无法机械执行。
+A second structural gap was that feature used I0–I12 iteration IDs while PRD v0.3 used ORACLE/CONSUMER/NFR IDs, with no traceability map. Acceptance standard §8.4 requires bidirectional per-ID coverage, which could not then be checked mechanically.
 
-## 2. L2 验证层（ORACLE-*）覆盖与差距
+## 2. L2 verification layer (ORACLE-*) coverage and gaps
 
-| ID | 覆盖 | 证据（`feature` 分支） | 差距 |
+| ID | Coverage | Evidence (feature branch) | Gap |
 | --- | --- | --- | --- |
-| ORACLE-001 | 充分 | `src/domain/source-registry.js`、`schema-registry.js`、`key-set-registry.js`、`adapters/fixed-source-transport.js`；测试"requires a registered active source and approved schema""rejects caller-supplied endpoint fields""revoked source key sets fail closed""OpenAPI declares no caller-selectable server endpoint" | 注册表变更的**审批记录**未与 `dual-control.js` 打通 |
-| ORACLE-002 | 部分 | `oracle-status.js` 导出且仅导出 PRD 八状态（测试"exports exactly the PRD public statuses"）；`token eligibility endpoint reflects Oracle status` | **八状态缺少各自的正向用例**；PRD 九项事实查询未逐项验证；部分可用降级测试缺失 |
-| ORACLE-003 | 充分 | `attestation-service.js`、`signer-set-policy.js`、`canonical-json.js`、`sdk/verifier.js`；测试覆盖 subject 绑定、过期、撤销、nonce 重用、门限不足、跨用途重放 | **跨链 / 跨合约 / 跨 Token 重放**与 **schema 版本不符**无具名负向测试 |
-| ORACLE-004 | 充分 | `revocation-registry.js`、`outbox.js`、`outbox-dispatcher.js`、`subscription-signer.js`、`reason-code-registry.js`；测试覆盖独立审批、有序重试、幂等确认、签名绑定 delivery id | 撤销后**下游转让失败**需 L3 消费者验证；撤销传播延迟 SLI 无量化报告 |
-| ORACLE-005 | 部分 | `export-gate.js`、`authorizer.js`；测试"export gate requires purpose and permission" | KYC/AML/制裁/辖区**资格状态证明本身**未实现；字段级"只返回状态不返回资料"测试缺失 |
-| ORACLE-006 | 充分 | 测试"public schemas exclude financial opinions""metrics expose numeric counters and gauges only"；另有本分支 CI 关键词门禁 | 二者不在同一 commit |
-| ORACLE-007 | 充分 | `ports/evidence-vault-port.js`、schema 敏感字段剥离；测试"raw evidence vault exposes only a digest""schema registry strips sensitive public fields""public listing omits key set identifiers" | **跨境字段最小化清单**未建立；扫描类证据在本分支 |
-| ORACLE-008 | 充分 | `audit-journal.js`、`command-journal.js`、`audit-export.js`、`state-rebuilder.js`、`business-calendar.js`；测试覆盖哈希链、状态重建、导出防篡改与注入、故障注入下不变量 | **T+3 日历版本化记录**与 UTC 存储/时区展示的具名测试缺失 |
-| ORACLE-009 | 充分 | 测试"all write methods are rejected""SBOM confirms no third-party runtime components" | 合同侧条款核查为非工程项 |
-| ORACLE-010 | 充分 | `sdk/verifier.js`、`protocol/protocol-profile.js`；测试覆盖离线验证、L3 双接口 + ERC-8325、字节级 artifact 校验、pending 保持 owner、finalize 原子性且不依赖事件顺序 | — |
-| ORACLE-011 | **缺失** | 仅 `src/admin-ui.js`（管理后台，测试"admin dashboard is read-only and protected against framing"） | **无资产详情页**：一物一 NFT 标识、证书哈希/版本、仓单、T+0/T+3 进度、四种交易期状态区分展示、来源与到期时间可见 —— 全部未实现 |
+| ORACLE-001 | Sufficient | source-registry.js, schema-registry.js, key-set-registry.js, fixed-source-transport.js; tests for registered active sources/approved schemas, rejecting caller-supplied endpoints, revoked source keys failing closed, and OpenAPI excluding caller-selectable endpoints | Registry-change approval records were not wired to dual-control.js |
+| ORACLE-002 | Partial | oracle-status.js exports exactly the eight PRD states; token-eligibility endpoint reflects Oracle status | No positive case for each of eight states; nine PRD fact queries not tested individually; missing partial-availability degradation test |
+| ORACLE-003 | Sufficient | attestation-service.js, signer-set-policy.js, canonical-json.js, sdk/verifier.js; tests for subject binding, expiration, revocation, nonce reuse, insufficient threshold, cross-purpose replay | No named negative tests for cross-chain/contract/token replay or schema-version mismatch |
+| ORACLE-004 | Sufficient | revocation-registry.js, outbox.js, outbox-dispatcher.js, subscription-signer.js, reason-code-registry.js; tests for independent approval, ordered retry, idempotent acknowledgment, delivery-ID signature binding | Downstream transfer rejection after revocation requires L3 validation; no quantified SLI report for revocation propagation delay |
+| ORACLE-005 | Partial | export-gate.js, authorizer.js; test requires purpose and permission for export | KYC/AML/sanctions/jurisdictional-eligibility status proofs were not implemented; missing test that only status is returned without source details |
+| ORACLE-006 | Sufficient | tests exclude financial opinions from public schemas and limit metrics to numeric counters/gauges; keyword gate also existed in this branch's CI | These were not on the same commit |
+| ORACLE-007 | Sufficient | evidence-vault-port.js and sensitive-field stripping in schemas; tests expose only evidence digests, strip sensitive public fields, and omit key-set identifiers from public listings | No cross-border field-minimization list; scanning evidence was on this branch |
+| ORACLE-008 | Sufficient | audit-journal.js, command-journal.js, audit-export.js, state-rebuilder.js, business-calendar.js; hash-chain, state-rebuild, tamper-resistant export/injection, and fault-injection invariant tests | Missing named tests for versioned T+3 calendar and UTC storage/time-zone display |
+| ORACLE-009 | Sufficient | tests reject all write methods and SBOM confirms no third-party runtime components | Contract review is non-engineering work |
+| ORACLE-010 | Sufficient | sdk/verifier.js and protocol-profile.js; tests for offline verification, both L3 interfaces plus ERC-8325, byte-level artifact validation, pending owner preservation, atomic finalize independent of event order | — |
+| ORACLE-011 | Missing | Only admin-ui.js (admin dashboard; read-only and framing-protected) | No asset detail page: one-asset/one-NFT identity, certificate hash/version, warehouse receipt, T+0/T+3 progress, four distinct transaction-period states, visible source and expiration |
 
-## 3. 下游消费约束（CONSUMER-*）：以合成消费者证明可强制
+## 3. Downstream consumer constraints (CONSUMER-*; synthetic consumer demonstrates enforceability)
 
-| ID | 覆盖 | 差距 |
+| ID | Coverage | Gap |
 | --- | --- | --- |
-| CONSUMER-001 | 充分 | 测试"token binding is one-to-one and idempotent""record store maintains append-only certificate versions"；份额化请求拒绝无具名测试 |
-| CONSUMER-002 | 部分 | 七项发行前置**未逐项做缺失负向测试** |
-| CONSUMER-003 | 部分 | `state-engine.js` 拒绝非法与非递增迁移；**九状态合法迁移未全覆盖** |
-| CONSUMER-004 | 部分 | "L3 pending observation preserves owner and blocks transfers"；快照哈希内容完整性、重复事件幂等、质押/重复挂牌拒绝无具名测试 |
-| CONSUMER-005 | 充分 | "settlement requires complete evidence and upgrades the certificate""L3 finalize observation verifies atomic version and event set" |
-| CONSUMER-006 | 部分 | 六类场景中仅**超时、争议**有具名测试；拒绝、数据冲突、乱序、重放缺失；退款通知触发无证据 |
-| CONSUMER-007 | **缺失** | 全仓库 `REDEEMED` / `redeem` **0 命中**：提货终止语义完全未实现 |
-| CONSUMER-008 | **仅缺证据** | 全仓库订单簿/撮合 **0 命中**（符合要求），但缺少**证明其不存在**的测试 |
-| CONSUMER-009 | 充分 | "offline verifier rejects cross-purpose replay""production ports fail closed when any dependency is absent""verification endpoint fails closed without a configured verifier" |
+| CONSUMER-001 | Sufficient | Tests for one-to-one/idempotent token binding and append-only certificate versions; fractionalization rejection lacked a named test |
+| CONSUMER-002 | Partial | No individual missing-prerequisite negative tests for the seven issuance prerequisites |
+| CONSUMER-003 | Partial | state-engine.js rejects illegal/non-increasing transitions; no complete coverage of legal transitions among nine states |
+| CONSUMER-004 | Partial | Pending observation preserves owner and blocks transfers; snapshot-hash integrity, duplicate-event idempotency, pledge/re-listing rejection lacked named tests |
+| CONSUMER-005 | Sufficient | Tests require complete evidence and certificate upgrade; L3 finalize observation verifies atomic version and event set |
+| CONSUMER-006 | Partial | Of six scenarios, only timeout and dispute had named tests; rejection, data conflict, out-of-order, replay, and refund-trigger evidence were missing |
+| CONSUMER-007 | Missing | Zero repository hits for REDEEMED/redeem: terminal redemption semantics were not implemented |
+| CONSUMER-008 | Evidence only missing | Zero repository hits for order-book/matching (consistent with requirement), but no test proved their absence |
+| CONSUMER-009 | Sufficient | Tests for offline verifier rejecting cross-purpose replay, production ports failing closed when dependencies are absent, and verification endpoint failing closed without a configured verifier |
 
-## 4. 非功能（NFR-*）
+## 4. Non-functional requirements (NFR-*)
 
-| ID | 覆盖 | 差距 |
+| ID | Coverage | Gap |
 | --- | --- | --- |
-| NFR-001 | 充分 | `protected-signer.js`、`dual-control.js`、`signer-set-policy.js`；测试"admin cannot directly set VALID""dual control rejects self approval"。差距：**timelock 与回滚演练**无记录 |
-| NFR-002 | 充分 | nonce 重用、跨用途重放、追加式版本、非递增迁移拒绝。差距：绑定字段**完整性**（chainId/合约/TokenId/schema 版本）无逐字段测试 |
-| NFR-003 | 充分 | "loads fail-closed development defaults""rejects non-loopback binds""rejects enabling external writes""production ports fail closed""three source adapters reject conflict delay offline" |
-| NFR-004 | **缺失** | `backup-manifest.js`、`retention-policy.js`、`reconciler.js`、`metrics.js` 存在且有测试，但 **99.9% 压测报告与五项演练（对账、灾备、密钥轮换、证书冲突、数据源中断）的实际执行记录全部没有** |
+| NFR-001 | Sufficient | protected-signer.js, dual-control.js, signer-set-policy.js; tests that admin cannot directly set VALID and dual control rejects self-approval. No timelock or rollback drill record |
+| NFR-002 | Sufficient | Tests reject nonce reuse, cross-purpose replay, append-only versioning, and non-increasing transitions. No per-field integrity tests for chainId/contract/tokenId/schema version |
+| NFR-003 | Sufficient | Tests for fail-closed development defaults, rejecting non-loopback bind and external writes, production ports failing closed, and three adapters rejecting conflict/delay/offline |
+| NFR-004 | Missing | backup-manifest.js, retention-policy.js, reconciler.js, and metrics.js existed with tests; no 99.9% load report or actual execution records for five drills (reconciliation, disaster recovery, key rotation, certificate conflict, source outage) |
 
-## 5. 前提取证（PREMISE-P1~P8）
+## 5. Premise evidence (PREMISE-P1–P8)
 
-**完全缺失**：全仓库 `premise` / 前提取证相关 0 命中。PRD §1 八条前提无书面依据、取证日期、
-复核周期与责任人。依验收标准 §4.4，P1–P4 缺任一即阻断 Stage F。
+Entirely missing at the time: repository search returned zero hits for premise/evidence materials. The eight PRD §1 premises had no written basis, collection date, review cycle, or owner. Under acceptance §4.4, any missing P1–P4 item blocks Stage F.
 
-## 6. 差距归类与优先级
+## 6. Gap categories and priority
 
-**A 类 — 结构性（最高优先，且成本最低）**
+**Category A — structural (highest priority and lowest cost)**
 
-1. 分支合并：`feature` 的实现与本分支的 PRD/验收/CI 必须落到同一 commit，否则任何证据都不成立；
-2. ~~PRD 版本裁决~~ 已由 `DECISIONS_ZH.md` D-001 关闭：v0.3 为准，合并时映射 I0–I12；
-3. 建立 I0–I12 与 ORACLE/CONSUMER/NFR 的追溯映射，使 §8.4 可机械执行；
-4. `feature` 分支的 `scripts/verify-iterations.mjs` 存在 reporter 缺陷（管道输出为 TAP，
-   而断言匹配 `✔`），导致机器验收报告恒为全阻断；加 `--test-reporter=spec` 即修复。
+1. Branch integration: feature implementation and this branch's PRD/acceptance/CI had to land in one commit or no evidence would be valid.
+2. ~~PRD version decision~~ Closed by D-001 in DECISIONS_ZH.md: v0.3 governs; map I0–I12 on integration.
+3. Build I0–I12 to ORACLE/CONSUMER/NFR traceability so §8.4 can be enforced mechanically.
+4. feature's verify-iterations.mjs had a reporter defect (pipeline output was TAP, while the assertion matched the check mark); adding --test-reporter=spec fixes it.
 
-**B 类 — 真实功能缺失**
+**Category B — actual functional gaps**
 
-1. ORACLE-011 资产详情 UI（四种交易期状态区分展示）；
-2. CONSUMER-007 `REDEEMED` 提货终止语义；
-3. ORACLE-005 合规资格状态证明。
+1. ORACLE-011 asset-detail UI (distinguish four transaction-period states).
+2. CONSUMER-007 REDEEMED terminal redemption semantics.
+3. ORACLE-005 entity-compliance status proof.
 
-**C 类 — 实现已在、缺具名测试**
+**Category C — implementation present, named tests missing**
 
-ORACLE-002 八状态正向用例、ORACLE-003 跨链/跨合约/跨 Token 重放、ORACLE-008 日历版本化与
-时区、CONSUMER-002/003/004/006 的逐项负向场景、CONSUMER-008 不存在性证明、NFR-002 绑定字段
-完整性。
+ORACLE-002 positive cases for eight states; ORACLE-003 cross-chain/contract/token replay; ORACLE-008 calendar versioning and time zones; individual negative cases for CONSUMER-002/003/004/006; proof of absence for CONSUMER-008; and NFR-002 binding-field integrity.
 
-**D 类 — 非工程可解**
+**Category D — not solvable by engineering alone**
 
-PREMISE-P1~P8 取证、NFR-004 压测与五项演练、PRD §0.1 ArtFi 三项互斥裁决、§0.2 契约签署、
-法务 go/no-go（`PENDING-GATE`）。
+PREMISE-P1–P8 evidence; NFR-004 load testing and five drills; the three mutually exclusive ArtFi decisions in PRD §0.1; §0.2 contract signing; and legal go/no-go (PENDING-GATE).
 
-## 7. 本审计未覆盖
+## 7. Audit limitations
 
-未审计 `feature` 分支代码的正确性与安全性（仅审计覆盖面与证据存在性）；未执行压测、
-渗透测试或依赖审计；未复核 MySQL 迁移在真实数据库上的行为。
+This audit did not assess correctness or security of the feature branch code (only coverage and evidence presence); it did not run load, penetration, or dependency audits, and did not verify MySQL migration behavior against a real database.
