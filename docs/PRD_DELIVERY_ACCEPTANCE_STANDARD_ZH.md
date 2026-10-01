@@ -1,229 +1,225 @@
-# Giraffe RWA Oracle PRD v0.3 与 13 个迭代交付验收对照
+# Giraffe RWA Oracle PRD v0.3 and 13-Iteration Delivery Acceptance Map
 
-> 权威需求与验收规则分别为 `PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` v0.3 和 `ACCEPTANCE_RWA_ORACLE_ZH.md` v0.3。I0–I12 仅是交付顺序；机器映射位于 `config/iteration-acceptance.json`，不得覆盖或降低 ORACLE/CONSUMER/NFR 验收要求。
+> The authoritative requirements and acceptance rules are PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md v0.3 and ACCEPTANCE_RWA_ORACLE_ZH.md v0.3. I0–I12 define delivery order only; the machine map is config/iteration-acceptance.json and must not override or weaken ORACLE/CONSUMER/NFR requirements.
 
-## 0. 文档控制
+## 0. Document control
 
-| 项目 | 内容 |
+| Item | Content |
 | --- | --- |
-| 文档用途 | 将 PRD 的 13 个迭代与“可验证”交付标准逐项对应 |
-| 权威 PRD | `docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` v0.3 |
-| 适用范围 | Giraffe RWA Oracle L2 及其与独立 L3 协议的配置、验证和兼容边界 |
-| 迭代范围 | I0–I12，共 13 个迭代 |
-| 交付标准 | 可重复执行、可审计、可复核、失败可见 |
-| 状态规则 | 没有完整证据的迭代必须标为 `BLOCKED` 或 `INCOMPLETE`，不得标为完成 |
-| 不等同于 | 生产上线、主网授权、真实资产启用、监管批准或 ERC 正式编号 |
+| Purpose | Map each of the PRD's 13 iterations to verifiable delivery criteria |
+| Authoritative PRD | docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md v0.3 |
+| Scope | Giraffe RWA Oracle L2 and its configuration, verification, and compatibility boundary with the independent L3 protocol |
+| Iterations | I0–I12, 13 total |
+| Delivery standard | Repeatable, auditable, reviewable, with visible failures |
+| Status rule | An iteration without complete evidence must be BLOCKED or INCOMPLETE, never complete |
+| Does not mean | Production launch, mainnet authorization, real-asset enablement, regulatory approval, or an official ERC number |
 
-本文件不替代 PRD。PRD 决定“必须交付什么”，本文件决定“用什么证据证明已经交付”。若两者
-发生冲突，以 PRD 的较严格要求为准。不得通过修改本文件降低 PRD 的退出条件。
+This file does not replace the PRD. The PRD decides what must be delivered; this file decides what evidence proves delivery. If they conflict, the stricter PRD requirement prevails. Do not lower PRD exit criteria by changing this file.
 
-## 1. “可验证”交付的定义
+## 1. Definition of verifiable delivery
 
-一项功能只有同时具备以下证据，才可计入迭代完成度：
+A feature counts toward iteration completion only when all of the following evidence exists:
 
-1. **实现证据**：存在明确的源码、schema、迁移、配置、API、SDK 或运维制品；
-2. **正向证据**：正常输入产生 PRD 规定的结果；
-3. **负向证据**：未知来源、非法状态、越权、重放、过期、冲突、超限和故障均确定性拒绝；
-4. **恢复证据**：失败不产生部分写入，重试幂等，服务或依赖恢复后状态一致；
-5. **安全证据**：秘密、个人资料、证书原文、真实端点和未批准生产配置不进入仓库、日志或制品；
-6. **命令证据**：第三方可在干净环境按文档命令重复运行验证；
-7. **结果证据**：保存测试数、通过/失败数、阻断项、时间、环境和工具版本；
-8. **完整性证据**：关键输入、输出和发布制品具有 SHA-256 或等价完整性证明；
-9. **追踪证据**：每个 PRD 要求能映射到测试、文件和验收结果；
-10. **诚实状态**：无法执行、依赖外部批准或证据缺失时明确阻断，不以免责声明代替测试。
+1. **Implementation:** identifiable source, schema, migration, configuration, API, SDK, or operations artifact.
+2. **Positive case:** normal input produces the PRD-required result.
+3. **Negative cases:** unknown sources, invalid state, excess permission, replay, expiration, conflict, limit violation, and faults are rejected deterministically.
+4. **Recovery:** failure creates no partial write; retries are idempotent; state agrees after service/dependency recovery.
+5. **Security:** secrets, personal data, original certificates, real endpoints, and unapproved production configuration do not enter the repository, logs, or artifacts.
+6. **Command:** a third party can repeat the documented verification command in a clean environment.
+7. **Result:** record test count, pass/fail counts, blockers, time, environment, and tool versions.
+8. **Integrity:** critical inputs, outputs, and release artifacts have SHA-256 or equivalent integrity evidence.
+9. **Traceability:** every PRD requirement maps to tests, files, and acceptance results.
+10. **Honest status:** inability to execute, external approval dependencies, or missing evidence are explicitly blocked; disclaimers do not substitute for tests.
 
-以下内容不能单独证明完成：代码存在、文档声称完成、接口空实现、mock 仅返回成功、测试计划尚未
-执行、PR 已创建、CI 尚未读取、外部任务口头回传但没有可核验摘要。
+None of these alone proves completion: code presence, a completion claim in documentation, empty interface implementations, mocks that only return success, an unexecuted test plan, a created PR, unread CI, or an unverifiable verbal report from another task.
 
-## 2. 统一 Definition of Done 对照
+## 2. Unified Definition of Done
 
-PRD 第 22 节的十项统一 DoD 对全部 I0–I12 生效。
+The ten unified DoD requirements in PRD §22 apply to every iteration I0–I12.
 
-| PRD DoD | 必需交付标准 | 最低可验证证据 |
+| PRD DoD | Required standard | Minimum verifiable evidence |
 | --- | --- | --- |
-| 版本一致 | PRD、ADR、schema、接口、实现使用同一版本 | 版本检查脚本；文件清单；不一致时失败 |
-| 测试覆盖 | 新路径有正向、负向、权限、幂等、重放和恢复测试 | 具名测试列表和运行结果 |
-| 工程门禁 | lint、typecheck、unit、integration、secret、敏感字段及地址扫描通过 | 可重复命令、退出码和报告 |
-| 数据安全 | 无凭据、私钥、个人资料、证书原文或生产配置 | repository/artifact/log 扫描结果 |
-| 默认安全 | 无默认公网写入、真实来源、主网或资金路径 | 配置负向测试和启动门禁测试 |
-| 测试网实测 | ArtFi1–ArtFi9 仅使用无价值测试资产；批准门禁通过后完成测试链真实交互 | chain identity、simulate、receipt、finality、nonce 与拒绝主网证据 |
-| 文档同步 | 威胁模型、数据流、运行手册及回滚方案同步 | 文档路径、版本和审查记录 |
-| 验收报告 | 报告列出命令、结果、限制和未完成项 | 带哈希的逐迭代报告 |
-| 显式阻断 | 未通过项保持阻断 | 机器可读 `BLOCKED` 结果及 errorCode |
-| 范围隔离 | 不承担 ERC 编号、NFT 发行或金融业务 | 范围扫描和 API/代码负向测试 |
-| 可复现制品 | 工作树和发布制品完整、可复现 | clean-tree/manifest/SHA-256/rebuild 对比 |
+| Version consistency | PRD, ADR, schema, interface, and implementation use one version | Version-check script and file inventory; fail on mismatch |
+| Test coverage | New paths have positive, negative, authorization, idempotency, replay, and recovery tests | Named-test list and run results |
+| Engineering gates | lint, typecheck, unit, integration, secret, sensitive-field, and address scans pass | Repeatable commands, exit codes, reports |
+| Data security | No credentials, private keys, personal data, original certificates, or production configuration | Repository/artifact/log scan results |
+| Secure defaults | No default public writes, real sources, mainnet, or funds path | Configuration-negative and startup-gate tests |
+| Testnet validation | ArtFi1–ArtFi9 use only valueless test assets; after approved gates, actual test-chain interactions are completed | Chain identity, simulation, receipt, finality, nonce, and mainnet-rejection evidence |
+| Synchronized documents | Threat model, data flow, runbook, and rollback plan are synchronized | Document paths, versions, review record |
+| Acceptance report | Report lists commands, results, limits, and incomplete items | Hashed per-iteration report |
+| Explicit blockers | Failed items remain blocked | Machine-readable BLOCKED result and errorCode |
+| Scope isolation | No responsibility for ERC numbering, NFT issuance, or financial business | Scope scan and negative API/code tests |
+| Reproducible artifacts | Working tree and release artifacts are complete and reproducible | Clean-tree/manifest/SHA-256/rebuild comparison |
 
-任一统一 DoD 未满足，对应迭代不得标为 `COMPLETE`。
+If any unified DoD item is unmet, the corresponding iteration must not be marked COMPLETE.
 
-## 3. I0–I12 PRD 与交付证据对照
+## 3. I0–I12 PRD and evidence map
 
-### I0：范围冻结与工程基线
+### I0: Scope freeze and engineering baseline
 
-| PRD 要求 | 可验证交付标准 |
+| PRD requirement | Verifiable delivery criteria |
 | --- | --- |
-| Oracle 与 ERC、交易、金融业务分离 | ADR、目录和依赖扫描证明无 ERC 提交、NFT 发行、资金或交易执行入口 |
-| 工程骨架、固定运行时和锁文件 | 干净环境使用固定 Node/包管理器和锁文件完成离线或批准缓存构建 |
-| lint/typecheck/unit/secret/IP/dependency audit | 每个门禁有独立命令、非零失败码及汇总报告 |
-| 合成环境、默认关闭外部写入 | development/test/production 配置负向测试；默认网络和写入均关闭 |
-| 仓库无敏感信息及废止品牌 | 全仓库和发布制品扫描通过 |
+| Separate Oracle from ERC, trading, and financial business | ADR, directory, and dependency scans prove no ERC submission, NFT issuance, funds, or trade-execution entry point |
+| Engineering skeleton, fixed runtime, and lockfile | Clean environment builds offline or from an approved cache with fixed Node/package manager and lockfile |
+| lint/typecheck/unit/secret/IP/dependency audit | Each gate has its own command, nonzero failure code, and summary report |
+| Synthetic environment; external writes disabled by default | Negative tests for development/test/production configuration; network and writes off by default |
+| No sensitive data or retired branding | Repository and release-artifact scans pass |
 
-**完成判定**：工程基线可重复构建，全部默认写入关闭，所有扫描通过。
+**Completion:** engineering baseline builds reproducibly, all writes default to disabled, and every scan passes.
 
-### I1：Schema Registry 与来源注册表
+### I1: Schema registry and source registry
 
-| PRD 要求 | 可验证交付标准 |
+| PRD requirement | Verifiable delivery criteria |
 | --- | --- |
-| SourceAuthority/SourceKeySet/SchemaVersion/BusinessCalendar | 版本化模型、序列化契约和单元测试齐全 |
-| 来源启停、密钥轮换、schema 兼容 | 生命周期正负测试，包括 retired/revoked/expired |
-| 资产、证书、仓单、owner commitment、冻结、变更 JSON Schema | schema 文件可由独立 validator 执行；额外字段和敏感字段拒绝 |
-| 拒绝未知来源、任意 URL、过期密钥、未知 schema | ORACLE-001 全部负向向量通过 |
+| SourceAuthority/SourceKeySet/SchemaVersion/BusinessCalendar | Versioned models, serialization contracts, and unit tests |
+| Source activation/deactivation, key rotation, schema compatibility | Lifecycle positive/negative tests, including retired/revoked/expired |
+| Asset, certificate, warehouse receipt, owner commitment, freeze, change JSON Schemas | Independent validator runs; extra and sensitive fields are rejected |
+| Reject unknown sources, arbitrary URLs, expired keys, unknown schemas | All ORACLE-001 negative vectors pass |
 
-**完成判定**：调用方不能选择端点或绕过注册表，全部来源与 schema 失败关闭。
+**Completion:** callers cannot select endpoints or bypass the registry; every source/schema fails closed.
 
-### I2：摄取网关与证据规范化
+### I2: Ingestion gateway and evidence normalization
 
-| PRD 要求 | 可验证交付标准 |
+| PRD requirement | Verifiable delivery criteria |
 | --- | --- |
-| 签名、时间窗、nonce、幂等、重放和大小限制 | 每项均有边界值及攻击向量测试 |
-| JCS 或批准的等价规范化 | 公布规范、跨实现 test vectors、插入顺序无关测试 |
-| 编码、时间、单位、空值和字段排序 | 规范文件及单字节变化测试 |
-| 原始证据隔离存储及公开摘要 | Evidence Vault port、禁止公共读取测试、敏感字段投影测试 |
+| Signature, time window, nonce, idempotency, replay, and size limits | Boundary and attack-vector test for each |
+| JCS or approved equivalent canonicalization | Published specification, cross-implementation vectors, insertion-order-independence tests |
+| Encoding, time, units, null values, and field ordering | Specification and single-byte-change tests |
+| Isolated raw-evidence storage and public summaries | Evidence Vault port, no-public-read test, sensitive-field projection test |
 
-**完成判定**：相同语义摘要一致，单字节变化摘要不同，恶意和过期输入确定性拒绝。
+**Completion:** identical semantic inputs yield identical digests; a one-byte change changes the digest; malicious/expired inputs are deterministically rejected.
 
-### I3：资产、证书与仓单版本库
+### I3: Asset, certificate, and warehouse-receipt version store
 
-| PRD 要求 | 可验证交付标准 |
+| PRD requirement | Verifiable delivery criteria |
 | --- | --- |
-| Asset/Certificate/Warehouse/owner commitment 数据表 | 迁移文件、约束检查和数据库合同测试 |
-| 当前投影与不可变历史分离 | 当前查询与历史查询一致性测试；历史 update/delete 被拒绝 |
-| 唯一、并发、版本和前序哈希约束 | 并发写、跳版、重复当前记录和错误 previous hash 测试 |
-| 冲突检测及人工复核队列 | 冲突只进入 REVIEW_REQUIRED；不能直接转 VALID |
+| Asset/Certificate/Warehouse/owner-commitment tables | Migrations, constraint checks, and database contract tests |
+| Separate current projection from immutable history | Current/history query consistency; historical update/delete rejected |
+| Uniqueness, concurrency, version, prior-hash constraints | Tests for concurrent writes, skipped versions, duplicate current records, wrong previous hash |
+| Conflict detection and human-review queue | Conflict enters REVIEW_REQUIRED and cannot transition directly to VALID |
 
-**完成判定**：不能出现两个当前权利记录或跳版；历史不可改写；冲突进入复核。
+**Completion:** no two current rights records or skipped versions; history is immutable; conflicts require review.
 
-### I4：Oracle 状态机
+### I4: Oracle state machine
 
-| PRD 要求 | 可验证交付标准 |
+| PRD requirement | Verifiable delivery criteria |
 | --- | --- |
-| 八个 Oracle 状态 | 状态枚举与 PRD 完全一致 |
-| 迁移表、权限矩阵、原因码 | 版本化规则文件和逐边测试 |
-| 乱序、并发、重复、回滚、冲突、断电恢复 | 正负、幂等及故障恢复测试 |
-| 来源异常 fail-closed | 每类依赖异常映射到更严格状态 |
+| Eight Oracle states | Enum exactly matches PRD |
+| Transition table, permission matrix, reason codes | Versioned rules and test for each edge |
+| Out-of-order, concurrent, duplicate, rollback, conflict, power-loss recovery | Positive/negative, idempotency, and fault-recovery tests |
+| Source anomaly fails closed | Each dependency anomaly maps to a stricter state |
 
-**完成判定**：非法迁移无部分写入；重放幂等；可从审计事件完整重建状态。
+**Completion:** invalid transitions cause no partial writes, replay is idempotent, and audit events can rebuild state.
 
-### I5：证明签发与离线验证
+### I5: Proof issuance and offline verification
 
-| PRD 要求 | 可验证交付标准 |
+| PRD requirement | Verifiable delivery criteria |
 | --- | --- |
-| versioned attestation envelope | schema、规范化和签名 test vectors |
-| chain/contract/token/asset/purpose/nonce/time 绑定 | 跨链、跨合约、跨资产、跨用途和过期重放全部拒绝 |
-| signer set、threshold、rotation、offline verifier | 多签门限策略、轮换/停用测试和无网络验证包 |
-| 不记录秘密或原始敏感请求 | 日志捕获和制品扫描 |
+| Versioned attestation envelope | Schema, canonicalization, and signature vectors |
+| Bind chain/contract/token/asset/purpose/nonce/time | Reject cross-chain, cross-contract, cross-asset, cross-purpose, and expired replay |
+| Signer set, threshold, rotation, offline verifier | Multisig threshold policy, rotation/retirement tests, offline verification package |
+| No secrets or raw sensitive requests in logs | Log capture and artifact scans |
 
-**完成判定**：ORACLE-003 全部通过；离线验证完整；旧签名人及重放全部失败。
+**Completion:** all ORACLE-003 cases pass; offline verification is complete; retired signers and replay fail.
 
-### I6：查询 API 与最小披露
+### I6: Query API and minimum disclosure
 
-| PRD 要求 | 可验证交付标准 |
+| PRD requirement | Verifiable delivery criteria |
 | --- | --- |
-| 资产、Token、历史、资格、证明接口 | OpenAPI 与 HTTP contract tests 一致 |
-| 分页、字段授权、缓存、ETag、标准错误 | 边界、权限和确定性响应测试 |
-| 脱敏、限速、用途记录、批量导出门禁 | 未授权推断、速率、导出和审计测试 |
-| 禁止价格/收益/评级/抵押率/投资意见 | schema、API、UI 和日志关键词门禁 |
+| Asset, token, history, eligibility, and proof interfaces | OpenAPI matches HTTP contract tests |
+| Pagination, field authorization, cache, ETag, standard errors | Boundary, authorization, deterministic-response tests |
+| Redaction, rate limits, purpose records, bulk-export gates | Tests for unauthorized inference, rate limits, export, and audit |
+| No price/return/rating/collateral ratio/investment opinion | Schema/API/UI/log keyword gates |
 
-**完成判定**：ORACLE-002、005、006 和 PRIVACY-001 通过；未授权方无法取得或推断敏感映射。
+**Completion:** ORACLE-002, ORACLE-005, ORACLE-006, PRIVACY-001 pass; unauthorized users cannot obtain or infer sensitive mappings.
 
-### I7：撤销、冻结与订阅事件
+### I7: Revocation, freeze, and subscription events
 
-| PRD 要求 | 可验证交付标准 |
+| PRD requirement | Verifiable delivery criteria |
 | --- | --- |
-| 撤销、紧急冻结、signer set 停用 | 所有查询/验证路径立即拒绝旧证明 |
-| reliable outbox | 顺序、幂等、重试和持久化恢复测试 |
-| webhook/queue 签名和死信 | 签名、delivery id、重放、最大重试和 DLQ 测试 |
-| 撤销传播延迟指标 | 可测量 SLI 和阈值报告 |
+| Revocation, emergency freeze, signer-set retirement | All query/verification paths immediately reject old proofs |
+| Reliable outbox | Ordering, idempotency, retry, durable-recovery tests |
+| Signed webhook/queue and dead letters | Signature, delivery ID, replay, maximum retry, and DLQ tests |
+| Revocation-propagation latency metrics | Measurable SLI and threshold report |
 
-**完成判定**：ORACLE-004 通过；重复事件无重复副作用；撤销传播有量化证据。
+**Completion:** ORACLE-004 passes; duplicate events have no duplicate effect; revocation propagation has quantitative evidence.
 
-### I8：T+0 至 T+N 交割协调
+### I8: T+0 through T+N settlement coordination
 
-| PRD 要求 | 可验证交付标准 |
+| PRD requirement | Verifiable delivery criteria |
 | --- | --- |
-| Settlement/T+0/calendar/deadline | 版本化记录和跨时区/节假日测试 |
-| 三类证据齐套 | 缺失任一证据不得 finalize |
-| finalize/cancel/dispute/timeout/compensation | 全状态及失败恢复测试 |
-| T+3 仅为 Wenbao Profile | 通用代码无硬编码；profile 版本可验证 |
+| Settlement/T+0/calendar/deadline | Versioned records; time-zone/holiday tests |
+| Three complete evidence classes | Finalize is prohibited if any evidence is missing |
+| finalize/cancel/dispute/timeout/compensation | Full state and failure-recovery tests |
+| T+3 only in Wenbao Profile | No hard-coded generic code; profile version is verifiable |
 
-**完成判定**：完成前持续 Pending 或更严格；超时/争议不把买方表述为已完成权利人。
+**Completion:** remain Pending or stricter until complete; timeout/dispute must not describe the buyer as having completed rights.
 
-### I9：权威来源沙盒适配器
+### I9: Authoritative-source sandbox adapters
 
-| PRD 要求 | 可验证交付标准 |
+| PRD requirement | Verifiable delivery criteria |
 | --- | --- |
-| 登记、证书、仓储三个 sandbox adapter | 三个独立合同测试套件 |
-| capability、version、timeout、rate limit、circuit breaker | 每项有成功、拒绝和恢复测试 |
-| 签名/错误样本、schema evolution、断连恢复 | 固定 fixtures 和故障注入 |
-| 生产参数仅由部署层注入 | 仓库扫描及任意端点拒绝测试 |
+| Registry, certificate, and warehouse sandbox adapters | Three independent contract-test suites |
+| Capability, version, timeout, rate limit, circuit breaker | Success, rejection, and recovery test for each |
+| Signed/error samples, schema evolution, disconnect recovery | Fixed fixtures and fault injection |
+| Production parameters injected only by deployment layer | Repository scan and arbitrary-endpoint rejection test |
 
-**完成判定**：三个来源的成功、拒绝、冲突、延迟、离线及恢复路径全部通过；否则保持 sandbox-only。
+**Completion:** success, rejection, conflict, delay, offline, and recovery paths pass for all three sources; otherwise remain sandbox-only.
 
-### I10：管理、人工复核与不可变审计
+### I10: Administration, human review, immutable audit
 
-| PRD 要求 | 可验证交付标准 |
+| PRD requirement | Verifiable delivery criteria |
 | --- | --- |
-| Admin UI/API 覆盖来源、冲突、撤销、轮换、对账和导出 | 逐功能 UI/API contract tests |
-| RBAC/ABAC、双人复核、会话和二次确认 | 越权、自批、CSRF、重放、会话固定测试 |
-| 哈希链、export manifest 和验证工具 | 全链重放和篡改检测 |
-| 防批量导出和日志注入 | 限额、权限、转义和审计测试 |
+| Admin UI/API for sources, conflicts, revocation, rotation, reconciliation, and export | Per-function UI/API contract tests |
+| RBAC/ABAC, dual review, sessions, second confirmation | Tests for excess privilege, self-approval, CSRF, replay, session fixation |
+| Hash chain, export manifest, verification tool | Full replay and tamper detection |
+| Prevent bulk export and log injection | Limit, authorization, escaping, and audit tests |
 
-**完成判定**：管理员不能直接设 VALID、删除历史或绕过来源；AUDIT-001 通过。
+**Completion:** admins cannot directly set VALID, delete history, or bypass sources; AUDIT-001 passes.
 
-### I11：SDK、下游消费与兼容性
+### I11: SDK, downstream consumption, compatibility
 
-| PRD 要求 | 可验证交付标准 |
+| PRD requirement | Verifiable delivery criteria |
 | --- | --- |
-| 服务端 SDK 与离线验证包 | 独立示例消费者和无网络测试 |
-| 过期、撤销、乱序、跨用途重放 | 全部拒绝且 errorCode 稳定 |
-| 可选只读链上 adapter | 只能读取/验证，不能签名或广播 |
-| L3 Profile 哈希/interfaceId 锁 | 原始字节、ABI、接口和状态映射测试 |
-| Pending 与原子 Finalize | 合成测试；Hoodi 测试作为追加公网证据 |
+| Server SDK and offline verification package | Independent example consumer and offline test |
+| Expired, revoked, out-of-order, cross-purpose replay | All rejected with stable errorCode |
+| Optional read-only on-chain adapter | Read/verify only; cannot sign or broadcast |
+| L3 Profile hash/interfaceId lock | Byte-level, ABI, interface, and state-mapping tests |
+| Pending and atomic Finalize | Synthetic test; Hoodi test is additional public-network evidence |
 
-**完成判定**：无效证明全部拒绝；协议漂移失败关闭；SDK 无交易或金融签名能力。
+**Completion:** all invalid proofs rejected; protocol drift fails closed; SDK has no trade or financial signing capability.
 
-### I12：安全加固、容灾与生产候选
+### I12: Security hardening, disaster recovery, production candidate
 
-| PRD 要求 | 可验证交付标准 |
+| PRD requirement | Verifiable delivery criteria |
 | --- | --- |
-| SAST、依赖、秘密、容器/IaC、API、渗透测试 | 工具版本、规则、原始报告、摘要和阻断项 |
-| 性能、容量、72 小时稳定、积压、故障注入 | 完整连续运行报告，不得用短测替代 72 小时 |
-| 备份/PITR/跨故障域/RPO/RTO/密钥轮换 | 实际沙盒演练记录及完整性核验 |
-| DPIA、保留/删除、事件响应、go/no-go | 文档、负责人、审查结论和未接受风险 |
-| 可复现构建、SBOM、签名制品、发布 manifest | 两次独立构建哈希对比及签名验证 |
+| SAST, dependency, secret, container/IaC, API, penetration testing | Tool versions, rules, original reports, summaries, blockers |
+| Performance, capacity, 72-hour stability, backlog, fault injection | Complete continuous-run report; short runs cannot replace 72 hours |
+| Backup/PITR/failure domains/RPO/RTO/key rotation | Actual sandbox drills and integrity verification |
+| DPIA, retention/deletion, incident response, go/no-go | Documents, owners, review conclusions, unaccepted risks |
+| Reproducible build, SBOM, signed artifact, release manifest | Independent-build hash comparison and signature verification |
 
-**完成判定**：全部 P0 关闭；独立安全、隐私和法律审查无未接受阻断；完整沙盒演练通过。
-生产来源、真实资产、主网和生产开关仍须另行批准，但这些外部上线批准不用于替代 I12 证据。
+**Completion:** all P0 gates closed; independent security, privacy, and legal reviews have no unaccepted blockers; complete sandbox drills pass. Production sources, real assets, mainnet, and production switches still need separate approval; those external launch approvals cannot replace I12 evidence.
 
-## 4. 最终交付包
+## 4. Final delivery package
 
-13 个迭代只有在以下交付包完整时才可整体标记完成：
+The 13 iterations may be marked complete together only when the package is complete:
 
-1. 权威 PRD 与本验收标准；
-2. `config/iteration-acceptance.json` 机器可读追踪清单；
-3. `scripts/verify-iterations.mjs` 一键验收入口；
-4. I0–I12 逐迭代实现、schema、迁移、配置、测试和文档；
-5. 自动化原始测试报告及退出码；
-6. I12 外部/长时/演练证据；
-7. 发布文件清单、逐文件 SHA-256、SBOM 和可复现构建证明；
-8. `iteration-acceptance-report.json`，其中 `allComplete=true`；
-9. 未出现秘密、个人资料、真实端点、主网写入、真实价值资产或越权金融能力；测试链证据不得冒充主网结果；
-10. PR 审查记录；CI 由仓库流程执行，本任务不以未查询 CI 代替本地证据。
+1. Authoritative PRD and this acceptance standard.
+2. Machine-readable traceability manifest: config/iteration-acceptance.json.
+3. One-command acceptance entry point: scripts/verify-iterations.mjs.
+4. Per-iteration I0–I12 implementation, schema, migrations, configuration, tests, and documentation.
+5. Raw automated test reports and exit codes.
+6. I12 external/long-duration/drill evidence.
+7. Release-file inventory, per-file SHA-256, SBOM, and reproducible-build proof.
+8. iteration-acceptance-report.json with allComplete=true.
+9. No secrets, personal data, real endpoints, mainnet writes, real-value assets, or unauthorized financial capability; test-chain evidence is not represented as mainnet results.
+10. PR review record; CI is run by repository workflows, and this task does not substitute an unqueried CI result for local evidence.
 
-## 5. 当前状态解释
+## 5. Current status interpretation
 
-此前“13 个迭代已全部完成”的表述采用了“主要开发代码存在且合成单元测试通过”的较低标准，
-不符合本文件定义的可验证交付标准，现已撤回。
+The previous claim that “all 13 iterations are complete” used a lower standard: major development code existed and synthetic unit tests passed. That does not meet this document's definition of verifiable delivery and has been withdrawn.
 
-在机器验收报告产生且 `allComplete=true` 之前，准确状态统一为：
+Until the machine acceptance report exists with allComplete=true, the accurate status is:
 
-> **13 个迭代正在按 PRD 重新验收；已有实现不自动等于完成，缺失证据保持显式阻断。**
+> **The 13 iterations are being re-accepted against the PRD; existing implementation does not automatically equal completion, and missing evidence remains an explicit blocker.**
