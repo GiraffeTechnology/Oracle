@@ -1,201 +1,169 @@
-# Giraffe RWA Oracle（L2）交付与验收标准
+# Giraffe RWA Oracle (L2) Delivery and Acceptance Standard
 
-版本：v0.4 ｜ 日期：2026-09-03（v0.3：2026-08-24）
-配套：`PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md`（需求）、`STATUS.md`（证据快照）
+Version: v0.4 | Date: 2026-09-03 (v0.3: 2026-08-24)  
+Companion documents: PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md (requirements), STATUS.md (evidence snapshot)
 
-v0.4 唯一实质变更为 **D-008**：登记在途期间不阻断 ERC-721 转让，权利改按可递延 / 易逝性
-区分。受影响验收口径为 CONSUMER-004~009，见 §5 矩阵。需求 ID 集合与编号未变。
+The sole substantive change in v0.4 is D-008: ERC-721 transfers are not blocked while registry processing is pending; rights are instead classified as deferrable or perishable. The affected acceptance scope is CONSUMER-004–009; see the matrix in §5. The requirement-ID set and numbering are unchanged.
 
----
+## 1. Purpose and boundaries
 
-## 1. 目的与边界
+This document defines how each PRD requirement is demonstrated, how stages advance, and when delivery may be claimed. It defines process only; it neither adds nor removes requirements. Any rule in this document that changes delivery content is a defect.
 
-本文定义 PRD 中每条需求如何被证明、阶段如何晋级、何时可称交付。**本文只定义流程**，
-不新增也不删减需求。本文中出现的任何"改变交付内容"的规则都是缺陷。
+The requirement-ID system is in PRD §3.2. CONSUMER-* is implemented by the independent L3 project; this project's acceptance obligation is to prove that these constraints can be enforced on the Oracle side.
 
-需求 ID 体系见 PRD §3.2。`CONSUMER-*` 由 L3 独立项目实现，本项目的验收义务是证明这些
-约束在 Oracle 侧可被强制。
+Entity compliance (KYC, AML, sanctions, jurisdictional eligibility, licensing, suitability) is not an acceptance item here. Relevant institutions retain their own business-compliance obligations. This document only accepts the negative fact that Oracle does not cross that boundary (ORACLE-005).
 
-主体合规（KYC、AML、制裁、司法辖区资格、牌照、适当性）不在本文任何验收项内。相关机构
-自行承担其经营合规义务；本文只验收"Oracle 未越界介入"这一否定性事实（ORACLE-005）。
+## 2. Status vocabulary
 
----
+Only the following six values are allowed.
 
-## 2. 状态词表
-
-仅允许以下六个值。
-
-| 状态 | 含义 |
+| Status | Meaning |
 | --- | --- |
-| `VERIFIED` | 需求与验收证据在同一被审 commit 与环境上同时存在 |
-| `IMPLEMENTED-NOT-VERIFIED` | 代码存在，但缺少必需测试或运行证据 |
-| `PENDING-GATE` | **在范围内且已排期**，等待具名前置条件（见 §5） |
-| `BLOCKED` | 计划外的外部、安全、法律、资金或环境障碍 |
-| `NOT-IMPLEMENTED` | 所需行为缺失 |
-| `OUT-OF-SCOPE` | 由 PRD 明确排除，或经签署的范围变更排除 |
+| VERIFIED | Requirement and acceptance evidence both exist on the same reviewed commit and environment |
+| IMPLEMENTED-NOT-VERIFIED | Code exists, but required test or runtime evidence is missing |
+| PENDING-GATE | In scope and scheduled, awaiting a named prerequisite (see §5) |
+| BLOCKED | An unplanned external, security, legal, funding, or environment obstacle |
+| NOT-IMPLEMENTED | Required behavior is missing |
+| OUT-OF-SCOPE | Explicitly excluded by the PRD or by a signed scope change |
 
-`PENDING-GATE` 与 `BLOCKED` 的区别：前者的解除条件已在计划内（主网部署等待法务
-go/no-go）；后者是计划外障碍，需升级处理（审计机构档期不可得）。
+Difference between PENDING-GATE and BLOCKED: the former has a planned release condition (for example, mainnet deployment awaiting legal go/no-go); the latter is an unplanned obstacle requiring escalation (for example, an unavailable audit-firm schedule).
 
-`OUT-OF-SCOPE` 仅指**合同排除**。不得用于仅仅是推迟、未完成或等待前置条件的工作——
-那样会静默删除已付费范围。
+OUT-OF-SCOPE means excluded by contract only. It must not mean merely deferred, incomplete, or awaiting a prerequisite; doing so would silently remove paid scope.
 
-"完成""交付""通过""可上生产"为保留词，仅当同一 commit 上全部适用验收项均为 `VERIFIED`
-时方可使用。
+“Complete,” “delivered,” “passed,” and “production-ready” are reserved terms and may be used only when all applicable acceptance items are VERIFIED on the same commit.
 
-### 2.1 关于法务 go/no-go
+### 2.1 Legal go/no-go
 
-主网、真实资产、真实资金、每类司法辖区的独立书面批准是**法律门禁**，不是工程门禁。
-其正确状态是 `PENDING-GATE`，前置条件为"独立书面 go/no-go 已签署"。
+Independent written approval for mainnet, real assets, real funds, and each jurisdiction is a legal gate, not an engineering gate. Its correct status is PENDING-GATE, with the prerequisite “independent written go/no-go signed.”
 
-技术测试全绿**不构成**该门禁的解除条件——这一点与纯工程项目相反，不得按工程惯例简化。
-同样，也不得反过来把它记为 `OUT-OF-SCOPE`：主网上线在范围内。
+Passing all technical tests does not clear this gate; unlike a purely engineering project, this requirement must not be simplified away as an engineering convention. It also must not be relabeled OUT-OF-SCOPE: mainnet launch remains in scope.
 
----
+## 3. Evidence rules
 
-## 3. 证据规则
+The following do not constitute delivery evidence:
 
-以下**不构成**交付证据：
+- PRD statements, screenshots, prototypes, or design mockups;
+- code present only in a local working directory;
+- test results from another commit, branch, chain, or contract;
+- simulated transactions without receipts;
+- pages that render but cannot execute the function they claim;
+- mock or fixture data represented as real data;
+- operator statements without reproducible evidence.
 
-- PRD 陈述、截图、原型或设计稿；
-- 仅存在于本地工作目录的代码；
-- 来自其他 commit、分支、链或合约的测试结果；
-- 无回执的模拟交易；
-- 可渲染但无法执行其所声称功能的页面；
-- 以 mock 或夹具数据冒充真实数据；
-- 无可复现证据的操作者陈述。
+Each claim must cite a file path, test name, CI run record, or transaction hash and receipt. If evidence is unavailable, record the status; do not infer, substitute, or fabricate.
 
-每条主张必须引用文件路径、测试名、CI 运行记录或交易哈希与回执。证据不可得时记录状态，
-不得推断、替代或杜撰。
+All Stage A–E work uses synthetic data. Synthetic data is the correct form for this stage, not an evidence defect; claiming from synthetic results that a real asset was verified is a serious violation.
 
-本项目 Stage A–E 全部使用合成数据。**合成数据是本阶段的正确形态，不是证据缺陷**；
-但用合成结果声称真实资产已验证则是严重违规。
+## 4. Acceptance matrix
 
----
+### 4.1 L2 verification layer (implemented by this project; all items must be VERIFIED before Stage F)
 
-## 4. 验收矩阵
-
-### 4.1 L2 验证层（本项目实现，全部必须 `VERIFIED` 方可进入 Stage F）
-
-| ID | 验收要求 | 最低自动化证据 |
+| ID | Acceptance requirement | Minimum automated evidence |
 | --- | --- | --- |
-| ORACLE-001 | 仅批准来源 | 未知来源、任意 URL/RPC/数据库地址、替代端点的拒绝测试；注册表变更需审批记录 |
-| ORACLE-002 | 状态查询准确 | 八种状态各自的正向用例；过期、冲突、来源中断、部分可用的降级测试 |
-| ORACLE-003 | 证明可验证 | 签名不足、nonce 重用、超出有效期、schema 版本不符、跨链/跨合约/跨 Token/跨用途重放的负向测试 |
-| ORACLE-004 | 撤销即时生效 | 撤销后查询返回 `REVOKED`；撤销后协议转让失败；事件幂等重放测试；原因哈希与操作者留痕 |
-| ORACLE-005 | 主体合规结论隔离 | 代码库、schema、API 响应、接口路径、UI 与合同中不存在 KYC/AML/制裁/司法辖区资格/适当性/牌照字段或端点的门禁扫描；构造此类查询必须被拒绝而非返回空值 |
-| ORACLE-006 | 无金融输出 | API 响应、schema、UI 文案的关键词与字段门禁测试（估值/价格/抵押率/收益/评级/投资建议） |
-| ORACLE-007 | 公开面无个人信息 | ABI、event、metadata、日志、数据库导出、API 响应的扫描；跨境字段最小化清单核对 |
-| ORACLE-008 | 全链路可追溯 | T+0 至 T+3 全过程与证书历史的重放审计；UTC 存储与时区展示测试；T+3 日历版本化记录 |
-| ORACLE-009 | 金融隔离 | 不存在金融写接口、金融签名路径、资金账户或按交易额计费路径的代码与合同双向核查 |
-| ORACLE-010 | 适配器 fail closed | 证明正确验证、过期/撤销证明被拒、绑定防重放、依赖不可用时关闭 |
-| ORACLE-011 | UI 事实展示 | 四种交易期状态的区分展示；来源/观察时间/到期时间可见；误导性文案门禁 |
+| ORACLE-001 | Approved sources only | Negative tests for unknown sources, arbitrary URLs/RPC/database addresses, and replacement endpoints; registry changes require approval records |
+| ORACLE-002 | Accurate state queries | Positive cases for all eight states; degradation tests for expiration, conflict, source outage, and partial availability |
+| ORACLE-003 | Verifiable proofs | Negative tests for insufficient signatures, nonce reuse, expiration, schema-version mismatch, and cross-chain/contract/token/purpose replay |
+| ORACLE-004 | Immediate revocation effect | Query returns REVOKED after revocation; protocol transfer fails after revocation; idempotent event replay test; reason hash and operator trace |
+| ORACLE-005 | Isolate entity-compliance conclusions | Gate scan confirms no KYC/AML/sanctions/jurisdictional-eligibility/suitability/licensing fields or endpoints in repository, schema, API response, interface paths, UI, or contracts; such queries must be rejected rather than return an empty value |
+| ORACLE-006 | No financial outputs | Keyword and field-gate tests for API responses, schema, and UI copy (valuation/price/collateral ratio/returns/ratings/investment advice) |
+| ORACLE-007 | No personal information on public surfaces | Scans of ABI, events, metadata, logs, database exports, and API responses; cross-border field-minimization review |
+| ORACLE-008 | End-to-end traceability | Replay audit from T+0 to T+3 and certificate history; UTC storage/time-zone display tests; versioned T+3 calendar record |
+| ORACLE-009 | Financial separation | Bidirectional code-and-contract review for absence of financial write APIs, financial signing paths, funds accounts, and transaction-volume fee paths |
+| ORACLE-010 | Adapter fails closed | Correct proof verifies; expired/revoked proofs are rejected; replay binding enforced; dependency outage fails closed |
+| ORACLE-011 | Factual UI display | Distinct display of four transaction-period states; source/observation/expiration times visible; misleading copy is gated |
 
-### 4.2 下游消费约束（以合成消费者证明可强制）
+### 4.2 Downstream consumer constraints (enforceability shown with a synthetic consumer)
 
-| ID | 验收要求 | 最低自动化证据 |
+| ID | Acceptance requirement | Minimum automated evidence |
 | --- | --- | --- |
-| CONSUMER-001 | 一物一证冲突关闭 | 重复资产指纹、重复仓单、重复当前证书时证明签发失败；份额化请求被拒 |
-| CONSUMER-002 | 发行前置齐备 | 七项前置逐项缺失的负向测试；资产已被占用时拒绝 |
-| CONSUMER-003 | 状态机合法性 | 九个状态的合法迁移全覆盖；非法迁移与无证明迁移必须回滚 |
-| CONSUMER-004 | T+0 快照与登记缺口 | 快照哈希内容完整性；快照固定后不可变动；截止时间生成；重复事件幂等；**缺口开启期间普通转让必须成功**；提货/质押等易逝性行使必须失败；**不存在协议托管或不可转让状态** |
-| CONSUMER-005 | 登记完成证明 | 新证书哈希、版本递增、`previousCertificateHash`、权威变更引用精确匹配；Token ID 不变；**交割对象为 T+0 时刻的确认持有人而非当前持有人**；该时刻未终局时交割必须被拒绝 |
-| CONSUMER-006 | 失败可恢复 | 超时、拒绝、数据冲突、乱序、重放、争议六类场景；不写入新证书哈希；退款通知触发；**取消或超时后该时刻仍为「未终局」而非「已确定失败」**，易逝性行使仍须拒绝；代币可转让性不受影响 |
-| CONSUMER-007 | 提货为易逝性权利 | 提货要求该时刻已终局且无未决缺口，行使者为该时刻的确认持有人；三者任一不满足即拒绝该次行使；**拒绝行使不得限制转让**；`REDEEMED` 状态不得被后续旧输入覆盖，不得恢复为有效提货权 |
-| CONSUMER-008 | 外部市场不绕过门禁 | 外部事件只能触发待验证 T+0 意图；不存在订单簿/撮合/对手方/资金控制路径；**代币对外部市场始终表现为普通 ERC-721，不存在自定义不可转让状态** |
-| CONSUMER-009 | 消费失败关闭 | 无效/过期/撤销/乱序/重放证明被确定性拒绝；依赖不可用时不使用缓存或乐观默认；**「时刻未终局」与「存在未决缺口」两种情形亦须 fail closed**，有效证明不等于归属已确定 |
+| CONSUMER-001 | One asset / one certificate conflict closes | Proof issuance fails for a duplicate asset fingerprint, warehouse receipt, or current certificate; fractionalization request is rejected |
+| CONSUMER-002 | Complete issuance prerequisites | Negative test for each of seven missing prerequisites; reject an already-occupied asset |
+| CONSUMER-003 | Valid state machine | Full coverage of legal transitions among nine states; illegal or proof-less transitions roll back |
+| CONSUMER-004 | T+0 snapshot and registry gap | Snapshot hash integrity; snapshot immutable after creation; deadline generation; duplicate-event idempotency; ordinary transfer succeeds while a gap is open; perishable exercises such as redemption/pledge fail; no protocol escrow or non-transferable state exists |
+| CONSUMER-005 | Proof of completed registry processing | New certificate hash, incremented version, previousCertificateHash, and authoritative change reference match exactly; Token ID unchanged; settlement recipient is the confirmed holder at T+0, not the current holder; settlement must be rejected if that moment was not final |
+| CONSUMER-006 | Recoverable failure | Six scenarios: timeout, rejection, data conflict, out-of-order event, replay, and dispute; no new certificate hash is written; refund notification fires; after cancellation or timeout, that moment remains “not final,” not “confirmed failure”; perishable exercises still fail; token transferability is unaffected |
+| CONSUMER-007 | Redemption is a perishable right | Redemption requires that the moment be final with no open gap and that the exerciser be the confirmed holder at that moment; failure of any condition rejects that exercise; rejection must not restrict transfer; later stale input must not overwrite REDEEMED or restore a valid redemption right |
+| CONSUMER-008 | External markets cannot bypass gates | External events may trigger only a pending T+0 intent; no order book/matching/counterparty/funds-control path exists; to external markets, the token always behaves as an ordinary ERC-721 with no custom non-transferable state |
+| CONSUMER-009 | Proof consumption fails closed | Invalid/expired/revoked/out-of-order/replayed proofs are deterministically rejected; no cache or optimistic default on dependency outage; both “moment not final” and “open gap exists” must also fail closed; a valid proof does not mean ownership is final |
 
-### 4.3 非功能
+### 4.3 Non-functional requirements
 
-| ID | 验收要求 | 最低证据 |
+| ID | Acceptance requirement | Minimum evidence |
 | --- | --- | --- |
-| NFR-001 | 密钥与权限分离 | 多签/门限签名配置；管理员无绕过路径的负向测试；timelock 与回滚方案演练；仓库密钥扫描 |
-| NFR-002 | 防重放与顺序 | 绑定字段完整性测试；旧证明不得覆盖新版本；重复交割拒绝 |
-| NFR-003 | 默认关闭 | 数据源不可用/冲突/超时三类注入测试，结果为冻结或待复核，非猜测值 |
-| NFR-004 | 可用性与恢复 | 99.9% 可用性压测报告；队列恢复与幂等重试；对账、灾备、密钥轮换、证书冲突、数据源中断五项演练记录 |
+| NFR-001 | Separate keys and permissions | Multisig/threshold-signature configuration; negative test proving no admin bypass; timelock and rollback drill; repository key scan |
+| NFR-002 | Replay protection and ordering | Full binding-field integrity test; old proof cannot overwrite a newer version; duplicate settlement rejected |
+| NFR-003 | Disabled by default | Inject source-unavailable, conflict, and timeout cases; result is frozen or under review, never guessed |
+| NFR-004 | Availability and recovery | 99.9% availability/load report; queue recovery and idempotent retry; records of five drills: reconciliation, disaster recovery, key rotation, certificate conflict, and source outage |
 
-### 4.4 前提取证
+### 4.4 Premise evidence
 
-| ID | 验收要求 | 最低证据 |
+| ID | Acceptance requirement | Minimum evidence |
 | --- | --- | --- |
-| PREMISE-P1~P8 | PRD §1 每条前提均有书面依据、取证日期、复核周期和责任人 | 依据文件归档；P1–P4 缺任一即阻断 Stage F |
+| PREMISE-P1–P8 | Each PRD §1 premise has a written basis, collection date, review cycle, and owner | Basis document archived; any missing P1–P4 item blocks Stage F |
 
----
+## 5. Stage gates
 
-## 5. 阶段门
+Execute in order. The exit condition of each gate authorizes the next stage without an extra approval step, except for Stage F legal go/no-go (see §2.1).
 
-顺序执行。每个门的退出条件即下一阶段的授权，无需额外审批环节（Stage F 的法务
-go/no-go 除外，见 §2.1）。
-
-| 门 | 阶段 | 退出条件 |
+| Gate | Stage | Exit condition |
 | --- | --- | --- |
-| G-A | 合同与数据契约 | 所有来源、权限、状态和失败处理形成版本化契约；P1–P8 取证表填毕；未提供真实资产写入；PRD §0.2 契约项已启动 |
-| G-B | L2 Oracle 沙盒 | ORACLE-001~009、NFR-001~003 全部 `VERIFIED`；负向测试全通过；无价格或金融字段；无法访问真实个人资料 |
-| G-C | 下游协议兼容性 | ORACLE-010、CONSUMER-001~009 全部 `VERIFIED`；同一资产冲突时 Oracle 无法签发有效证明；未部署正式 NFT，未提交 ERC |
-| G-D | 端到端受控演练 | 全量需求 + NFR-004 `VERIFIED`；完整证据包可由独立审计员复核；未使用真实资金或未批准的真实资产 |
-| G-E | 第三方只读集成 | ORACLE-005、ORACLE-009 在第三方接入形态下复验；合同与技术测试均确认仅提供**资产事实**查询与通用技术支持；第三方无法经由接口取得或推导主体合规结论 |
-| G-F | 生产候选 | G-A~G-E 全绿于同一 commit；法律、隐私、安全、合约、运营独立审计通过并修复复测；§0.1 裁决已作出；§0.2 契约已签署；主网/真实资产/真实资金/各司法辖区书面 go/no-go 已取得 |
+| G-A | Contract and data contract | Versioned contract for all sources, permissions, states, and failure handling; P1–P8 evidence register filled; no real-asset writes; PRD §0.2 contract item initiated |
+| G-B | L2 Oracle sandbox | ORACLE-001–009 and NFR-001–003 all VERIFIED; all negative tests pass; no prices or financial fields; no access to real personal data |
+| G-C | Downstream protocol compatibility | ORACLE-010 and CONSUMER-001–009 all VERIFIED; Oracle cannot issue a valid proof for conflicting copies of the same asset; no production NFT deployed and no ERC submitted |
+| G-D | Controlled end-to-end drill | All requirements plus NFR-004 VERIFIED; complete evidence package independently reviewable; no real funds or unauthorized real assets used |
+| G-E | Third-party read-only integration | Re-verify ORACLE-005 and ORACLE-009 in third-party integration form; contracts and technical tests confirm only asset-fact queries and generic technical support; third parties cannot obtain or infer entity-compliance conclusions via the interface |
+| G-F | Production candidate | G-A–G-E all green on the same commit; independent legal, privacy, security, contract, and operations audits passed with remediation retested; §0.1 decision made; §0.2 contract signed; written go/no-go obtained for mainnet/real assets/real funds/every jurisdiction |
 
-`G-F` 之前，主网部署的状态为 `PENDING-GATE`，前置条件为 G-F 全部退出条件。
-不得记为 `BLOCKED`，不得记为 `OUT-OF-SCOPE`。
+Before G-F, mainnet deployment status is PENDING-GATE, with G-F exit conditions as prerequisites. It must not be recorded as BLOCKED or OUT-OF-SCOPE.
 
----
+## 6. CI acceptance
 
-## 6. CI 验收
+A single GitHub CI run on the reviewed, integrated commit must include all required jobs:
 
-在被审的同一 integrated commit 上一次 GitHub CI 运行，必需作业：
+- locked dependency installation and lockfile verification;
+- formatting, lint, and full TypeScript type checking;
+- unit and negative-test suites;
+- production build;
+- contract tests proving schema-version compatibility and API contracts;
+- synthetic-consumer integration tests (enforceability of CONSUMER-* constraints);
+- database forward migration from empty, integration tests, backup, isolated-database restore, schema and seed verification, and reverse migration;
+- financial-output gate scan (keywords and fields);
+- entity-compliance semantics gate scan (identifiers, paths, and field names such as kyc, aml, sanction, suitability, accredit, and jurisdiction-eligibility);
+- personal-information gate scans (ABI, events, metadata, logs, database exports);
+- scans for keys, private keys, production credentials, original documents, and prohibited plaintext.
 
-- 锁定依赖安装与 lockfile 校验；
-- 格式化、lint、TypeScript 全量类型检查；
-- 单元测试与负向测试套件；
-- 生产构建；
-- 契约测试：证明 schema 版本兼容性与 API 契约；
-- 合成消费者集成测试（CONSUMER-* 强制性验证）；
-- 数据库正向迁移（自空库）、集成测试、备份、隔离库恢复、schema 与种子校验、反向迁移；
-- 金融输出门禁扫描（关键词与字段）；
-- 主体合规语义门禁扫描（`kyc`、`aml`、`sanction`、`suitability`、`accredit`、`jurisdiction-eligibility` 等标识符、路径与字段名）；
-- 个人信息门禁扫描（ABI、event、metadata、日志、数据库导出）；
-- 密钥、私钥、生产凭证、原始单证与禁用明文扫描。
+CI passes only when every required job is green on the reviewed commit. A green run on a historical commit is not evidence for a later candidate.
 
-CI 仅当被审 commit 上全部必需作业绿灯时视为通过。历史 commit 的绿灯不构成后续候选的证据。
+## 7. Definition of delivery
 
----
+Giraffe RWA Oracle is a production candidate only when all of the following are true:
 
-## 7. 交付定义
+1. Every in-scope requirement in §4 is VERIFIED, or excluded by a signed scope change as OUT-OF-SCOPE.
+2. All G-A through G-F exit conditions are met on the same commit.
+3. CI is green on that commit and the PR is approved and merged.
+4. The commit referenced by tests, deployment, and documentation is identical.
+5. Independent audit reports (legal, privacy, security, contract, operations) and remediation/retest evidence are archived.
+6. Every PRD §14 release blocker is resolved.
+7. Release checklist, exact contract addresses, signer set, rollback, and incident-response plan are published.
+8. Operations manual and operating documents are handed over.
 
-Giraffe RWA Oracle 达到生产候选，须同时满足：
+Production enablement additionally requires the written go/no-go in §2.1; reaching production-candidate status technically does not mean the system is live.
 
-1. §4 全部在范围需求为 `VERIFIED`，或经签署的范围变更列为 `OUT-OF-SCOPE`；
-2. G-A 至 G-F 全部退出条件满足，且在同一 commit 上；
-3. CI 在该 commit 上全绿；PR 已批准合并；
-4. 测试、部署与文档所指向的 commit 完全一致；
-5. 独立审计（法律、隐私、安全、合约、运营）报告与整改复测证据归档；
-6. PRD §14 全部发布阻断项均不成立；
-7. 发布清单、精确合约地址、签名人集合、回滚与事件响应方案已发布；
-8. 运维手册与操作文档移交。
+## 8. Audit guide (human or agent auditors)
 
-生产**启用**另需 §2.1 的书面 go/no-go；技术上达到生产候选不等于已上线。
-
----
-
-## 8. 审计指引（人工或 Agent 审计员）
-
-1. 审计确切 commit SHA，不审计未提交的工作目录。
-2. 每条需求使用 §2 六值之一报告状态。
-3. 引用文件路径、测试名、CI 运行链接、交易哈希与回执。
-4. **先核范围覆盖**：PRD §6/§7/§11 的每个 ID 必须在 §4 矩阵中有对应行，反之亦然。
-   出现只在一侧的 ID 即为审计失败。
-5. 若 `CONSUMER-*` 被当作本项目的实现交付物验收，判失败——本项目只需证明约束可强制。
-6. 若 `ORACLE-009` 被当作下游约束处理，判失败——它是 Giraffe 自身义务。
-7. 若在范围内的工作被标为 `OUT-OF-SCOPE` 而无签署的范围变更，判失败；
-   若已排期待前置条件的项被记为 `BLOCKED` 或 `OUT-OF-SCOPE` 而非 `PENDING-GATE`，判失败。
-8. 若把法务 go/no-go 表述为可由技术测试解除，判失败。
-9. 若以合成数据结果声称真实资产、真实资金或真实个人数据已验证，判失败。
-10. 若公开面暴露个人信息、证书原文、仓单原文、身份映射、私钥、服务器凭证或内部拓扑，判失败。
-11. 若 API、schema 或 UI 出现估值、收益、抵押率、投资建议或金融批准表述，判失败。
-12. 若 Oracle 生产、存储、转述或返回任何主体合规结论（KYC、AML、制裁、司法辖区资格、
-    适当性、牌照），判失败——包括以"状态证明""合规查询"等中性措辞包装的形式。
-13. 若 `transferEligibility` 或 `transfer-eligibility` 的取值混入交易对手方合规状态，判失败。
-14. 若文档或合同暗示 Oracle 返回 `VALID` 可减轻机构自身的 KYC/AML/制裁义务，判失败。
-15. 若 PRD §1 前提缺少书面依据与取证日期，标记为 Stage F 阻断项。
-16. 输出按 ID 分组的差距表，并列出 §0.1 裁决与 §0.2 契约的当前状态。
+1. Audit the exact commit SHA, not an uncommitted working tree.
+2. Report every requirement using one of the six values in §2.
+3. Cite file paths, test names, CI run links, transaction hashes, and receipts.
+4. Check scope coverage first: every ID in PRD §§6, 7, and 11 must have a row in the §4 matrix, and vice versa. An ID present on only one side is an audit failure.
+5. Fail if CONSUMER-* is treated as an implementation deliverable of this project; this project must only prove enforceability.
+6. Fail if ORACLE-009 is treated as a downstream constraint; it is Giraffe's own obligation.
+7. Fail if in-scope work is marked OUT-OF-SCOPE without a signed scope change; if a scheduled item awaiting a prerequisite is marked BLOCKED or OUT-OF-SCOPE instead of PENDING-GATE, fail.
+8. Fail if legal go/no-go is described as resolvable by technical testing.
+9. Fail if synthetic-data results are claimed to verify real assets, real funds, or real personal data.
+10. Fail if public surfaces expose personal data, original certificates, original warehouse receipts, identity mappings, private keys, server credentials, or internal topology.
+11. Fail if API, schema, or UI contains valuation, return, collateral ratio, investment advice, or financial-approval language.
+12. Fail if Oracle produces, stores, relays, or returns any entity-compliance conclusion (KYC, AML, sanctions, jurisdictional eligibility, suitability, or licensing), including when disguised with neutral phrases such as “status proof” or “compliance query.”
+13. Fail if transferEligibility or transfer-eligibility values include counterparty-compliance status.
+14. Fail if documents or contracts imply that Oracle returning VALID reduces an institution's own KYC/AML/sanctions obligations.
+15. If a PRD §1 premise lacks written basis and collection date, mark it as a Stage F blocker.
+16. Output a gap table grouped by ID and list the current state of the §0.1 decision and §0.2 contract.
