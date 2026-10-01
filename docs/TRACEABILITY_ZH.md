@@ -1,23 +1,20 @@
-# 需求与迭代追溯映射
+# Requirement-to-Iteration Traceability Map
 
-| 项目 | 内容 |
+| Item | Content |
 | --- | --- |
-| 数据源 | `config/iteration-acceptance.json` 的 `requirementIds` 字段 |
-| 权威需求 | `PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` v0.3，24 个在范围 ID |
-| 强制校验 | `scripts/check-scope-coverage.mjs`（CI 作业 `integration-gates`） |
+| Data source | `requirementIds` field in `config/iteration-acceptance.json` |
+| Authoritative requirements | v0.3 of `PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md`, 24 in-scope IDs |
+| Enforced by | `scripts/check-scope-coverage.mjs` (CI job `integration-gates`) |
 
-## 为什么需要这份映射
+## Why this mapping exists
 
-实现按 **I0–I12 迭代**组织，PRD 按 **ORACLE/CONSUMER/NFR 需求**组织。两套体系此前分处两条
-分支且无映射，导致验收标准 §8.4 要求的"逐 ID 双向覆盖核对"无法机械执行 —— 这正是整合前
-不存在可验收 commit 的原因之一。
+Implementation is organized by **I0–I12 iterations**, while the PRD is organized by **ORACLE/CONSUMER/NFR requirements**. The two systems were previously on separate branches with no mapping, preventing mechanical execution of the acceptance standard's §8.4 “bidirectional per-ID coverage review.” This was one reason no auditable commit existed before integration.
 
-本文件由 manifest 渲染而非手写。守卫校验双向一致：任一 PRD 需求无迭代认领、或迭代认领了
-PRD 未定义的 ID，CI 即失败。
+This file is rendered from the manifest, not maintained by hand. The guard checks consistency in both directions: CI fails if any PRD requirement is unclaimed by an iteration or if an iteration claims an ID absent from the PRD.
 
-## 迭代 → 需求
+## Iteration → requirements
 
-| 迭代 | 认领的需求 | 制品数 | 具名测试数 |
+| Iteration | Claimed requirements | Artifacts | Named tests |
 | --- | --- | --- | --- |
 | `I0` | `NFR-001` | 8 | 3 |
 | `I1` | `ORACLE-001`, `ORACLE-007`, `ORACLE-008` | 7 | 4 |
@@ -33,37 +30,36 @@ PRD 未定义的 ID，CI 即失败。
 | `I11` | `ORACLE-010`, `CONSUMER-002`, `CONSUMER-003`, `CONSUMER-007`, `CONSUMER-009` | 4 | 4 |
 | `I12` | `NFR-004` | 8 | 5 |
 
-## 需求 → 迭代
+## Requirement → iterations
 
-| 需求 | 标题 | 由哪些迭代覆盖 |
+| Requirement | Title | Covered by |
 | --- | --- | --- |
-| `ORACLE-001` | 权威数据源注册 | `I1`, `I2`, `I9` |
-| `ORACLE-002` | 事实查询 | `I4` |
-| `ORACLE-003` | 签名证明 | `I5` |
-| `ORACLE-004` | 撤销与紧急冻结 | `I7` |
-| `ORACLE-005` | 主体合规结论隔离 | `I6` |
-| `ORACLE-006` | 禁止金融输出 | `I6` |
-| `ORACLE-007` | 隐私与数据最小化 | `I1`, `I2`, `I6` |
-| `ORACLE-008` | 审计与可追溯 | `I1`, `I8` |
-| `ORACLE-009` | 金融隔离（Giraffe 自身义务） | `I8` |
-| `ORACLE-010` | 消费适配器与 SDK | `I5`, `I11` |
-| `CONSUMER-001` | 一物一证一 NFT | `I3` |
-| `CONSUMER-002` | 初始发行 | `I11` |
-| `CONSUMER-003` | 生命周期 | `I11` |
-| `CONSUMER-004` | T+0 快照与冻结 | `I8` |
-| `CONSUMER-005` | T+3 交割 | `I8` |
-| `CONSUMER-006` | T+3 失败与超时 | `I8` |
-| `CONSUMER-007` | 提货与终止 | `I11` |
-| `CONSUMER-008` | 外部交易兼容 | `I8` |
-| `CONSUMER-009` | 证明消费失败关闭 | `I11` |
-| `ORACLE-011` | 资产详情展示 | `I10` |
-| `NFR-001` | 密钥与权限 | `I0`, `I5`, `I10` |
-| `NFR-002` | 防重放与顺序保证 | `I4`, `I5` |
-| `NFR-003` | 默认关闭 | `I9` |
-| `NFR-004` | 可用性与恢复 | `I12` |
+| `ORACLE-001` | Authoritative source registry | `I1`, `I2`, `I9` |
+| `ORACLE-002` | Factual queries | `I4` |
+| `ORACLE-003` | Signed proofs | `I5` |
+| `ORACLE-004` | Revocation and emergency freeze | `I7` |
+| `ORACLE-005` | Isolation of entity-compliance conclusions | `I6` |
+| `ORACLE-006` | Prohibition on financial outputs | `I6` |
+| `ORACLE-007` | Privacy and data minimization | `I1`, `I2`, `I6` |
+| `ORACLE-008` | Audit and traceability | `I1`, `I8` |
+| `ORACLE-009` | Financial separation (Giraffe's own obligations) | `I8` |
+| `ORACLE-010` | Consumer adapters and SDK | `I5`, `I11` |
+| `CONSUMER-001` | One asset, one certificate, one NFT | `I3` |
+| `CONSUMER-002` | Initial issuance | `I11` |
+| `CONSUMER-003` | Lifecycle | `I11` |
+| `CONSUMER-004` | T+0 snapshot and freeze | `I8` |
+| `CONSUMER-005` | T+3 settlement | `I8` |
+| `CONSUMER-006` | T+3 failure and timeout | `I8` |
+| `CONSUMER-007` | Redemption and termination | `I11` |
+| `CONSUMER-008` | External trading compatibility | `I8` |
+| `CONSUMER-009` | Fail-closed proof consumption | `I11` |
+| `ORACLE-011` | Asset detail display | `I10` |
+| `NFR-001` | Keys and permissions | `I0`, `I5`, `I10` |
+| `NFR-002` | Replay protection and ordering | `I4`, `I5` |
+| `NFR-003` | Disabled by default | `I9` |
+| `NFR-004` | Availability and recovery | `I12` |
 
-## 边界说明
+## Boundary note
 
-- `CONSUMER-*` 依 PRD §3.2 不是本项目的实现交付物；上表中的迭代只承担"证明该约束在 Oracle
-  侧可被强制"的义务，不代表 L3 协议已实现或部署。
-- 映射覆盖完整**不等于**需求已验证。各需求的实际状态见 `STATUS.md`，阶段门见验收标准 §5。
+- `CONSUMER-*` items are not implementation deliverables of this project under PRD §3.2. The listed iterations are responsible only for “proving the constraint can be enforced on the Oracle side”; they do not mean L3 protocol implementation or deployment.
+- Complete mapping coverage does **not** mean requirements are verified. See `STATUS.md` for actual status by requirement and acceptance standard §5 for stage gates.
