@@ -1,45 +1,41 @@
-# I12 合成签名人轮换演练
+# I12 Synthetic Signer Rotation Drill
 
-## 边界
+## Boundary
 
-本演练仅用于验证 Oracle I12 轮换控制的软件行为，不是生产 HSM、受保护签名服务或正式轮换仪式的替代证据。输出必须保持 `acceptanceEligible=false`，不得复制为 `evidence/acceptance/i12-signer-rotation.json`，也不得据此把 I12 标记为完成。
+This drill validates software behavior for Oracle I12 rotation controls. It is not evidence of a production HSM, protected signing service, or formal rotation ceremony. Output must remain acceptanceEligible=false; do not copy it to evidence/acceptance/i12-signer-rotation.json or use it to mark I12 complete.
 
-演练只使用进程内临时生成的 Ed25519 合成密钥。禁止使用 ArtFi1/ArtFi2、生产钱包、真实私钥、助记词或密钥路径；禁止 RPC、网络、广播、业务交易和 nonce 操作。
+The drill uses only in-process, ephemeral synthetic Ed25519 keys. Do not use ArtFi1/ArtFi2, production wallets, real private keys, seed phrases, or key paths. RPC, network access, broadcast, business transactions, and nonce operations are prohibited.
 
-## 验收步骤
+## Acceptance steps
 
-1. 进程内生成 old/new 两组一次性 Ed25519 KeyObject，不导出私钥。
-2. 验证 old signer 在轮换前可签发并验证合成 attestation。
-3. 向 `AuditJournal` 依次写入 requested、new-activated、prior-retired 三个公开哈希事件。
-4. 验证 new signer 在轮换后可签发并验证。
-5. 验证 old signature 在新 signer set 下返回 `SIGNATURE_INVALID`。
-6. 验证 retired old signer 的验证和新签发均返回 `SIGNER_SET_NOT_ACTIVE`。
-7. 验证审计哈希链完整，并确认修改中间事件后链校验失败。
-8. 公开报告只包含 signer-set 标识、公钥指纹、事件哈希和布尔结果；扫描禁止私钥、助记词、seed 和 raw transaction 字段。
+1. Generate one-time old/new Ed25519 KeyObjects in process memory; do not export private keys.
+2. Verify that the old signer can issue and verify a synthetic attestation before rotation.
+3. Write three public-hash events to AuditJournal, in order: requested, new-activated, prior-retired.
+4. Verify that the new signer can issue and verify after rotation.
+5. Verify that an old signature under the new signer set returns SIGNATURE_INVALID.
+6. Verify that validation and new issuance by the retired old signer both return SIGNER_SET_NOT_ACTIVE.
+7. Verify audit-hash-chain integrity and confirm that modifying a middle event causes chain verification to fail.
+8. The public report may contain only signer-set identifiers, public-key fingerprints, event hashes, and Boolean results. Scan to prohibit private keys, seed phrases, seed values, and raw-transaction fields.
 
-## 执行
+## Execution
 
-仅输出到 stdout：
+Output only to stdout:
 
-```text
-node scripts/run-i12-synthetic-signer-rotation.mjs
-```
+    node scripts/run-i12-synthetic-signer-rotation.mjs
 
-一次性写入固定本地结果文件（使用 exclusive-create，已有文件时拒绝覆盖）：
+Write once to the fixed local result file (exclusive-create; refuse to overwrite an existing file):
 
-```text
-node scripts/run-i12-synthetic-signer-rotation.mjs --write-fixed-output
-```
+    node scripts/run-i12-synthetic-signer-rotation.mjs --write-fixed-output
 
-固定结果为 `output/i12-synthetic-signer-rotation.json`。复核者应另外计算脚本和结果文件 SHA-256，并确认：
+The fixed result is output/i12-synthetic-signer-rotation.json. A reviewer should separately compute SHA-256 for the script and result file and confirm:
 
-- `newSignerAccepted=true`；
-- `oldSignerRejected=true`；
-- `rotationAudited=true`；
-- `auditChainVerified=true`；
-- `tamperedAuditChainRejected=true`；
-- `privateMaterialObserved=false`；
-- `networkUsed=false`、`rpcUsed=false`、`transactionSigned=false`、`nonceConsumed=false`；
-- `acceptanceEligible=false`。
+- newSignerAccepted=true;
+- oldSignerRejected=true;
+- rotationAudited=true;
+- auditChainVerified=true;
+- tamperedAuditChainRejected=true;
+- privateMaterialObserved=false;
+- networkUsed=false, rpcUsed=false, transactionSigned=false, nonceConsumed=false;
+- acceptanceEligible=false.
 
-正式 I12 仍需在受保护生产等价签名设施中完成独立轮换仪式，并由外部证据链证明私钥材料未被审计人员观察。
+Formal I12 still requires an independent rotation ceremony in a protected, production-equivalent signing facility and an external evidence chain proving that auditors did not observe private-key material.
