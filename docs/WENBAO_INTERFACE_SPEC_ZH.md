@@ -1,273 +1,223 @@
-# 文保链 ↔ Giraffe Oracle 标准接口规范（提案稿 v0.1）
+# Proposed Standard Interface Specification: Cultural Relics Preservation Chain ↔ Giraffe Oracle (Draft v0.1)
 
-| 项目 | 内容 |
+| Item | Content |
 | --- | --- |
-| 文档性质 | **提案稿**，用于与中国文保链技术团队对接讨论；未经双方确认前不构成任何一方的实现承诺 |
-| 提出方 | Giraffe RWA Oracle（L2 验证层） |
-| 对应 PRD | `docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` v0.3 |
-| 状态 | 待与文保链技术团队逐条确认；§9 为需对方答复的问题清单 |
+| Document status | **Proposal draft** for discussion with the China Cultural Relics Preservation Chain technical team; before confirmation by both parties it is not an implementation commitment by either party |
+| Proposer | Giraffe RWA Oracle (L2 verification layer) |
+| Related PRD | docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md v0.3 |
+| Status | Awaiting item-by-item confirmation with the Preservation Chain technical team; §9 lists questions requiring their response |
 
-## 0. 这份规范要解决什么
+## 0. Purpose
 
-Giraffe Oracle 的职责是把文保链的**登记事实**转换为可验证、可撤销、有时效的链上证明。
-Oracle 本身不向任何公链发送交易（PRD §5 层次划分：L2 只做查询、核验、签名证明、状态同步、
-撤销和审计），因此本接口只描述**文保链 → Oracle 的单向读取**，不包含 Oracle 向文保链写入。
+Giraffe Oracle converts **registration facts** from the Preservation Chain into verifiable, revocable, time-bounded on-chain proofs. Oracle itself does not send transactions to any public chain (the PRD §5 layer division: L2 performs queries, verification, signed proofs, state synchronization, revocation, and audit). This interface therefore describes one-way reads from the Preservation Chain to Oracle only; it contains no Oracle-to-Preservation-Chain writes.
 
-本规范的每一条约束都能追溯到 PRD 的具体需求编号，§1 列出对应关系。这样双方讨论时，
-「为什么要这样设计」有据可查，而不是设计偏好之争。
+Every constraint in this specification traces to a specific PRD requirement; §1 lists the mapping. This makes the rationale auditable during bilateral discussion rather than a matter of design preference.
 
-## 1. 约束来源
+## 1. Sources of constraints
 
-| 本规范条款 | 来源 | 约束内容 |
+| This specification | Source | Constraint |
 | --- | --- | --- |
-| §2 拉取模型、§3.1 固定端点 | ORACLE-001 | 调用方不得传入任意 URL/RPC/数据库地址；未知来源默认拒绝 |
-| §5 字段最小化 | ORACLE-007 | 个人信息、证书原文、仓单原文、身份映射不得进入公开面 |
-| §6 所有者承诺 | ORACLE-007 + PRD §14 | 身份映射不得进入公开链 |
-| §7 失败语义 | ORACLE-002 | 状态取值封闭，默认 `NOT_VERIFIED`，失败即关闭 |
-| §4.3 变更查询 | PRD 前提 P7 | T+0 快照 → 最迟 T+3 完成所有者变更、旧证书注销、新证书签发 |
-| §8 对账 | ORACLE-008 | 权威投影不一致必须可被检出 |
-| §3.3 响应签名 | ORACLE-003 | 证明必须绑定来源，可离线复核 |
+| §2 pull model, §3.1 fixed endpoint | ORACLE-001 | Callers cannot supply arbitrary URL/RPC/database addresses; unknown sources are rejected by default |
+| §5 field minimization | ORACLE-007 | Personal information, original certificates/warehouse receipts, and identity mappings must not enter public surfaces |
+| §6 owner commitment | ORACLE-007 + PRD §14 | Identity mappings must not enter a public chain |
+| §7 failure semantics | ORACLE-002 | Closed status vocabulary, default NOT_VERIFIED, fail closed |
+| §4.3 change query | PRD premise P7 | T+0 snapshot → owner change, prior certificate revocation, and new certificate issuance completed no later than T+3 |
+| §8 reconciliation | ORACLE-008 | Inconsistency in the authoritative projection must be detectable |
+| §3.3 response signature | ORACLE-003 | Proofs must bind their source and be independently verifiable offline |
 
-## 2. 交互模型
+## 2. Interaction model
 
-采用**「变更通知 + 权威拉取」**两段式，不采用文保链直接推送完整数据：
+Use a two-step “change notification + authoritative pull” model; do not have the Preservation Chain push complete data directly:
 
-```
-文保链 --(1) 变更通知（仅含引用，无业务数据)--> Oracle
-Oracle --(2) 按引用回拉权威记录--------------> 文保链
-```
+    Preservation Chain --(1) change notice (reference only; no business data)--> Oracle
+    Oracle --(2) pull authoritative record by reference-----------------------> Preservation Chain
 
-理由有三，都不是偏好问题：
+Three reasons, each a requirement rather than a preference:
 
-1. **ORACLE-001 要求数据只能来自注册端点。** 若接受推送内容为准，任何能伪造推送的一方
-   即可注入事实；回拉使权威始终在文保链侧。
-2. **通知可丢失、可重复、可乱序，拉取结果是幂等的。** Oracle 侧据此实现重放与对账，
-   不要求文保链保证投递语义。
-3. **通知不含业务数据，降低泄露面。** 通知只带引用与变更类型。
+1. **ORACLE-001 requires data to come only from registered endpoints.** If pushed content is trusted as authoritative, any party able to forge a notification could inject facts. Pulling keeps authority on the Preservation Chain side.
+2. **Notices may be lost, duplicated, or out of order, while pulls are idempotent.** Oracle implements replay handling and reconciliation; the Preservation Chain need not guarantee delivery semantics.
+3. **Notices contain no business data, reducing exposure.** They carry only a reference and change type.
 
-若文保链无法提供主动通知，Oracle 可退化为**定期轮询 §4.4 的增量接口**，功能不受影响，
-仅同步时延变长。此为可接受的降级路径，请在 §9 中答复。
+If the Preservation Chain cannot provide notifications, Oracle may fall back to **periodic polling of the incremental interface in §4.4**. Functionality is unchanged; only synchronization latency increases. This fallback is acceptable; please answer in §9.
 
-## 3. 传输与鉴权
+## 3. Transport and authentication
 
-### 3.1 端点固定
+### 3.1 Fixed endpoint
 
-端点、证书指纹与凭据由 Oracle 侧以部署配置形式登记在批准数据源注册表中，
-**不接受任何调用方在请求中传入端点**。Oracle 侧对含 `url` / `endpoint` / `rpcUrl`
-字段的来源配置会直接拒绝（错误码 `CALLER_SUPPLIED_ENDPOINT_REJECTED`）。
+Endpoints, certificate fingerprints, and credentials are recorded on the Oracle side as deployment configuration in the approved source registry. **Callers must not provide endpoints in requests.** Oracle rejects source configuration containing url, endpoint, or rpcUrl fields with error code CALLER_SUPPLIED_ENDPOINT_REJECTED.
 
-### 3.2 传输安全
+### 3.2 Transport security
 
-- TLS 1.3；建议双向 TLS（mTLS），Oracle 侧提供客户端证书；
-- 若采用令牌鉴权，令牌仅经环境变量注入，不进入代码库、日志或错误信息；
-- 建议按调用方限制源 IP 段。
+- TLS 1.3; mutual TLS (mTLS) is recommended, with Oracle providing a client certificate.
+- If token authentication is used, inject the token only through an environment variable; do not put it in source, logs, or error details.
+- Restrict source IP ranges by caller, where available.
 
-### 3.3 响应签名（建议为 MUST，请对方评估可行性）
+### 3.3 Response signature (recommended as MUST; please assess feasibility)
 
-请求方仅凭 TLS 只能证明「连接到了对方」，无法在事后向第三方证明「对方当时确实这样答复」。
-Giraffe 出具的证明需要可离线复核，因此建议每个响应体附带文保链的签名：
+TLS alone lets the requester prove “the connection reached the other party,” but not later prove to a third party “the other party gave this exact response at that time.” Giraffe proofs must be independently verifiable offline, so this proposal recommends a Preservation Chain signature on every response body:
 
-```
-X-Wenbao-Signature: <base64>
-X-Wenbao-Key-Id: <公钥标识>
-X-Wenbao-Signed-At: <RFC3339 UTC>
-```
+    X-Wenbao-Signature: <base64>
+    X-Wenbao-Key-Id: <public-key identifier>
+    X-Wenbao-Signed-At: <RFC3339 UTC>
 
-签名对象为「规范化 JSON 响应体 ‖ 签发时间」。文保链公钥通过带外渠道交换并登记。
-若文保链现阶段无法提供，Oracle 将在证明中明确标注证据强度为「仅传输层」，
-并作为一项已知限制记入验收文档——**这会削弱证明的对外可采信度，故列为建议 MUST**。
+The signed object is “canonical JSON response body ‖ signing time.” Exchange and register the Preservation Chain public key through an out-of-band channel.
 
-## 4. 接口清单
+If the Preservation Chain cannot provide signatures yet, Oracle will explicitly label proof strength as “transport layer only” and record this known limitation in acceptance documentation. **This weakens external evidentiary credibility; therefore this is recommended as MUST.**
 
-所有接口为 `GET`，只读，幂等。时间一律 RFC3339 UTC（`2026-09-01T12:00:00Z`）。
-哈希一律 **SHA-256 小写十六进制，64 字符**（Oracle 侧以 `^[a-f0-9]{64}$` 校验）。
+## 4. Interface list
 
-### 4.1 登记事实查询
+All interfaces are read-only, idempotent GET requests. All times use RFC3339 UTC (2026-09-01T12:00:00Z). All hashes use **lowercase 64-character SHA-256 hex** (validated on Oracle side with ^[a-f0-9]{64}$).
 
-```
-GET /v1/registry/assets/{registryRef}
-```
+### 4.1 Registration-fact query
 
-`registryRef` 为文保链登记的唯一引用（Oracle 侧字段名 `wenbaoRegistryRef`，长度 ≤ 256）。
+    GET /v1/registry/assets/{registryRef}
 
-响应：
+registryRef is the unique reference assigned by the Preservation Chain (Oracle field name wenbaoRegistryRef; maximum length 256).
 
-| 字段 | 类型 | 必填 | 说明 |
+Response:
+
+| Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `registryRef` | string | 是 | 回显，用于防串号 |
-| `registryStatus` | enum | 是 | 见 §7.1 |
-| `assetFingerprintHash` | hash | 是 | 标的物指纹哈希；**不是**标的物详情本身 |
-| `classificationCode` | string(≤64) | 否 | 分类代码，不含描述性文字 |
-| `currentCertificateHash` | hash | 是 | 当前有效登记证书哈希 |
-| `currentCertificateVersion` | integer ≥1 | 是 | 当前证书版本 |
-| `currentOwnerCommitment` | hash | 是 | 见 §6，**不得为身份明文或其直接哈希** |
-| `encumbranceStatus` | string(≤64) | 是 | 冻结/查封/质押等受限状态代码 |
-| `registeredAt` | date-time | 是 | 首次登记时间 |
-| `updatedAt` | date-time | 是 | 本记录最后变更时间 |
+| registryRef | string | Yes | Echoed to prevent identifier mix-up |
+| registryStatus | enum | Yes | See §7.1 |
+| assetFingerprintHash | hash | Yes | Subject-matter fingerprint hash; not the subject-matter details |
+| classificationCode | string (≤64) | No | Classification code, no descriptive text |
+| currentCertificateHash | hash | Yes | Hash of the current valid registration certificate |
+| currentCertificateVersion | integer ≥1 | Yes | Current certificate version |
+| currentOwnerCommitment | hash | Yes | See §6; must not be plaintext identity or its direct hash |
+| encumbranceStatus | string (≤64) | Yes | Restricted-status code such as freeze, seizure, or pledge |
+| registeredAt | date-time | Yes | Initial registration time |
+| updatedAt | date-time | Yes | Last change time for this record |
 
-### 4.2 证书版本查询
+### 4.2 Certificate-version query
 
-```
-GET /v1/registry/certificates/{registryRef}
-GET /v1/registry/certificates/{registryRef}?version={n}
-```
+    GET /v1/registry/certificates/{registryRef}
+    GET /v1/registry/certificates/{registryRef}?version={n}
 
-不带 `version` 返回当前有效证书；带 `version` 返回该版本（含已注销版本）。
+Without version, return the current valid certificate. With version, return that version, including revoked versions.
 
-| 字段 | 类型 | 必填 | 说明 |
+| Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `registryRef` | string | 是 | 回显 |
-| `certificateVersion` | integer ≥1 | 是 | 版本号，单调递增 |
-| `certificateHash` | hash | 是 | 本版本证书哈希 |
-| `previousCertificateHash` | hash \| null | 是 | 上一版本哈希；首版为 `null` |
-| `changeRef` | string(≤256) | 是 | 产生本版本的变更引用（Oracle 侧 `wenbaoChangeRef`） |
-| `status` | enum | 是 | `CURRENT` / `SUPERSEDED` / `REVOKED` |
-| `effectiveAt` | date-time | 是 | 生效时间 |
-| `supersededAt` | date-time \| null | 是 | 被取代/注销时间 |
+| registryRef | string | Yes | Echo |
+| certificateVersion | integer ≥1 | Yes | Monotonically increasing version |
+| certificateHash | hash | Yes | Hash of this version's certificate |
+| previousCertificateHash | hash or null | Yes | Prior-version hash; null for first version |
+| changeRef | string (≤256) | Yes | Change reference that produced this version (Oracle field wenbaoChangeRef) |
+| status | enum | Yes | CURRENT / SUPERSEDED / REVOKED |
+| effectiveAt | date-time | Yes | Effective time |
+| supersededAt | date-time or null | Yes | Time superseded/revoked |
 
-**版本链要求**：`previousCertificateHash` 必须精确等于前一版本的 `certificateHash`。
-Oracle 会逐版校验这条链；断链视为来源异常并触发 §7.2 的失败关闭。
+**Version-chain requirement:** previousCertificateHash must exactly equal the preceding version's certificateHash. Oracle validates every link; a broken chain is a source anomaly and triggers fail-closed handling under §7.2.
 
-### 4.3 变更状态查询（交割关键路径）
+### 4.3 Change-status query (critical settlement path)
 
-```
-GET /v1/registry/changes/{changeRef}
-```
+    GET /v1/registry/changes/{changeRef}
 
-PRD 前提 P7 要求：境外交易在 T+0 形成快照与冻结，**最迟 T+3** 完成文保链所有者变更、
-旧证书注销、新证书签发。Oracle 需要在这个窗口内反复查询变更是否落地。
+PRD premise P7 requires an overseas transaction snapshot at T+0 and completion of the Preservation Chain owner change, prior-certificate revocation, and new-certificate issuance **no later than T+3**. Oracle must repeatedly query whether the change has landed during this window.
 
-| 字段 | 类型 | 必填 | 说明 |
+| Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `changeRef` | string(≤256) | 是 | 回显 |
-| `registryRef` | string | 是 | 所属登记 |
-| `changeType` | enum | 是 | `OWNER_TRANSFER` / `CERTIFICATE_REISSUE` / `REVOCATION` / `ENCUMBRANCE` |
-| `changeStatus` | enum | 是 | `PENDING` / `COMPLETED` / `REJECTED` / `CANCELLED` |
-| `oldCertificateHash` | hash \| null | 是 | 变更前证书 |
-| `newCertificateHash` | hash \| null | 是 | 变更后证书；未完成时为 `null` |
-| `newOwnerCommitment` | hash \| null | 是 | 见 §6；未完成时为 `null` |
-| `submittedAt` | date-time | 是 | 提交时间 |
-| `completedAt` | date-time \| null | 是 | 完成时间 |
-| `rejectionCode` | string(≤64) \| null | 是 | 拒绝代码，**不含自然语言理由**（可能含个人信息） |
+| changeRef | string (≤256) | Yes | Echo |
+| registryRef | string | Yes | Associated registration |
+| changeType | enum | Yes | OWNER_TRANSFER / CERTIFICATE_REISSUE / REVOCATION / ENCUMBRANCE |
+| changeStatus | enum | Yes | PENDING / COMPLETED / REJECTED / CANCELLED |
+| oldCertificateHash | hash or null | Yes | Prior certificate |
+| newCertificateHash | hash or null | Yes | Resulting certificate; null before completion |
+| newOwnerCommitment | hash or null | Yes | See §6; null before completion |
+| submittedAt | date-time | Yes | Submission time |
+| completedAt | date-time or null | Yes | Completion time |
+| rejectionCode | string (≤64) or null | Yes | Machine rejection code; no natural-language reason (may contain personal data) |
 
-### 4.4 增量对账
+### 4.4 Incremental reconciliation
 
-```
-GET /v1/registry/changes?since={RFC3339}&limit={n}&cursor={opaque}
-```
+    GET /v1/registry/changes?since={RFC3339}&limit={n}&cursor={opaque}
 
-返回自 `since` 起的变更引用列表，用于 Oracle 侧定期对账（ORACLE-008 要求能检出投影不一致）
-及通知丢失后的补齐。`limit` 默认 100，上限 1000。响应含 `nextCursor`，无更多数据时为 `null`。
+Return change references since since for periodic Oracle reconciliation (ORACLE-008 requires detection of projection inconsistencies) and recovery after missed notifications. Default limit is 100; maximum 1000. Response includes nextCursor, null when no more data exists.
 
-列表项只含 `changeRef`、`registryRef`、`changeType`、`changeStatus`、`updatedAt`
-——**不含业务数据**，明细仍走 §4.3 回拉。
+Each item contains only changeRef, registryRef, changeType, changeStatus, and updatedAt—**no business data**. Details are still pulled under §4.3.
 
-### 4.5 健康检查
+### 4.5 Health check
 
-```
-GET /v1/health
-```
+    GET /v1/health
 
-返回 `{ "status": "UP" | "DEGRADED" | "DOWN", "schemaVersion": "<string>", "serverTime": "<RFC3339>" }`。
+Return { "status": "UP" | "DEGRADED" | "DOWN", "schemaVersion": "<string>", "serverTime": "<RFC3339>" }.
 
-Oracle 侧已实现熔断、限流与超时（默认超时 1000 ms、每秒 10 次、连续 2 次失败开断路器），
-本接口用于探活与时钟偏移检测，不计入限流。
+Oracle implements circuit breaking, rate limiting, and timeouts (default timeout 1000 ms, 10 requests per second, circuit opens after 2 consecutive failures). This endpoint is used for health and clock-skew checks and is excluded from rate limiting.
 
-## 5. 字段最小化（重要）
+## 5. Field minimization (important)
 
-据公开资料，文保链的资产信息登记覆盖约 **260 项**信息字段。**本接口不应返回其中的绝大多数。**
+Public information says the Preservation Chain's asset-registration dataset covers approximately **260 fields**. **This interface should return only a small minority of them.**
 
-Oracle 完成 PRD 全部职能只需要上述四个接口列出的字段，合计约 20 个。理由：
+Oracle needs only the fields in the four interfaces above to perform all PRD duties, approximately 20 fields total:
 
-1. **ORACLE-007** 明确禁止个人信息、证书原文、仓单原文、身份映射进入公开面；
-2. Oracle 的产出最终会以哈希形式对外公开，**收到即风险**——未接收的数据不可能泄露；
-3. 数据出境合规上，可论证的最小集比事后裁剪容易得多。
+1. **ORACLE-007** prohibits personal data, original certificates/receipts, and identity mappings on public surfaces.
+2. Oracle outputs are ultimately published externally as hashes; **receiving data creates risk**—data never received cannot leak.
+3. For cross-border data compliance, justifying a minimum dataset is much easier than trimming a full dataset afterward.
 
-因此请求文保链侧：**在接口层就只返回本规范列出的字段**，而不是返回全量由 Oracle 裁剪。
-若接口只能返回全量，Oracle 将在传输适配器入口做白名单裁剪并丢弃其余字段，
-但这属于次优方案——数据已经过网。
+Therefore, request that the Preservation Chain return only the fields listed in this specification **at the interface**, rather than returning everything for Oracle to trim. If the interface can return only the full dataset, Oracle will whitelist and discard other fields at the transport-adapter boundary, but this is inferior because the data has already crossed the network.
 
-**明确不需要、且请勿返回的内容**（示例，非穷举）：标的物名称与描述、图片与影像、
-尺寸材质工艺、鉴定意见与鉴定人、所有者姓名/证件号/联系方式/住址、交易对价、
-估价与评估结论、经手人与经办机构人员信息。
+**Not needed and must not be returned** (examples, not exhaustive): subject-matter name/description, photographs/video, dimensions/material/craft, appraisal opinion/appraiser, owner name/identity number/contact/address, transaction consideration, valuation/appraisal conclusions, and information identifying handlers or staff of operating institutions.
 
-## 6. 所有者承诺（`currentOwnerCommitment` / `newOwnerCommitment`）
+## 6. Owner commitment (currentOwnerCommitment / newOwnerCommitment)
 
-PRD 前提 P1 指出文保链登记内容**包括所有者信息**，而 PRD §14 把「身份映射进入公开链」
-列为发布阻断项。两者的调和方式是：**Oracle 永不接收所有者身份，只接收承诺值。**
+PRD premise P1 says the Preservation Chain registration **includes owner information**, while PRD §14 lists “identity mapping enters a public chain” as a release blocker. Reconcile them as follows: **Oracle never receives owner identity; it receives only a commitment value.**
 
-要求：
+Requirements:
 
-- 承诺值由**文保链侧**计算，Oracle 侧不参与，也不接收计算所需的原始身份数据；
-- 建议 `commitment = SHA-256(salt ‖ 规范化所有者标识)`，`salt` 由文保链持有且**不外发**；
-- 同一所有者在不同资产上**应当**产生不同承诺值（即 salt 按资产或按登记分离），
-  否则可通过承诺值相等关联出「同一人持有哪些文物」，构成身份映射；
-- 承诺值变更即视为所有者变更，Oracle 不需要、也不应当知道变更前后是谁。
+- Compute the commitment on the **Preservation Chain side**. Oracle does not participate and does not receive raw identity data needed for computation.
+- Recommended: commitment = SHA-256(salt ‖ canonical owner identifier); the Preservation Chain holds salt and **does not export it**.
+- The **same owner should** produce different commitments for different assets (use per-asset or per-registration salt); otherwise equal commitments could reveal “which cultural objects the same person owns,” creating an identity mapping.
+- A changed commitment counts as an owner change. Oracle does not need to, and should not, know who the parties were before or after.
 
-若文保链侧无法承担该计算，则需双方就替代方案另行讨论；
-**由 Oracle 接收身份明文再哈希的方案不可接受**，因为 Oracle 一旦持有明文即已构成
-ORACLE-007 违规，无论其后是否删除。
+If the Preservation Chain cannot perform this computation, the parties must discuss another solution. **Oracle receiving plaintext identity and then hashing it is unacceptable**: once Oracle holds the plaintext, ORACLE-007 has already been violated, whether or not it is later deleted.
 
-## 7. 状态与失败语义
+## 7. Status and failure semantics
 
-### 7.1 状态取值封闭
+### 7.1 Closed status values
 
-`registryStatus` 建议取值：`ACTIVE`（登记有效）、`SUSPENDED`（暂停）、
-`REVOKED`（登记撤回）、`NOT_FOUND`（无此登记）。
+Suggested registryStatus values: ACTIVE (registration valid), SUSPENDED, REVOKED (registration withdrawn), NOT_FOUND.
 
-Oracle 侧对外的状态词表是封闭的八项，且**默认失败关闭**：
-`VALID` / `INVALID` / `TRANSFER_PENDING` / `FROZEN` / `REVOKED` / `EXPIRED` /
-`REVIEW_REQUIRED` / `NOT_VERIFIED`。任何无法映射的来源状态一律落到 `NOT_VERIFIED`，
-不猜测、不默认通过。因此请文保链侧**在扩充状态取值前先通知**，否则新状态会被保守处理为不可验证。
+Oracle's public vocabulary contains exactly eight states and **fails closed by default**: VALID / INVALID / TRANSFER_PENDING / FROZEN / REVOKED / EXPIRED / REVIEW_REQUIRED / NOT_VERIFIED. Any source status that cannot be mapped resolves to NOT_VERIFIED; do not guess or default to passing. Notify Oracle before adding source status values; otherwise a new value is conservatively treated as unverifiable.
 
-### 7.2 错误响应
+### 7.2 Error response
 
-失败一律返回结构化机器可读代码，**不返回自然语言理由**（可能含个人信息）：
+All failures return structured, machine-readable codes and **no natural-language reason** (which may contain personal data):
 
-```json
-{ "errorCode": "REGISTRY_REF_NOT_FOUND", "requestId": "<string>", "serverTime": "<RFC3339>" }
-```
+    { "errorCode": "REGISTRY_REF_NOT_FOUND", "requestId": "<string>", "serverTime": "<RFC3339>" }
 
-HTTP 状态码：`400` 参数非法、`401`/`403` 鉴权失败、`404` 引用不存在、
-`409` 状态冲突、`429` 限流、`5xx` 服务端故障。
+HTTP status codes: 400 invalid parameters; 401/403 authentication failure; 404 reference not found; 409 state conflict; 429 rate limited; 5xx server failure.
 
-Oracle 侧对**任何**非 2xx 响应、超时、签名校验失败或字段校验失败的处理是一致的：
-**该资产的对外状态转为 `NOT_VERIFIED`，不使用陈旧数据顶替。** 这是产品的核心安全属性，
-不接受「取不到就用上次的值」。
+Oracle handles **any** non-2xx response, timeout, signature-check failure, or field-validation failure consistently: the asset's public status becomes NOT_VERIFIED; stale data is not substituted. This is a core product safety property; “if unavailable, use the last value” is not acceptable.
 
-## 8. 一致性与对账
+## 8. Consistency and reconciliation
 
-- Oracle 会周期性用 §4.4 与本地投影对账，不一致即上报人工复核队列（ORACLE-008）；
-- 请文保链侧保证：**同一 `changeRef` 的查询结果在变更完成后不再改变**（不可变历史）；
-  若确需更正，应新建 `changeRef` 而非原地修改，否则对账无法区分「更正」与「被篡改」；
-- 时钟偏移超过 ±60 秒时 Oracle 会告警，请双方使用可信时间源。
+- Oracle periodically reconciles its local projection using §4.4; inconsistencies enter the human-review queue (ORACLE-008).
+- The Preservation Chain should ensure that query results for the same changeRef **do not change after completion** (immutable history). If correction is necessary, create a new changeRef rather than editing in place; otherwise reconciliation cannot distinguish a correction from tampering.
+- Oracle warns when clock skew exceeds ±60 seconds; both parties should use a trusted time source.
 
-## 9. 需文保链技术团队答复的问题
+## 9. Questions for the Preservation Chain technical team
 
-| # | 问题 | 影响 |
+| # | Question | Impact |
 | --- | --- | --- |
-| 1 | 是否能提供**变更主动通知**？若否，可接受的最小轮询间隔是多少？ | 决定 §2 采用两段式还是轮询降级 |
-| 2 | 是否能提供 **§3.3 响应签名**？若能，签名算法与公钥交换方式？ | 决定 Giraffe 证明的对外可采信强度 |
-| 3 | 能否**在接口层就只返回 §4 列出的字段**，而非全量 260 项？ | 决定数据最小化是在源侧还是在 Oracle 侧 |
-| 4 | **所有者承诺值能否由文保链侧计算**（§6）？salt 是否按资产分离？ | 若否，整个隐私方案需重新设计 |
-| 5 | 文保链是否同时是**证书签发方**（签发「数字化上链存证登记证书」），还是证书另有签发主体？ | 决定数据源注册表中登记为一个还是两个来源 |
-| 6 | 登记引用 `registryRef` 的**格式与稳定性**：是否终身不变？是否可能被回收复用？ | 引用若可复用，Oracle 的幂等与对账假设不成立 |
-| 7 | 证书版本号是否**严格单调递增且无空洞**？`previousCertificateHash` 链是否保证连续？ | 决定 §4.2 的链校验能否作为硬性门禁 |
-| 8 | **T+3 窗口**内变更状态的查询频率上限？是否有速率限制？ | 决定交割路径的轮询策略 |
-| 9 | 是否有**沙箱/测试环境**及测试数据集？ | 决定 Oracle 侧能否在真实对接前完成契约测试 |
-| 10 | 接口的**版本演进策略**：如何通知不兼容变更？是否支持并行运行旧版本？ | 决定 Oracle 侧的 schema 版本协商机制 |
-| 11 | 服务等级：可用性目标、维护窗口、故障通知渠道？ | 决定 Oracle 熔断参数与对外 SLA 口径 |
-| 12 | 文物登记数据的哈希值经 Giraffe 上以太坊公链，**文保链侧是否已有合规意见或审批要求**？ | 这是法律门禁，非技术问题，但会决定整个链路能否上线 |
+| 1 | Can you provide **change notifications**? If not, what is the shortest acceptable polling interval? | Determines two-step model or polling fallback in §2 |
+| 2 | Can you provide **§3.3 response signatures**? If yes, which algorithm and public-key exchange method? | Determines external verifiability strength of Giraffe proofs |
+| 3 | Can the interface return **only §4's listed fields**, rather than all ~260 fields? | Determines whether minimization occurs at source or Oracle |
+| 4 | Can the Preservation Chain compute **owner commitments** (§6)? Is salt separated per asset? | If not, the privacy design must be revisited |
+| 5 | Is the Preservation Chain also the **certificate issuer** (issuing “digital on-chain registration certificates”), or is there a separate issuer? | Determines whether the source registry records one or two authorities |
+| 6 | Format and stability of registryRef: is it immutable for life, or can references be recycled? | Reuse would invalidate Oracle idempotency/reconciliation assumptions |
+| 7 | Are certificate versions strictly increasing without gaps? Is previousCertificateHash guaranteed continuous? | Determines whether §4.2 chain validation can be a hard gate |
+| 8 | What is the query-rate limit for change status during the **T+3 window**? | Determines settlement-path polling policy |
+| 9 | Is there a sandbox/test environment and test dataset? | Determines whether Oracle can complete contract tests before production integration |
+| 10 | What is the interface versioning policy? How are breaking changes announced? Can old versions run in parallel? | Determines Oracle schema-version negotiation |
+| 11 | What are service levels: availability target, maintenance window, and incident-notification channel? | Determines Oracle circuit-breaker parameters and external SLA wording |
+| 12 | Hashes of cultural-relic registration data will be published by Giraffe on Ethereum mainnet. Does the Preservation Chain have legal guidance or approval requirements? | Legal gate, not a technical issue, but determines whether the full path can launch |
 
-## 10. 本规范未涵盖的部分
+## 10. Out of scope
 
-- **仓储方接口**：仓单哈希与仓储状态来自受监管仓库，是与文保链并列的独立数据源，另行定义；
-- **Oracle 向公链写入**：不在本接口范围。按 PRD §5，L2 只出具签名证明，
-  上链由独立模块承担；该模块与本项目的对接受 PRD §0.1 裁决约束，裁决作出前不得开展；
-- **商务与法律条款**：数据使用授权、责任划分、数据出境审批、服务协议均不在本技术规范内，
-  须另行签署（PRD §0.2）。
+- **Warehouse-provider interface:** warehouse-receipt hashes and warehouse status come from regulated warehouses, an independent source alongside the Preservation Chain, and will be specified separately.
+- **Oracle writes to public chains:** outside this interface. Under PRD §5, L2 issues signed proofs only and a separate module handles on-chain activity; that module's integration with this project is constrained by PRD §0.1 and must not proceed before the decision.
+- **Commercial and legal terms:** data-use authorization, liability allocation, cross-border approvals, and service agreements are outside this technical specification and require separate signatures (PRD §0.2).
 
 ---
 
-本文为提案稿。与文保链技术团队逐条确认后，确认结果应回写本文并更新版本号；
-未确认的条款不得作为 Oracle 侧实现依据。
+This is a proposal draft. After item-by-item confirmation with the Preservation Chain technical team, update this document and its version. Unconfirmed clauses must not be used as Oracle implementation authority.
