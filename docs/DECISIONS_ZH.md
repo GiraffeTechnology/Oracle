@@ -1,258 +1,199 @@
-# 项目裁决记录
+# Project Decision Log
 
-本文件记录已作出的裁决及其依据。**后续文件与本文件冲突时，以本文件为准。**
-新的明确要求可以推翻既有裁决，推翻时必须在此追加条目并注明被取代的编号。
+This file records decisions already made and their rationale. **If a later document conflicts with this file, this file prevails.** A new explicit requirement may supersede an existing decision; add a new entry here and identify the superseded decision number.
 
-## D-001 权威 PRD 为 v0.4
+## D-001 Authoritative PRD is v0.4
 
-| 项目 | 内容 |
+| Item | Content |
 | --- | --- |
-| 裁决 | `docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` v0.4 为唯一权威需求文档 |
-| 日期 | 2026-08-25（v0.3）；2026-09-03 锚定升至 v0.4 |
-| 配套 | `ACCEPTANCE_RWA_ORACLE_ZH.md`（验收）、`STATUS.md`（单 commit 快照）、`GAP_AUDIT_ZH.md`（仓库整体差距） |
+| Decision | docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md v0.4 is the sole authoritative requirements document |
+| Date | 2026-08-25 (v0.3); anchored to v0.4 on 2026-09-03 |
+| Companions | ACCEPTANCE_RWA_ORACLE_ZH.md (acceptance), STATUS.md (single-commit snapshot), GAP_AUDIT_ZH.md (repository-wide gaps) |
 
-被取代：v0.2 `PRD_RWA_ORACLE_PROTOCOL_L2_L3_ZH.md`（已删除）。
+Supersedes: v0.2 PRD_RWA_ORACLE_PROTOCOL_L2_L3_ZH.md (deleted).
 
-**版本沿革**：v0.3 于 2026-09-03 升为 v0.4，唯一实质变更是 **D-008**（登记在途期间不阻断
-ERC-721 转让）。需求 ID 集合、编号体系与范围均未改变，仍为 24 条 ORACLE/CONSUMER/NFR。
+**Version history:** v0.3 was promoted to v0.4 on 2026-09-03. The only substantive change is D-008 (do not block ERC-721 transfers while registry processing is pending). The requirement-ID set, numbering, and scope remain unchanged: 24 ORACLE/CONSUMER/NFR requirements.
 
-> ⚠️ **「v0.4」这个版本号在本项目中出现过两次，二者不是同一份文档。**
+> **The version number “v0.4” appeared twice in this project for two different documents.**
 >
-> | | 文件名 | 编号体系 | 状态 |
+> | | File | ID system | Status |
 > | --- | --- | --- | --- |
-> | 旧 v0.4 | `PRD_RWA_ORACLE_PROTOCOL_L2_L3_ZH.md` | I0–I12 迭代 | **已删除**（D-005） |
-> | 现行 v0.4 | `PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` | ORACLE/CONSUMER/NFR 24 条 | 权威 |
+> | Former v0.4 | PRD_RWA_ORACLE_PROTOCOL_L2_L3_ZH.md | I0–I12 iterations | Deleted (D-005) |
+> | Current v0.4 | PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md | 24 ORACLE/CONSUMER/NFR IDs | Authoritative |
 >
-> 旧 v0.4 曾存在于分支 `feature/oracle-all-iterations`，本裁决当时确立 v0.3 为准并要求把
-> 其 I0–I12 映射到本体系而非反向修改。该映射已在整合中完成（见 `TRACEABILITY_ZH.md`），
-> 旧文件已删除。**引用「v0.4」时必须带文件名**，否则无法区分。沿用该号而非跳至 v0.5，
-> 是因为工单与其验收项（`verify-prd-v0.4`）已锚定此号。
+> The former v0.4 existed on feature/oracle-all-iterations. This decision initially selected v0.3 as the baseline and required mapping its I0–I12 iterations into this system, not changing this system to match. That mapping was completed during integration (see TRACEABILITY_ZH.md), and the old file was deleted. **Always include the filename when citing “v0.4”**; the version alone is ambiguous. The version number was retained instead of advancing to v0.5 because the work item and its verifier (verify-prd-v0.4) were already anchored to that number.
 
-## D-002 优先测试网为 Hoodi
+## D-002 Preferred testnet is Hoodi
 
-| 项目 | 内容 |
+| Item | Content |
 | --- | --- |
-| 裁决 | **Hoodi 为优先公链测试网**；Sepolia 降为可选复跑 |
-| Chain ID | **560048**（来源：`eth-clients/hoodi` 的 `metadata/config.yaml`，`DEPOSIT_CHAIN_ID: 560048`） |
-| 日期 | 2026-08-25 |
+| Decision | **Hoodi is the preferred public-chain testnet**; Sepolia is optional for reruns |
+| Chain ID | **560048** (source: eth-clients/hoodi metadata/config.yaml, DEPOSIT_CHAIN_ID: 560048) |
+| Date | 2026-08-25 |
 
-**已记录的权衡**：ethereum.org 将 Sepolia 列为应用与合约开发的默认推荐测试网，并说明
-Hoodi 的定位是验证者、质押与协议升级测试。技术上两者均可执行本项目的合约测试；本裁决
-按明确要求采用 Hoodi 优先。该权衡不构成阻断项，仅作为记录。
+**Recorded trade-off:** ethereum.org recommends Sepolia by default for application and contract development and describes Hoodi as intended for validator, staking, and protocol-upgrade testing. Technically, both can run this project's contract tests. This decision follows the explicit request to prefer Hoodi. This trade-off is not a blocker; it is recorded for context.
 
-**Hoodi 是测试链，不是生产链。** 本裁决只确定"在哪条测试网上跑测试"，不确定任何生产事项：
+**Hoodi is a test chain, not a production chain.** This decision selects where tests run; it makes no production decision:
 
-- 本项目当前**不存在生产链**；Hoodi 不是主网的替代、镜像或预生产环境；
-- Hoodi 上**不得**写入真实资产、真实资金、真实证书原文、真实登记引用或任何个人信息，
-  只使用合成 fixture（验收标准 §3：合成数据是本阶段的正确形态）；
-- Hoodi 上的测试通过**不解除**主网、真实资产、真实资金及各司法辖区的书面 go/no-go。
-  依验收标准 §2.1，该门禁是**法律门禁**，状态为 `PENDING-GATE`，技术测试全绿不构成解除条件；
-- Hoodi 上的部署地址与交易哈希是测试证据，不得对外表述为产品已上线、已可用或已获批准。
+- This project currently has **no production chain**. Hoodi is not a substitute, mirror, or pre-production environment for mainnet.
+- **Do not** write real assets, funds, original certificates, real registry references, or personal information to Hoodi. Use synthetic fixtures only (acceptance standard §3: synthetic data is correct for this stage).
+- Passing Hoodi tests does **not** clear the written go/no-go for mainnet, real assets, real funds, or each jurisdiction. Under acceptance standard §2.1 this is a **legal gate**, status PENDING-GATE; green technical tests cannot clear it.
+- Hoodi deployment addresses and transaction hashes are test evidence and must not be represented externally as product launch, availability, or approval.
 
-实施要求见 `TESTNET_TASK_HOODI_ZH.md`。**chain ID 一律从 RPC 实际读取并断言，不得硬编码**
-——测试套件已按此实现（EIP-712 域随 chainId 变化，硬编码会产生错误的域分隔符）。
+Implementation requirements are in TESTNET_TASK_HOODI_ZH.md. **Always read and assert the chain ID from the live RPC; never hard-code it.** The test suite follows this rule (the EIP-712 domain changes with chainId; a hard-coded value produces an incorrect domain separator).
 
-## D-005 分支整合与 v0.3 修订选择
+## D-005 Branch integration and selection of the v0.3 revision
 
-| 项目 | 内容 |
+| Item | Content |
 | --- | --- |
-| 裁决 | `feature/oracle-all-iterations` 的实现已合入候选分支并经 PR #2 合入 `main`，形成首个同时包含需求、验收、实现、测试与 CI 的 commit |
-| 日期 | 2026-08-28 |
-| 关联 | issue #5 |
+| Decision | Implementation from feature/oracle-all-iterations was merged into the candidate branch and then into main via PR #2, creating the first commit that contains requirements, acceptance, implementation, tests, and CI together |
+| Date | 2026-08-28 |
+| Related | Issue #5 |
 
-**v0.3 存在两份修订。** 本次发现两条分支各持一份均标注 v0.3 的 PRD：
+**There were two v0.3 revisions.** Each of two branches held a PRD marked v0.3:
 
-| | 字节数 | 差异 |
+| | Bytes | Difference |
 | --- | --- | --- |
-| 本分支原有 | 28,019 | 无 §3.3 |
-| `feature` 分支 | 30,922 | 新增 §3.3 主体合规边界；ORACLE-005 更名为"主体合规结论隔离"；§12 更名 |
+| Existing branch copy | 28,019 | No §3.3 |
+| feature branch copy | 30,922 | Added §3.3 entity-compliance boundary; renamed ORACLE-005 to “isolation of entity-compliance conclusions”; renamed §12 |
 
-两者需求 ID 集合完全相同（24 个）。**取 `feature` 分支那份** —— 它是更晚的修订，且实现是按其
-编写。D-001 中"v0.3 为权威"因此具体指向本修订。
+Their requirement-ID sets were identical (24 IDs). **Select the feature-branch revision**: it was later and the implementation was written against it. Thus D-001’s “v0.3 is authoritative” specifically means this revision.
 
-其他整合决定：
+Other integration decisions:
 
-- 删除 `PRD_RWA_ORACLE_PROTOCOL_L2_L3_ZH.md`（v0.4），依 D-001；
-- 移除本分支原有的最小服务骨架（`src/config.ts`、`src/server.ts`、`src/oracle-status.ts`、
-  `src/index.ts` 及其测试）—— 其保证已由 `src/app.js` 与 `test/app.test.js` 更完整地覆盖，
-  保留会造成同一仓库存在两个 Oracle 服务；
-- `engines` 定为 `>=22.18.0`：对方 217 项测试在 Node 22.22.2 上实测全通过，`.nvmrc` 仍按对方
-  锁定 24.19.0 供 CI 使用。
+- Delete PRD_RWA_ORACLE_PROTOCOL_L2_L3_ZH.md (v0.4), per D-001.
+- Remove this branch's minimal service skeleton (src/config.ts, src/server.ts, src/oracle-status.ts, src/index.ts and tests): src/app.js and test/app.test.js cover its guarantees more completely; retaining both would leave two Oracle services in one repository.
+- Set engines to >=22.18.0: the other branch's 217 tests passed on Node 22.22.2; .nvmrc remains pinned to 24.19.0 for CI.
 
-## D-006 Oracle 与 ArtFi 的关系：两个独立仓库，边界为只读验证 SDK
+## D-006 Oracle and ArtFi: two independent repositories, boundary is a read-only verification SDK
 
-| 项目 | 内容 |
+| Item | Content |
 | --- | --- |
-| 裁决 | **ArtFi 是文保链上登记产品在公链交易的 agent**；Oracle 与 ArtFi 是 GitHub 上两个独立仓库，按两个子项目推进 |
-| 仓库 | `GiraffeTechnology/Oracle`（本仓库，L2 验证层）、`GiraffeTechnology/ArtFi`（公链交易 agent） |
-| 日期 | 2026-09-01 |
-| 取代 | 本条不取代 D-004 中的 ArtFi 条目，但收窄其范围，见下 |
+| Decision | **ArtFi is the agent for public-chain trading of the cultural-relic-chain registration product**; Oracle and ArtFi are separate GitHub repositories developed as separate subprojects |
+| Repositories | GiraffeTechnology/Oracle (this repository, L2 verification layer); GiraffeTechnology/ArtFi (public-chain trading agent) |
+| Date | 2026-09-01 |
+| Supersedes | This does not supersede the ArtFi entry in D-004; it narrows that entry as described below |
 
-**Oracle 不向任何公链发送交易。** 上链由 ArtFi 承担。这与 PRD §5 的层次划分一致：
-L2 只做查询、核验、签名证明、状态同步、撤销和审计。本仓库 `src/` 中不存在、也不应出现
-交易广播、签名发送或链上写入路径。
+**Oracle does not send transactions to any public chain.** ArtFi owns on-chain activity. This matches the layer division in PRD §5: L2 performs queries, verification, signed proofs, state synchronization, revocation, and audit. The src/ directory must contain no transaction broadcast, transaction-signing submission, or on-chain write path.
 
-**边界形态：不存在「Oracle → ArtFi 对接代码」。** 依 ORACLE-010，Oracle 对下游只提供
-**只读验证库**（`src/sdk/verifier.js`）与证明格式。ArtFi 与任何其他消费方一样，通过验证
-证明来消费 Oracle 的事实，Oracle 侧不为任何特定消费方编写专用接口。因此 PRD §0.1
-「阻塞任何与 ArtFi 的接口对接」在本架构下的实际约束面很小 —— 没有专用对接面可以被阻塞。
+**There is no “Oracle → ArtFi integration code.”** Under ORACLE-010, Oracle provides downstream consumers only a **read-only verification library** (src/sdk/verifier.js) and proof format. ArtFi, like every other consumer, consumes facts by verifying proofs; Oracle writes no consumer-specific interface. Thus the practical constraint of PRD §0.1, “block any interface integration with ArtFi,” has a small surface in this architecture: there is no dedicated integration surface to block.
 
-**两个独立仓库结构性地满足了 PRD §0.1 的一部分要求**：「不引用、不依赖、不复用 ArtFi 的
-合约、数据库、Token 语义或验证数据集」中，合约、数据库与代码复用由仓库边界保证，并由
-`scripts/check-decision-consistency.mjs` 机械校验（`src/` 中出现 ArtFi 耦合即构建失败）。
+**Separate repository structure satisfies part of PRD §0.1 structurally:** the requirements not to reference, depend on, or reuse ArtFi contracts, databases, token semantics, or verification dataset are enforced for contract/database/code reuse by repository boundaries and mechanically checked by scripts/check-decision-consistency.mjs (any ArtFi coupling in src/ fails the build).
 
-**产品语义已裁决，跨仓实现仍待核验**：Oracle 只机械记录以下外部消费边界，不为 ArtFi 增加
-运行时代码、链写、签名、广播、撮合、定价或托管能力：
+**Product semantics are decided; cross-repository implementation remains unverified.** Oracle records the following external-consumer boundary mechanically only; it adds no runtime code, chain writes, signing, broadcasting, matching, pricing, or custody capability for ArtFi:
 
-| 层次 | ArtFi 的行为 | 与本 PRD 的关系 |
+| Tier | ArtFi behavior | Relationship to this PRD |
 | --- | --- | --- |
-| a | 当前交付：非托管交易 Agent，仅由用户钱包或 Safe owners 签署 | 允许；ArtFi 不持有/托管私钥、不代签 |
-| b | 代用户签署、持有或托管密钥 | **禁止** |
-| c | Exchange：撮合、定价、结算 | 后续迭代；`NOT_IMPLEMENTED`、`NOT_AUTHORIZED` |
+| a | Current delivery: non-custodial trading agent; only user wallets or Safe owners sign | Allowed; ArtFi does not hold/custody private keys or sign on behalf of users |
+| b | Sign on behalf of users, hold keys, or custody keys | **Prohibited** |
+| c | Exchange: matching, pricing, settlement | Later iteration; NOT_IMPLEMENTED and NOT_AUTHORIZED |
 
-Charity 是当前 Market Agent 的交付子流程，必须遵守同一非托管、仅用户钱包/Safe owners 签署
-和状态一致性边界；它既不是 ArtFi 整体交付目标，也不得扩张为 Exchange。ArtFi 消费/索引层
-可实时只读公开市场的 NFT 挂牌、成交状态与交易历史，但这些观察不是 Oracle 权威状态，必须带
-source/provider 并与 Oracle evidence 分层。`config/external-consumer-state-contract.v1.json` 只记录
-合同与 `NOT_VERIFIED_EXTERNAL` 跨仓状态，不声称 ArtFi 仓库已经实现或验证这些边界。
+Charity is a delivery subflow of the current Market Agent and must follow the same non-custodial, user-wallet/Safe-owner-only signing, and state-consistency boundaries. It is neither the overall ArtFi delivery objective nor authorization to expand into Exchange. The ArtFi consumption/indexing layer may read public-market NFT listings, settlement status, and transaction history in real time, but these observations are not Oracle authoritative state; identify their source/provider and keep them separate from Oracle evidence. config/external-consumer-state-contract.v1.json records only the contract and cross-repository status NOT_VERIFIED_EXTERNAL; it does not claim those boundaries are implemented or verified in the ArtFi repository.
 
-## D-007 ERC 提案的权威位置与引用规则
+## D-007 Authoritative location and citation rules for the ERC proposal
 
-| 项目 | 内容 |
+| Item | Content |
 | --- | --- |
-| 裁决 | **ERC 提案的权威位置在本仓库之外**：已获分配编号 **ERC-8415**，上游提交为 `ethereum/ERCs#2006`；仓库内的草案分支仅为存证 |
-| 当前 PR | **#18**（序列 #3 → #13 → #16 → #18；**#18 正文声明不再轮换**，可以引用，但分支仍是权威标识） |
-| 现行提案 | _Asynchronous Register Projection for NFTs_（`erc/ERCS/erc-xxxx.md`） |
-| 日期 | 2026-09-02 |
+| Decision | **The authoritative ERC proposal is outside this repository**: number **ERC-8415** has been assigned; upstream submission is ethereum/ERCs#2006. The in-repository draft branch is only an archival copy |
+| Current PR | **#18** (sequence #3 → #13 → #16 → #18; **PR #18 says the PR number will not rotate again** and may be cited, but the branch remains the authoritative identifier) |
+| Current proposal | _Asynchronous Register Projection for NFTs_ (erc/ERCS/erc-xxxx.md) |
+| Date | 2026-09-02 |
 
-**PR 编号会反复更换，不代表提案被放弃**：PR #3 于 2026-09-02T00:04:00Z 关闭未合并、#13 于 24 秒后
-创建；#13 又于 05:32:17Z 关闭、#16 于 33 秒后创建。三者指向同一分支，每次关闭时的 head 与新开时
-相同，仅刷新说明。因此看到「PR 已关闭」不应推断工作停止 —— 以分支 head 为准。`docs/erc/` 归档的旧提案 _Versioned RWA Certificate Settlement_
-**不再是规范源**，仅作历史记录保留。
+**PR numbers may change repeatedly; this does not mean the proposal was abandoned.** PR #3 closed unmerged at 2026-09-02T00:04:00Z and #13 was created 24 seconds later; #13 later closed at 05:32:17Z and #16 was created 33 seconds later. All three pointed to the same branch; each closure/new PR kept the same head and only refreshed the description. A closed PR therefore does not imply work stopped: use the branch head. The old proposal archived under docs/erc/, _Versioned RWA Certificate Settlement_, is no longer the specification source and is retained only as a historical record.
 
-**该分支不得合并进 `main`。** 其目的地是 `ethereum/ERCs`；合并会把一份草案标准及其内部
-审查记录带进 Oracle 的产品历史，并破坏该分支存在的意义——一份不会漂移的副本。
+**That branch must not be merged into main.** Its destination is ethereum/ERCs. Merging would bring a draft standard and internal review records into Oracle's product history and defeat the purpose of a non-drifting reference copy.
 
-**引用规则**：该分支持续更新，因此本仓库任何引用 ERC 内容的文档或脚本
-**必须标注所依据的 commit**。未标注 commit 的引用视为失效，不得作为实现依据。
-当前已知状态锚定在 `dce2163`（2026-09-04 复核；历次：`386d6d4` → `c22792a` → `a5270ad`
-→ `bdea8e0` → `172fe3f` → `23c0b71` → `dce2163`）。`23c0b71` → `dce2163` 规范文件未变，
-本次重锚是因为 **PR #18 被产品方指定为终局视图**，锚定到它的 head 而非仅在规范变化时推进。
+**Citation rule:** the branch changes continuously. Any repository document or script that cites ERC content **must state the referenced commit**. A citation without a commit is invalid and cannot be used as an implementation basis. The state known at this decision was anchored at dce2163 (reviewed 2026-09-04; prior sequence: 386d6d4 → c22792a → a5270ad → bdea8e0 → 172fe3f → 23c0b71 → dce2163). The specification did not change from 23c0b71 to dce2163; it was re-anchored because the product owner designated PR #18 as the final view, so the anchor follows its head rather than advancing only when specification text changes.
 
-**`IProjectionSettlement` 的 interface ID 已于 `23c0b71` 由 `0xfd0f6337` 变为 `0xf4a7d71b`**
-（`cancelSettlement` 移除 `proofData` 参数、新增 `isSettlementAuthority`，selector XOR 因此改变）。
-这是本锚定机制建立以来第一次真正捕获到语义变更，而非仅 commit 位移。
+**The IProjectionSettlement interface ID changed at 23c0b71 from 0xfd0f6337 to 0xf4a7d71b** (proofData was removed from cancelSettlement and isSettlementAuthority was added, changing the XOR of selectors). This was the first actual semantic change caught by this anchoring mechanism, not a mere commit movement.
 
-**重新锚定的触发条件是规范文件 `erc/ERCS/erc-xxxx.md` 发生变化，不是分支的任一提交。** 该分支
-同时承载内部审查台账（`erc/review/`）与文件索引清单，二者变动频繁且不可能影响 Oracle 侧的
-任何依赖 —— 例如 `a5270ad` → `bdea8e0` 只改了台账与索引，规范一字未动。锚定记录的是
-「四项属性最后一次被核验时所处的 commit」，不是对分支 head 的断言；两者不一致是正常的。
+**Re-anchoring is triggered by a change to the normative file erc/ERCS/erc-xxxx.md, not by every branch commit.** The branch also carries internal review ledgers (erc/review/) and a file index, both of which change often and cannot affect any Oracle dependency. For example, a5270ad → bdea8e0 changed only the ledger and index, not a word of the specification. The anchor records “the commit at which the four properties were last verified,” not an assertion about branch head; these can differ normally.
 
-被核验的四项属性：两个 interface ID 存在；`GapStatus` 为记录在案的五个取值；`RegisterEntry`
-为七个字段；规范仍写有 ordinary ERC-721 transfers MUST NOT be blocked。
+The four checked properties: both interface IDs exist; GapStatus has the five recorded values; RegisterEntry has seven fields; and the specification still says ordinary ERC-721 transfers MUST NOT be blocked.
 
-**已知实质分歧 —— 已于 2026-09-03 由 D-008 裁决（PRD 服从 ERC，升 v0.4）。** 以下保留为
-记录。这是一处**规范性正面冲突**，不是设计偏好之差 ——
+**Known substantive disagreement—resolved by D-008 on 2026-09-03 (PRD follows ERC; raised to v0.4).** The following is retained as a record. This was a direct normative conflict, not a design preference:
 
-| | 要求 | 出处 |
+| | Requirement | Source |
 | --- | --- | --- |
-| 现行 ERC | 「Ordinary ERC-721 transfers **MUST NOT be blocked** while a projection gap is open.」 | `erc/ERCS/erc-xxxx.md` 规范章节（`a5270ad` 第 157 行；`386d6d4`、`c22792a` 时措辞相同） |
-| PRD v0.3 | 「**阻止** NFT 转让和提货」；「置于协议托管或**不可转让**状态」；前提 P7 要求 T+0 冻结、完成后才恢复可交易 | §6 第 293 行、§7 第 427 行、§1 前提 P7 |
+| Current ERC | “Ordinary ERC-721 transfers MUST NOT be blocked while a projection gap is open.” | Normative section of erc/ERCS/erc-xxxx.md (a5270ad line 157; same wording in 386d6d4 and c22792a) |
+| PRD v0.3 | “Block” NFT transfer and redemption; place it in protocol escrow or “non-transferable” state; premise P7 requires T+0 freeze and trading resume only after completion | §6 line 293, §7 line 427, §1 premise P7 |
 
-即：ERC 规范禁止的，正是 PRD 规范要求的。`src/domain/settlement-coordinator.js` 与
-`src/domain/consumer-state-machine.js` 按 PRD 实现。被取代的旧提案用的是冻结模型
-（`ordinary ERC-721 transfers MUST NOT execute`），故本次重写是主动翻转立场。
+That is, the ERC forbids exactly what the PRD required. src/domain/settlement-coordinator.js and src/domain/consumer-state-machine.js implemented the PRD. The superseded proposal used a freeze model (“ordinary ERC-721 transfers MUST NOT execute”), so this revision deliberately reverses that position.
 
-**更正记录**：本条初次记录时表述为「现行提案在 Motivation 中明确反对冻结模型」，据此把它
-定性为立场分歧。该表述过轻 —— 反对冻结不止写在 Motivation 的论证里，规范章节本身就是一条
-MUST NOT，且在 `386d6d4` 时即已如此，并非后续收紧。
+**Correction:** the initial entry said the current proposal “opposes the freeze model in its Motivation,” and called it a position difference. That understated it: opposition was not only argumentative text in Motivation; the normative section itself says MUST NOT, and already did so at 386d6d4, not as a later tightening.
 
-> **本段的「待裁决」状态已结束。** 裁决结果见 D-008：PRD 一侧吸收，冻结转让删除。
-> 上表所引「§6 第 293 行」是当时的引用错误——第 293 行是 **ORACLE-004 紧急冻结**，
-> 与交割冻结无关；真正的冲突条款是 **CONSUMER-004**。
+> **The “awaiting decision” status in this paragraph is closed.** The result is D-008: the PRD was updated to remove transfer freeze. The cited §6 line 293 was erroneous—line 293 was ORACLE-004 emergency freeze and unrelated to settlement freeze; the actual conflict was CONSUMER-004.
 
-## D-008 登记在途期间不阻断转让；权利按可递延 / 易逝性区分
+## D-008 Do not block transfers while registry processing is pending; classify rights as deferrable or perishable
 
-| 项目 | 内容 |
+| Item | Content |
 | --- | --- |
-| 裁决 | **登记在途期间，普通 ERC-721 转让不被阻断。** 权利判定不再以「当前谁持有代币」为基准，改以 ERC 投影为基准：某时刻的确认持有人，以及该时刻是否终局、是否处于争议中 |
-| 方向 | **PRD 服从 ERC**。依 D-007，ERC 在 PR 期间不改不合并，冲突只能由 PRD 一侧吸收 |
-| 日期 | 2026-09-03 |
-| 连带 | PRD 升 v0.4；D-001 锚定同步更新 |
+| Decision | **Ordinary ERC-721 transfers are not blocked while registry processing is pending.** Rights are no longer determined by “who currently holds the token”; they are determined using the ERC projection: the confirmed holder at a particular moment, whether that moment is final, and whether it is disputed |
+| Direction | **PRD follows ERC.** Under D-007, the ERC is not changed or merged during its PR; the conflict can only be resolved on the PRD side |
+| Date | 2026-09-03 |
+| Consequence | PRD raised to v0.4; D-001 anchor updated accordingly |
 
-**冲突原文对照**（这是规范性正面冲突，不是措辞差异）：
+**Original conflicting text** (a direct normative conflict, not a wording difference):
 
-| | 要求 | 出处 |
+| | Requirement | Source |
 | --- | --- | --- |
-| ERC | `Ordinary ERC-721 transfers MUST NOT be blocked while a projection gap is open.` | `erc/ERCS/erc-xxxx.md` 规范章节（锚定 commit 见 D-007） |
-| PRD v0.3 | 「将 NFT 置于协议托管或**不可转让**状态」「**阻止转让**、提货、质押及重复挂牌」 | CONSUMER-004 第 2、4 项 |
+| ERC | Ordinary ERC-721 transfers MUST NOT be blocked while a projection gap is open. | Normative section of erc/ERCS/erc-xxxx.md (anchor commit in D-007) |
+| PRD v0.3 | Put NFT in protocol escrow or a non-transferable state; block transfer, redemption, pledge, and duplicate listing | CONSUMER-004 items 2 and 4 |
 
-ERC 对该条有明确论证：**冻结不使缺口可解析，只使它昂贵**。阻断转让并不能让「T+0 到 T+3
-之间某时刻谁是确认持有人」这个问题变得可回答，只是把不确定性的成本转嫁给持有人，并且会
-毁掉那些记录时刻恰好落在冻结窗口内的权利。
+The ERC rationale is explicit: **a freeze does not resolve a gap; it only makes the gap expensive.** Blocking transfer cannot answer “who was the confirmed holder at some moment between T+0 and T+3”; it only transfers the uncertainty cost to the holder and destroys rights whose recorded moment falls within the freeze window.
 
-### 权利分类（本裁决的核心机制）
+### Rights classification (core mechanism of this decision)
 
-| 类别 | 判定规则 | 举例 |
+| Category | Rule | Examples |
 | --- | --- | --- |
-| **可递延权利** | 允许在缺口开启期间发起；结算推迟至该时刻终局后，按该时刻的确认持有人执行。**不阻断，不丢失** | 收益分配、通知、分红一类 |
-| **易逝性权利** | 要求该时刻**已终局**且**无未决缺口**。不满足则拒绝**该次行使** | 提货、销毁、投票，以及任何不可逆的一次性行使 |
+| **Deferrable right** | May be initiated while a gap is open; settlement is deferred until the moment is final and then applied to the confirmed holder at that moment. It is neither blocked nor lost. | Distributions, notices, dividends |
+| **Perishable right** | Requires that the moment is final and has no open gap. Otherwise reject that particular exercise. | Redemption, burn, voting, and any irreversible one-time exercise |
 
-拒绝的是**该次行使**，不是该代币的**可转让性**——这是本裁决与冻结模型的全部差别。
-效果与冻结等价（不可逆动作不会在归属未定时发生），但不阻断市场，也消除了原先与
-CONSUMER-008 外部交易兼容之间的张力。
+What is rejected is **that exercise**, not the token's **transferability**. This is the entire distinction from a freeze model. The effect is equivalent for irreversible actions (none occurs while ownership is unsettled), while markets remain unblocked and the former tension with CONSUMER-008 external-market compatibility is removed.
 
-### 四个「冻结」必须分清，本裁决只改第二个
+### Distinguish four meanings of “freeze”; this decision changes only the second
 
-| # | 概念 | 是否受本裁决影响 |
+| # | Concept | Affected by this decision? |
 | --- | --- | --- |
-| 1 | **快照冻结**：T+0 固定快照哈希，数据不再变动 | 否，保留。这是数据固定，正当 |
-| 2 | **转让冻结**：登记在途期间禁止 ERC-721 转让 | **是，删除** |
-| 3 | **紧急冻结**：ORACLE-004，登记撤回/证书失效/司法冻结/来源争议时撤销证明并阻止操作 | 否，不在范围内 |
-| 4 | **外部受限状态**：`encumbranceStatus`，文保链上报的冻结/查封/质押代码 | 否。这是来源事实，不是本产品的动作 |
+| 1 | **Snapshot freeze:** fix the T+0 snapshot hash; data no longer changes | No; retained. This is legitimate data fixation |
+| 2 | **Transfer freeze:** prohibit ERC-721 transfers while registry processing is pending | **Yes; deleted** |
+| 3 | **Emergency freeze:** ORACLE-004; revoke proof and block operations after registry withdrawal, certificate invalidation, judicial freeze, or source dispute | No; out of scope |
+| 4 | **External restricted status:** encumbranceStatus, a freeze/seizure/pledge code reported by the cultural-relic chain | No; this is a source fact, not an action by this product |
 
-第 4 项是本次执行时新发现的：`WENBAO_INTERFACE_SPEC_ZH.md` §4.1 的 `encumbranceStatus`
-字段承载文保链上报的受限状态。它与前三者性质不同，术语审计必须把它一并区分开。
+Item 4 was newly discovered during execution: encumbranceStatus in §4.1 of WENBAO_INTERFACE_SPEC_ZH.md carries a restricted status reported by the cultural-relic chain. It differs from the first three and must also be distinguished in terminology reviews.
 
-### 前提 P7 的处置
+### Treatment of premise P7
 
-P7 原文把两件性质不同的事写成了**一条外部前提**：
+Original P7 combined two different things into one external premise:
 
-1. 文保链最迟 T+3 完成所有者变更、旧证注销、新证签发 —— **外部事实**，仍需 SLA 与工作
-   日历签署取证，留在前提表；
-2. 「完成后 NFT 才恢复可交易状态」—— **本产品的设计选择**，正是本裁决改变的对象，移出
-   前提表，改由本裁决管辖。
+1. Registry completes owner change, prior-certificate revocation, and new-certificate issuance by T+3 at the latest: an **external fact**, still requiring an SLA and business calendar as evidence in the premise register.
+2. “NFT becomes tradable only after completion”: a **design choice of this product**, exactly what this decision changes; remove it from the premise register and govern it by this decision.
 
-不拆开就会得到自相矛盾的 PRD：前提说「完成后才恢复可交易」，而 CONSUMER-004 说转让从不
-被阻断。**工单未列出 P7，此项为执行时补入。**
+Without splitting them the PRD would contradict itself: the premise says trading resumes only after completion, while CONSUMER-004 says transfer is never blocked. **P7 was not listed in the work item; this was added during execution.**
 
-### 未发现外部强制依据
+### No external mandatory basis found
 
-执行前按工单 §0 检索全仓（PRD、`WENBAO_INTERFACE_SPEC_ZH.md`、`PREMISE_EVIDENCE_REGISTER_ZH.md`
-及其只读预审、公开来源候选），**没有任何文件把「交割期内不得转让」表述为文保链方、监管方
-或合规方的外部要求**。P7 在前提登记册中的缺口是「待 SLA/工作日历签署」，属服务水平与日历
-口径，不是监管裁定。
+Before execution, a repository-wide search under work-item §0 (PRD, WENBAO_INTERFACE_SPEC_ZH.md, PREMISE_EVIDENCE_REGISTER_ZH.md and its read-only review, and candidate public sources) found no document stating that “transfer is prohibited during settlement” is an external requirement of the cultural-relic chain, a regulator, or a compliance authority. The premise-register gap for P7 was “awaiting signed SLA/business calendar,” a service-level and calendar definition, not a regulatory decision.
 
-**若日后取得相反证据，本裁决须重新审议，且须在 ERC 提交前处理** —— 那种情况下要动的是
-ERC 而不是 PRD。
+**If contrary evidence is obtained later, revisit this decision before ERC submission**—in that case the ERC, not the PRD, would need to change.
 
-## D-003 冲突裁决规则
+## D-003 Conflict-resolution rule
 
-出现冲突时，按以下顺序取用：
+When statements conflict, apply this order:
 
-1. 最新的明确要求（并追加为本文件的新条目）；
-2. 本文件既有裁决；
-3. 权威 PRD 与验收标准；
-4. 其他文档。
+1. Latest explicit requirement (append it as a new entry to this file).
+2. Existing decisions in this file.
+3. Authoritative PRD and acceptance standard.
+4. Other documents.
 
-## D-004 本次裁决未解决的事项
+## D-004 Matters not resolved by this decision process
 
-以下事项不属于文档冲突，无法由裁决规则关闭，须另行处理：
+These are not document conflicts and cannot be closed by the conflict-resolution rule; handle them separately:
 
-| 事项 | 性质 | 出处 |
+| Matter | Nature | Source |
 | --- | --- | --- |
-| ArtFi 跨仓实现及证据 | 外部工程与验收；产品语义由 D-006 固定 | PRD §0.1、D-006 |
-| 范围与排期契约签署 | 商务 | PRD §0.2 |
-| PREMISE-P1~P8 前提取证 | 取证工作 | PRD §1、验收 §4.4 |
-| 主网/真实资产/真实资金的法务 go/no-go | 法律门禁，状态 `PENDING-GATE` | 验收 §2.1 |
-| 两条分支的合并 | 工程工作 | `GAP_AUDIT_ZH.md` §6 A 类 |
+| ArtFi cross-repository implementation and evidence | External engineering and acceptance; product semantics fixed by D-006 | PRD §0.1, D-006 |
+| Scope and schedule contract | Commercial | PRD §0.2 |
+| PREMISE-P1–P8 evidence | Evidence collection | PRD §1, acceptance §4.4 |
+| Legal go/no-go for mainnet/real assets/real funds | Legal gate, status PENDING-GATE | Acceptance §2.1 |
+| Merge the two branches | Engineering work | GAP_AUDIT_ZH.md §6, category A |
