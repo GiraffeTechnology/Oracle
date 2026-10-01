@@ -1,19 +1,19 @@
-# L2 权威数据与失败处理契约
+# L2 Authoritative Data and Failure-Handling Contract
 
-## 固定来源
+## Fixed sources
 
-来源仅由部署配置中的批准注册表标识，最低角色为登记方、证书签发方和仓储方。调用方不能提交 URL、RPC、数据库地址或替代端点。未知来源、未知 schema、被撤销的签名集合、超时、冲突和部分可用均 fail closed。
+Sources are identified only by an approved registry in deployment configuration. At minimum, roles include registrar, certificate issuer, and warehouse. Callers cannot submit a URL, RPC, database address, or replacement endpoint. Unknown sources or schemas, revoked signer sets, timeouts, conflicts, and partial availability fail closed.
 
-## 事实边界
+## Boundary of facts
 
-Oracle 只处理资产、登记、证书、仓单、权利负担、司法冻结、交割及权属承诺等事实。交易对手方的身份或经营合规结论不进入 schema、API、UI、证明或缓存。资产侧 `transferEligibility` 不得被解释为任何主体的合规资格。
+Oracle handles only facts such as assets, registrations, certificates, warehouse receipts, encumbrances, judicial freezes, settlement, and ownership commitments. Counterparty identity or business-compliance conclusions must not enter schemas, APIs, UIs, proofs, or caches. Asset-side `transferEligibility` must not be interpreted as any party's compliance eligibility.
 
 ## T+0 / T+3
 
-T+0 输入必须包含资产、Token、买卖钱包、外部执行引用、旧证书、仓单和时间，形成快照哈希并进入 `TRANSFER_PENDING`。T+3 完成要求登记变更、新证书、旧证书注销、仓储确认、钱包绑定、版本递增与前序哈希全部一致。任一证据缺失、冲突、乱序、过期或撤销时不得写入新证书或改变持有人。
+T+0 input must include the asset, token, buyer and seller wallets, external execution reference, prior certificate, warehouse receipt, and time; it produces a snapshot hash and enters `TRANSFER_PENDING`. T+3 completion requires the registry change, new certificate, revocation of the prior certificate, warehouse confirmation, wallet binding, version increment, and prior hashes to be mutually consistent. If any evidence is missing, conflicting, out of order, expired, or revoked, no new certificate may be written and the holder must not change.
 
-工作日历必须使用版本化 `calendarId`，时间以 UTC 持久化，UI 按所选时区展示。退款、支付和市场撮合由获准第三方独立执行，Oracle 仅发布事实事件。
+The business calendar must use a versioned `calendarId`; time is persisted in UTC and displayed in the UI in the selected time zone. Refunds, payments, and market matching are independently executed by authorized third parties; Oracle publishes factual events only.
 
-## 变更与争议
+## Changes and disputes
 
-来源、schema、签名集合、日历、保留期和撤销规则的变更必须采用双人控制、不可变审计、回滚计划和版本化生效时间。争议进入 `REVIEW_REQUIRED` 或 `FROZEN`，不得使用缓存或乐观默认恢复交易。
+Changes to sources, schemas, signer sets, calendars, retention periods, or revocation rules require dual control, immutable audit, a rollback plan, and a versioned effective time. Disputes enter `REVIEW_REQUIRED` or `FROZEN`; cached or optimistic defaults must not be used to resume trading.
