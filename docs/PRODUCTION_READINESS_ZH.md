@@ -1,126 +1,104 @@
-# 生产就绪评估
+# Production Readiness Assessment
 
-| 项目 | 内容 |
+| Item | Content |
 | --- | --- |
-| 依据 | `ACCEPTANCE_RWA_ORACLE_ZH.md` §7 交付定义、`PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` §14 发布阻断项 |
-| 被审对象 | 本文件所在提交（候选分支，现已合入 `main`） |
-| 日期 | 2026-08-25 |
-| **结论** | **不是生产候选。必须阻断生产发布。** |
+| Basis | Delivery definition in ACCEPTANCE_RWA_ORACLE_ZH.md §7 and release blockers in PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md §14 |
+| Reviewed object | Commit containing this file (candidate branch, now merged into main) |
+| Date | 2026-08-25 |
+| **Conclusion** | **Not a production candidate. Production release must be blocked.** |
 
-> 依验收标准 §2，"完成""交付""通过""可上生产"为保留词，仅当同一 commit 上全部适用验收项
-> 均为 `VERIFIED` 时方可使用。本评估不满足该条件，全文不使用上述表述。
+> Under acceptance standard §2, “complete,” “delivered,” “passed,” and “production-ready” are reserved terms, usable only when all applicable acceptance items are VERIFIED on the same commit. This assessment does not meet that condition and does not use those terms as a completion claim.
 
-> **更新（2026-08-28）**：本评估作于分支整合之前，当时被审 commit 几乎没有实现。整合后
-> （issue #5）第 2 节第 1、3 项及第 3 节第 1、4 项的判定依据已改变：实现与测试现已在同一
-> commit 上，本地 `verify-prd-v0.4` 报 23/24 工程侧已验证。**但依验收标准 §3，在 CI 恢复
-> （issue #4）并于本 commit 产出一次绿灯运行前，上述任何一项都不得记为已清除。**
-> 第 4、12、13、15 项（前提取证、独立审计、主网批准、契约签署）不受整合影响，仍然成立。
+> **Update (2026-08-28):** This assessment predates branch integration; the reviewed commit then contained almost no implementation. After integration (issue #5), the bases for §2 items 1 and 3 and §3 items 1 and 4 changed: implementation and tests now share one commit, and local verify-prd-v0.4 reported 23/24 engineering-side items verified. **However, under acceptance standard §3, none of these items may be marked cleared until CI is restored (issue #4) and produces a green run on this commit.** Items 4, 12, 13, and 15 (premise evidence, independent audits, mainnet approval, and contract signing) are unaffected by integration and remain outstanding.
 
-## 1. 结论
+## 1. Conclusion
 
-PRD §14 列出 15 项发布阻断项，其中**至少 6 项当前成立**，任一成立即必须阻断生产发布。
-验收标准 §7 的 8 项交付条件**无一满足**。
+PRD §14 lists 15 release blockers, of which **at least six currently apply**; any one requires blocking production release. **None** of the eight delivery conditions in acceptance standard §7 is satisfied.
 
-本仓库当前处于 **G-A 进行中**，距离 G-F 生产候选尚有 G-B~G-E 四道阶段门。
+The repository is currently at **G-A in progress**, with four stage gates, G-B through G-E, remaining before the G-F production candidate.
 
-## 2. PRD §14 发布阻断项逐条
+## 2. PRD §14 release blockers, item by item
 
-| # | 阻断项 | 判定 | 依据 |
+| # | Blocker | Assessment | Basis |
 | --- | --- | --- | --- |
-| 1 | 不能证明一物一证一 NFT | **成立** | 本 commit 无 token 绑定实现；CONSUMER-001 为 `NOT-IMPLEMENTED` |
-| 2 | 文保链、证书或仓单哈希不一致 | 无法评估 | 无摄取路径与数据，不具备判定条件 |
-| 3 | 中创文贸或仓储方状态不可验证 | **成立** | 无来源适配器接入，ORACLE-001 仅有标识符注册表 |
-| 4 | P1–P4 任一监管前提无法取证 | **成立** | PREMISE-P1~P8 全部无书面依据与取证日期 |
-| 5 | T+0 后仍签发允许转让的有效证明 | 无法评估 | 无证明签发能力（ORACLE-003 未实现） |
-| 6 | 权威登记完成前签发买方已交割证明 | 无法评估 | 同上 |
-| 7 | 旧证书未注销或证书历史被覆盖 | 无法评估 | 无证书版本库 |
-| 8 | Oracle 可自行认定所有权或绕过权威来源 | 不成立 | 无此路径；但同时因无实现，非正面证据 |
-| 9 | API、UI 或合同含估值/收益/抵押率/投资建议 | **不成立** | CI 门禁 `check-no-financial-output.mjs`，双向反向验证通过 |
-| 10 | Giraffe 接触金融签名、资金、授信或按成交额收费 | 不成立（代码侧） | 全部写方法返回 405；合同侧条款未核查 |
-| 11 | 个人信息、证书原文或身份映射进入公开链 | 不成立 | CI 门禁 `check-repository-hygiene.mjs`；且当前无公开链写入 |
-| 12 | 缺少独立法律、安全、隐私或适配器审计 | **成立** | 四类独立审计均未进行 |
-| 13 | 缺少主网、真实资产及真实资金的单独书面批准 | **成立** | 未取得；状态 `PENDING-GATE` |
-| 14 | §0.1 ArtFi 裁决未作出而已发生接口对接 | 不成立（代码侧）；Token 语义待确认 | 两个独立仓库，`src/` 无 ArtFi 耦合且由 CI 守卫；份额化语义待产品确认。详见 §7 与 D-006 |
-| 15 | §0.2 范围与排期契约未签署 | **成立** | 未签署 |
+| 1 | Cannot prove one asset, one certificate, one NFT | Applies | This commit had no token-binding implementation; CONSUMER-001 was NOT-IMPLEMENTED |
+| 2 | Cultural-relic-chain, certificate, or warehouse-receipt hash mismatch | Cannot assess | No ingestion path or data; insufficient basis |
+| 3 | Zhongchuang Wenmao or warehouse-provider status cannot be verified | Applies | No source adapter integration; ORACLE-001 only had an identifier registry |
+| 4 | Any P1–P4 regulatory premise lacks evidence | Applies | PREMISE-P1–P8 all lacked written basis and collection dates |
+| 5 | Valid transfer-allowing proof is issued after T+0 | Cannot assess | No proof issuance capability (ORACLE-003 unimplemented) |
+| 6 | Buyer completion proof issued before authoritative registry completion | Cannot assess | Same as above |
+| 7 | Prior certificate not revoked or certificate history overwritten | Cannot assess | No certificate version store |
+| 8 | Oracle can determine ownership itself or bypass authoritative sources | Does not apply | No such path; but this is not positive evidence because implementation was also absent |
+| 9 | API/UI/contract contains valuation, returns, collateral ratio, or investment advice | Does not apply | CI gate check-no-financial-output.mjs passed bidirectional checks |
+| 10 | Giraffe handles financial signing, funds, credit, or transaction-volume fees | Does not apply in code | All write methods return 405; contract clauses were not checked |
+| 11 | Personal data, original certificates, or identity mappings enter a public chain | Does not apply | CI gate check-repository-hygiene.mjs; no public-chain writes existed at the time |
+| 12 | Missing independent legal, security, privacy, or adapter audit | Applies | None of the four independent audits had occurred |
+| 13 | Missing separate written approval for mainnet, real assets, or real funds | Applies | Not obtained; status PENDING-GATE |
+| 14 | ArtFi decision in §0.1 not made before interface integration | Does not apply in code; token semantics unconfirmed | Separate repositories; no ArtFi coupling in src/ and CI guard exists; fractionalization semantics awaited product confirmation. See §7 and D-006 |
+| 15 | §0.2 scope and schedule contract unsigned | Applies | Unsigned |
 
-**成立 6 项**（1、3、4、12、13、15），**部分不成立 1 项**（14，代码侧不成立、Token 语义待确认，见 §7），**无法评估 4 项**，不成立 4 项。
+**Six apply** (1, 3, 4, 12, 13, 15); **one partially does not apply** (14: no code coupling, token semantics awaiting confirmation; see §7); **four cannot be assessed**; four do not apply.
 
-注意第 8 项与第 2、5、6、7 项的性质差异：它们"不成立"或"无法评估"是因为**相关能力尚未实现**，
-不是因为已被证明安全。实现之后必须重新评估，不得沿用本次判定。
+Note the difference between item 8 and items 2, 5, 6, and 7: “does not apply” or “cannot assess” is due to **capability not yet implemented**, not proven safety. Reassess after implementation; do not carry these conclusions forward.
 
-## 3. 验收标准 §7 交付条件逐条
+## 3. Acceptance-standard §7 delivery conditions, item by item
 
-| # | 条件 | 满足 | 说明 |
+| # | Condition | Satisfied | Explanation |
 | --- | --- | --- | --- |
-| 1 | §4 全部在范围需求为 `VERIFIED` | 否 | 24 条中 3 条 `VERIFIED`（见 `STATUS.md`） |
-| 2 | G-A 至 G-F 退出条件全部满足且在同一 commit | 否 | G-A 进行中 |
-| 3 | CI 在该 commit 全绿；PR 已批准合并 | 部分 | CI 全绿，但 PR #2 未合并；且 §6 三类必需作业缺失 |
-| 4 | 测试、部署与文档指向同一 commit | 否 | 实现在 `feature/oracle-all-iterations`，文档与 CI 在本分支 |
-| 5 | 独立审计报告与整改复测证据归档 | 否 | 未进行 |
-| 6 | PRD §14 全部阻断项均不成立 | 否 | 6 项成立 |
-| 7 | 发布清单、合约地址、签名人集合、回滚与事件响应方案 | 否 | 均无 |
-| 8 | 运维手册与操作文档移交 | 否 | 无 |
+| 1 | Every in-scope §4 requirement is VERIFIED | No | Only 3 of 24 were VERIFIED (see STATUS.md) |
+| 2 | G-A through G-F exit conditions all met on one commit | No | G-A in progress |
+| 3 | CI fully green on that commit; PR approved and merged | Partial | CI green, but PR #2 unmerged and three required §6 job types missing |
+| 4 | Tests, deployment, and documents point to the same commit | No | Implementation on feature/oracle-all-iterations; documents and CI on this branch |
+| 5 | Independent audit reports and remediation/retest evidence archived | No | Not performed |
+| 6 | All PRD §14 blockers resolved | No | Six apply |
+| 7 | Release checklist, contract addresses, signer set, rollback, and incident-response plan | No | None available |
+| 8 | Operations manual and procedures handed over | No | None available |
 
-## 4. 与测试网的关系
+## 4. Relationship to testnets
 
-`DECISIONS_ZH.md` D-002 指定 Hoodi 为优先测试网。**Hoodi 是测试链，不是生产链**：
-其上的测试通过不解除本文件第 2 节第 13 项，也不改变第 3 节任何一行的判定。
-依验收标准 §2.1，主网与真实资产的书面 go/no-go 是法律门禁，技术结果不构成解除条件。
+DECISIONS_ZH.md D-002 selects Hoodi as the preferred testnet. **Hoodi is a test chain, not a production chain.** Passing tests there does not clear blocker 13 in §2 or change any finding in §3. Under acceptance standard §2.1, written go/no-go for mainnet and real assets is a legal gate; technical results cannot clear it.
 
-## 5. 达到生产候选所需的工作
+## 5. Work required to reach production-candidate status
 
-按依赖顺序，非按工作量：
+In dependency order, not by effort:
 
-1. **分支合并**（`GAP_AUDIT_ZH.md` §6 A 类）—— 在此之前不存在可被审计的 commit；
-2. 补齐 B 类真实功能缺失：ORACLE-011 资产详情 UI、CONSUMER-007 `REDEEMED`、ORACLE-005 资格证明；
-3. 补齐 C 类具名测试，使 ORACLE-001~010、NFR-001~003 达到 `VERIFIED`（G-B、G-C）；
-4. 补齐验收标准 §6 缺失的三类 CI 作业：契约测试、合成消费者集成测试、数据库迁移循环；
-5. NFR-004 压测与五项演练的实际执行记录（G-D）；
-6. PREMISE-P1~P8 取证；
-7. 独立法律、隐私、安全、运营审计及整改复测；
-8. §0.1 ArtFi 裁决、§0.2 契约签署；
-9. 主网/真实资产/真实资金/各辖区书面 go/no-go（法律门禁，最后且不可由工程解除）。
+1. **Integrate branches** (category A in GAP_AUDIT_ZH.md §6)—before this, no auditable commit exists.
+2. Complete category-B functional gaps: ORACLE-011 asset-detail UI, CONSUMER-007 REDEEMED semantics, and ORACLE-005 eligibility proof.
+3. Complete category-C named tests so ORACLE-001–010 and NFR-001–003 become VERIFIED (G-B, G-C).
+4. Add the three CI job types missing from acceptance §6: contract tests, synthetic-consumer integration tests, and database-migration cycle.
+5. Execute NFR-004 load tests and five drills (G-D).
+6. Collect PREMISE-P1–P8 evidence.
+7. Complete independent legal, privacy, security, and operations audits plus remediation/retest.
+8. Decide PRD §0.1 ArtFi scope and sign §0.2 contract.
+9. Obtain written go/no-go for mainnet, real assets, real funds, and every jurisdiction (legal gate; last and not resolvable by engineering).
 
-第 1 项是其余全部工作的前提。
+Item 1 is a prerequisite for all the others.
 
-## 6. 本评估的限制
+## 6. Limits of this assessment
 
-仅评估本 commit 与公开可见的分支状态；未进行安全审计、渗透测试、压测或合同条款核查；
-第 10 项的合同侧、第 12 项的四类独立审计均需外部机构完成。
+This assesses only this commit and publicly visible branch state. No security audit, penetration test, load test, or contract-clause review was performed. External organizations must complete the contract-side portion of item 10 and all four independent audits in item 12.
 
-## 7. 事后补记：ArtFi 关系的澄清（2026-09-01）
+## 7. Retrospective note: clarification of the ArtFi relationship (2026-09-01)
 
-本节记录同日内两次修订。**第一次判断过度**，第二次是收到产品方澄清后的更正，两次都保留，
-以便日后能看出结论是怎么变的。
+This section records two same-day revisions. The first assessment overreached; the second corrects it after clarification from the product owner. Both are retained so readers can understand how the conclusion changed.
 
-### 7.1 第一次记录（已被 7.2 收窄）
+### 7.1 Initial assessment (narrowed by §7.2)
 
-原评估第 14 项判定「不成立」，依据是「裁决未作出，但也未发生对接」。产品方说明公链交易由
-ArtFi 模块承担后，本文一度将其上调为「需复核」，理由是对接已进入设计前提而 §0.1 裁决未作出。
+The original item 14 assessment said “does not apply” on the basis that “no decision was made, but no integration occurred.” After the product owner explained that public-chain trading is handled by the ArtFi module, this document temporarily upgraded the assessment to “requires review,” because integration had become a design premise while the §0.1 decision remained open.
 
-### 7.2 澄清后的判定
+### 7.2 Clarified assessment
 
-产品方进一步说明：**ArtFi 是文保链上登记产品在公链交易的 agent；Oracle 与 ArtFi 是 GitHub 上
-两个独立仓库，按两个子项目推进。** 这使 7.1 的判断在两个方向上过重：
+The product owner further explained: **ArtFi is the public-chain trading agent for the cultural-relic-chain registration product; Oracle and ArtFi are separate GitHub repositories and are developed as separate subprojects.** This makes the §7.1 assessment too broad in two ways:
 
-1. **不存在「对接面」可被阻塞。** 依 ORACLE-010，Oracle 对下游只提供只读验证库
-   （`src/sdk/verifier.js`）与证明格式，不为任何特定消费方编写专用接口。ArtFi 与其他消费方
-   通过验证证明来消费事实，与 Oracle 之间没有专用接口契约。PRD §0.1 所阻塞的「接口对接」
-   在本架构下没有对应物。
-2. **仓库边界结构性地保证了 §0.1 的代码侧要求。** 「不引用、不依赖、不复用 ArtFi 的合约、
-   数据库」由两个独立仓库保证，并已由 `scripts/check-decision-consistency.mjs` 机械校验：
-   `src/` 下 62 个源文件中出现任何 ArtFi 引用或公链写入调用即构建失败（两个方向均已反向验证）。
+1. **There is no dedicated integration surface to block.** Under ORACLE-010, Oracle provides downstream only a read-only verifier library (src/sdk/verifier.js) and proof format; it writes no specialized interface for any particular consumer. ArtFi, like any other consumer, consumes facts by verifying proofs. There is no dedicated interface contract with Oracle. Therefore, the PRD §0.1 “block any ArtFi interface integration” constraint has a small practical surface in this architecture: no dedicated integration surface exists to block.
+2. **Separate repository structure provides the code-side boundary required by PRD §0.1.** The requirement not to reference, depend on, or reuse ArtFi contracts or database is structurally enforced by repository boundaries and mechanically checked by scripts/check-decision-consistency.mjs: any ArtFi coupling or public-chain write call in the 62 files under src/ causes a build failure (validated in both directions).
 
-因此第 14 项在**代码侧不成立**。
+Therefore, item 14 does not apply on the **code side**.
 
-### 7.3 仍未关闭的部分
+### 7.3 Remaining unresolved portion
 
-仓库边界不解决 **Token 语义**互斥。若本产品线的 NFT 在 ArtFi 侧进入 Vault 并发行 ERC-20 份额，
-CONSUMER-001「一物一证一 NFT」在下游被破坏，而 Oracle 无法从证明侧阻止；撮合同理，
-CONSUMER-008 约束的是 Oracle 不建订单簿，约束不到下游。
+Repository boundaries do not resolve the mutually exclusive **token semantics**. If NFTs in this product line enter an ArtFi vault and ERC-20 fractions are issued, downstream behavior violates CONSUMER-001 “one asset, one certificate, one NFT,” which Oracle cannot prevent through its proof. The same applies to matching: CONSUMER-008 constrains Oracle not to build an order book, not downstream consumers.
 
-待确认的是 ArtFi 在**本产品线**上的行为范围（判别标准见 D-006 表格：仅广播已签名交易 /
-代签代提交 / 撮合定价结算）。ORACLE-009 约束 Giraffe 自身，而 PRD 第 11 行载明产品主体为
-Giraffe ArtFi Corp.，与 ArtFi 同一主体，故前提 P8 的第三方免责路径不适用。
+What remained to be confirmed was ArtFi's behavior for **this product line** (criteria in D-006: broadcast user-signed transactions only / sign-and-submit on behalf of users / matching, pricing, and settlement). ORACLE-009 constrains Giraffe itself, and the PRD identifies the product entity as Giraffe ArtFi Corp. in line 11—the same entity as ArtFi—so the third-party liability path in premise P8 does not apply.
 
-**本节不构成合规结论**，仅记录判别标准与当前证据状态。
+**This section is not a compliance conclusion**; it records only criteria and current evidence state.
