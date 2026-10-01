@@ -144,11 +144,11 @@ pnpm run verify
 
 ## Patent disclosure boundary
 
-The following patent application information may be disclosed by project decision:
+The following patent applications may be disclosed by project decision:
 
 | Application | Number | Scope |
 | --- | --- | --- |
-| 一种链外数据源事实的无人值守出具系统及方法 | `202611389399.6` | Oracle |
-| 一种基于链下登记簿的数据凭证映射方法及系统 | `202611389374.6` | ERC registration mapping |
+| Unattended issuance system and method for facts from off-chain data sources | `202611389399.6` | Oracle |
+| Data-certificate mapping method and system based on an off-chain registry | `202611389374.6` | ERC registration mapping |
 
-Submission and acceptance do not represent grant, production deployment or commercial acceptance.
+Submission or acceptance does not represent patent grant, production deployment or commercial acceptance.
