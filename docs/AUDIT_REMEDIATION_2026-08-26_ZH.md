@@ -1,24 +1,24 @@
-# 审计修复记录（2026-08-26）
+# Audit Remediation Record (2026-08-26)
 
-## 基线裁决
+## Baseline decision
 
-本轮将 `GAP_AUDIT_ZH.md`、`DECISIONS_ZH.md` 和 `TESTNET_TASK_HOODI_ZH.md` 作为审计输入，不把其中内容视为新的授权。权威文件仍是仓库内逐字节匹配的：
+This review used GAP_AUDIT_ZH.md, DECISIONS_ZH.md, and TESTNET_TASK_HOODI_ZH.md as audit inputs; their contents were not treated as new authorization. The authoritative files remain the byte-for-byte-matched repository versions:
 
-- `docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md`，SHA-256 `1e062b444c56e7683a0476e8b92688b525e34d349e3724ada31f64be1d48a912`；
-- `docs/ACCEPTANCE_RWA_ORACLE_ZH.md`，SHA-256 `13231a4aa4f6906c1e8c56c7274e1649b0e577c6f2f2375080252f2e564c9af4`。
+- docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md, SHA-256 1e062b444c56e7683a0476e8b92688b525e34d349e3724ada31f64be1d48a912
+- docs/ACCEPTANCE_RWA_ORACLE_ZH.md, SHA-256 13231a4aa4f6906c1e8c56c7274e1649b0e577c6f2f2375080252f2e564c9af4
 
-## 已验证为过期的报告缺口
+## Report gaps verified as stale
 
-当前候选已具备：ORACLE-011 资产详情与四种交割展示状态、CONSUMER-007 `REDEEMED` 终态、ORACLE-005 主体合规字段递归拒绝、完整九状态生命周期、七项发行前置条件、退款义务事件以及 P1–P8/Stage F 的结构化证据验证器。以上仍须由本轮回归测试重新证明，不以本记录替代测试。
+The current candidate includes: ORACLE-011 asset detail and four settlement-display states; terminal CONSUMER-007 REDEEMED state; recursive rejection of entity-compliance fields under ORACLE-005; complete nine-state lifecycle; seven issuance prerequisites; refund-obligation events; and structured evidence validators for P1–P8/Stage F. All still require fresh regression tests for this cycle; this record does not replace test evidence.
 
-## 本轮真实修复
+## Actual fixes in this cycle
 
-1. 将 I0–I12 清单从废止的 v0.4 重新绑定至权威 v0.3；每个迭代具有明确 `requirementIds`，验证器拒绝版本漂移、未知编号和漏映射。
-2. 将迭代测试命令固定为 Node `spec` reporter，消除默认 TAP 输出导致的具名测试假阴性。
-3. 增加追踪回归测试，机械证明恰有 13 个迭代且覆盖全部 ORACLE/CONSUMER/NFR 编号。
-4. 纳入候选分支提出的 CI 结构，并按 v0.3 的 11 个强制 job ID 改写；workflow/PR/CI 运行本身均不形成验收证据。
-5. Hoodi 脚本继续使用真实区块时间轮询、动态 chainId 校验、ArtFi1/ArtFi2 双角色和独占证据日志；链上执行仍受钱包、SIN、nonce 与广播门禁约束。
+1. Rebound the I0–I12 manifest from retired v0.4 to authoritative v0.3; each iteration has explicit requirementIds, and the verifier rejects version drift, unknown IDs, and missing mappings.
+2. Fixed the iteration test command to use Node's spec reporter, eliminating false negatives for named tests caused by default TAP output.
+3. Added a traceability regression test that mechanically proves exactly 13 iterations cover every ORACLE/CONSUMER/NFR ID.
+4. Included the CI structure proposed by the candidate branch and rewrote it for the 11 mandatory v0.3 job IDs; a workflow, PR, or CI run alone is not acceptance evidence.
+5. The Hoodi script continues to use real block-time polling, dynamic chainId validation, ArtFi1/ArtFi2 roles, and exclusive evidence logs; on-chain execution remains subject to wallet, SIN, nonce, and broadcast gates.
 
-## 仍然阻断
+## Still blocking
 
-NFR-004、P1–P8、Stage A/D/F、连续 72 小时、正式负载/容量/故障、MySQL 生产等价恢复、受保护测试签名人轮换、合格安全扫描/渗透、数据保护/事件响应、可复现签名制品以及五类独立审查均必须由同一新候选提交的真实证据满足。旧候选的运行证据不能移植到新提交；不得据此标记 `allComplete=true`。
+NFR-004; P1–P8; Stages A/D/F; continuous 72-hour operation; formal load/capacity/fault tests; production-equivalent MySQL restore; protected test-signer rotation; qualified security/penetration scans; data protection/incident response; reproducible signed artifacts; and five independent reviews must all be supported by genuine evidence bound to the same new candidate commit. Runtime evidence from an old candidate cannot be transplanted. Do not mark allComplete=true on this basis.
