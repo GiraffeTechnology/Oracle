@@ -1,24 +1,24 @@
-# Giraffe RWA Oracle v0.3 实现状态
+# Giraffe RWA Oracle v0.3 Implementation Status
 
-权威状态见 `STATUS.md` 和机器生成的 `output/prd-v0.4-acceptance-report.json`。本文件只提供工程摘要。
+The authoritative status is in `STATUS.md` and the machine-generated `output/prd-v0.4-acceptance-report.json`. This file provides only an engineering summary.
 
-## 已实现并由本地自动化覆盖
+## Implemented and covered by local automation
 
-- 固定权威来源注册、schema 白名单、签名来源摄取与任意端点拒绝。
-- 八种公开 Oracle 状态、冲突/离线/过期/撤销 fail-closed。
-- 绑定链、合约、Token、用途、nonce、来源、有效期及撤销引用的签名证明。
-- 一物一证一 Token 的跨资产唯一性约束和七项发行前置门禁。
-- 九状态合成消费者、T+0 快照、T+3 证书递增与失败/争议恢复语义。
-- 最小披露 API、资产详情 UI、四种交割展示状态和资产事实边界声明。
-- 主体合规结论及金融输出的递归输入门禁；生产写入默认关闭。
-- 追加式证书历史、不可变审计链、可靠 outbox、双人控制和恢复制品。
+- Fixed authoritative-source registration, schema allowlists, signed-source ingestion, and arbitrary-endpoint rejection.
+- Eight public Oracle states; fail-closed handling for conflicts, offline, expired, and revoked evidence.
+- Signed proof binding chain, contract, token, purpose, nonce, source, validity period, and revocation reference.
+- Cross-asset uniqueness constraint for one asset / one certificate / one token, and seven pre-issuance gates.
+- Nine-state synthetic consumer, T+0 snapshot, T+3 certificate increments, and failure/dispute recovery semantics.
+- Minimum-disclosure API, asset-detail UI, four settlement display states, and asset-fact boundary statement.
+- Recursive input gates for entity-compliance conclusions and financial outputs; production writes default to disabled.
+- Append-only certificate history, immutable audit chain, reliable outbox, dual control, and recovery artifacts.
 
-## 尚未完成，不能宣称生产候选
+## Not completed; must not be described as a production candidate
 
-- P1–P8 的全部正式书面证据、取证日期与授权复核。
-- NFR-004 的正式 99.9%/容量、72 小时、恢复、受保护签名轮换等运行证据。
-- 独立法律、隐私、安全、合约及运营审查与整改复测。
-- 范围/报价/里程碑契约、ArtFi 独立产品线正式裁决和逐司法辖区书面 go/no-go。
-- 同一最终 commit 的完整 CI 与 PR 批准合并。
+- All formal written evidence, collection dates, and authorized reviews for P1–P8.
+- NFR-004 operational evidence for formal 99.9% availability/capacity, 72-hour stability, recovery, and protected-signer rotation.
+- Independent legal, privacy, security, contract, and operations reviews, remediation, and retesting.
+- Scope/quotation/milestone contract, formal ArtFi independent product-line decision, and written go/no-go for each jurisdiction.
+- Complete CI and approved merge for the same final commit.
 
-提交、推送、PR 或 CI 启动均不等同于完成；上述门禁未齐时 `allComplete` 必须为 `false`。
+Commits, pushes, PRs, and CI starts do not constitute completion. Until all applicable gates are met, `allComplete` must remain `false`.
