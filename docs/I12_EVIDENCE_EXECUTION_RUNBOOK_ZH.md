@@ -1,42 +1,37 @@
-# I12 外部证据执行手册
+# I12 External Evidence Execution Runbook
 
-I12 的实现和验证器已经进入仓库，但 I12 只有在实际证据通过后才能完成。本手册禁止用模板、短测、
-mock 成功或自我声明替代 PRD 要求。
+I12 implementation and its verifier are in the repository, but I12 is complete only after actual evidence passes. This runbook prohibits substituting templates, short tests, successful mocks, or self-attestation for PRD requirements.
 
-## 必需证据
+## Required evidence
 
-| 证据 | 最低要求 |
+| Evidence | Minimum requirement |
 | --- | --- |
-| security-scans | SAST、依赖、秘密、容器、IaC、API、渗透全部 PASS；无未接受 P0 |
-| performance-capacity | 标明负载模型、完成请求数、p95、最大积压及故障注入结果 |
-| 72h-stability | 实际连续不少于 259200 秒、至少 4320 个样本、无未解释失败 |
-| restore-drill | 数据库与审计头完整；实际 RPO/RTO 不超过目标 |
-| signer-rotation | 新签名人通过、旧签名人拒绝、轮换可审计、未观察私钥材料 |
-| data-protection-response | DPIA、保留、删除、事件响应演练和 go/no-go checklist 完整 |
-| reproducible-build | 两次独立构建哈希一致；SBOM 与制品签名验证通过 |
-| independent-reviews | 安全、隐私、法律三方独立接受；无未接受 P0 |
+| security-scans | SAST, dependency, secret, container, IaC, API, and penetration scans all PASS; no unaccepted P0 |
+| performance-capacity | State the load model, completed request count, p95, maximum backlog, and fault-injection results |
+| 72h-stability | At least 259,200 actual continuous seconds, at least 4,320 samples, and no unexplained failures |
+| restore-drill | Database and audit head intact; actual RPO/RTO within target |
+| signer-rotation | New signer accepted, old signer rejected, rotation auditable, no private-key material observed |
+| data-protection-response | DPIA, retention, deletion, incident-response exercise, and go/no-go checklist complete |
+| reproducible-build | Two independent build hashes match; SBOM and artifact signature verification pass |
+| independent-reviews | Independent security, privacy, and legal acceptance; no unaccepted P0 |
 
-## 验证
+## Verification
 
-证据应放入 `evidence/acceptance/`，随后运行：
+Place evidence in `evidence/acceptance/`, then run:
 
 ```text
 node scripts/verify-i12-evidence.mjs
 node scripts/verify-iterations.mjs
 ```
 
-证据文件可只包含公开审计引用和摘要，不得提交凭据、密钥、个人资料、真实端点或保密报告正文。
-`artifactSha256` 应指向受控保存的原始报告。审计人员必须能通过该引用取得原件并重新计算摘要。
+Evidence files may contain public audit references and summaries only; do not commit credentials, keys, personal data, real endpoints, or confidential report bodies. `artifactSha256` must point to the controlled original report. Auditors must be able to obtain the original through that reference and recompute the digest.
 
-72 小时本地合成稳定性 runner：
+Local synthetic 72-hour stability runner:
 
 ```text
 node scripts/run-i12-stability.mjs
 ```
 
-runner 固定运行不少于 259200 秒，每 60 秒采样；进程中断、样本间隔超过 120 秒、秘密扫描失败或
-任一不可解释异常都会生成 FAIL。输出使用 exclusive-new，已有证据不会被覆盖。不得修改时长常量、
-伪造系统时间或复制旧证据重新标记日期。
+The runner executes for at least 259,200 seconds and samples every 60 seconds; process interruption, sample gaps over 120 seconds, secret-scan failure, or any unexplained anomaly produces FAIL. Output uses exclusive-new creation; existing evidence will not be overwritten. Do not modify duration constants, falsify system time, or copy old evidence and relabel its date.
 
-CI 可以验证格式、哈希引用和数值门禁，但不能自行宣称完成独立法律审查、真实恢复演练或 72 小时
-运行。任何一项缺失时，I12 和整体 `allComplete` 必须保持 false。
+CI may verify formats, hash references, and numeric gates, but cannot independently declare legal review, a real recovery drill, or 72-hour operation complete. If any item is missing, I12 and overall `allComplete` must remain false.
