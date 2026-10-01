@@ -1,164 +1,131 @@
-# Codex 任务书：在公链测试网执行 Giraffe ERC 参考实现测试
+# Codex Task Brief: Run Giraffe ERC Reference-Implementation Tests on a Public Testnet
 
-| 项目 | 内容 |
+| Item | Content |
 | --- | --- |
-| 被测对象 | `erc-reference/contracts/VersionedRWACertificateReference.sol` |
-| 测试套件 | `erc-reference/test/protocol.cjs` |
-| 本地基线 | `npx hardhat test` → 17 passing / 0 failing（solc 0.8.26，optimizer runs=200，viaIR，chainId 31337） |
-| 目标网络 | **Hoodi（chainId 560048）**；Sepolia 仅作可选复跑 |
-| 裁决依据 | `DECISIONS_ZH.md` D-002 |
-| 日期 | 2026-08-25 |
+| Subject under test | erc-reference/contracts/VersionedRWACertificateReference.sol |
+| Test suite | erc-reference/test/protocol.cjs |
+| Local baseline | npx hardhat test → 17 passing / 0 failing (solc 0.8.26, optimizer runs=200, viaIR, chainId 31337) |
+| Target network | **Hoodi (chainId 560048)**; Sepolia is an optional rerun |
+| Decision basis | DECISIONS_ZH.md D-002 |
+| Date | 2026-08-25 |
 
-## 0. 网络选择
+## 0. Network selection
 
-**使用 Hoodi，chainId 560048。** 依 `DECISIONS_ZH.md` D-002。Sepolia 仅在需要时作可选复跑。
-Holesky 已于 2025 年 9 月废弃，不得使用。
+**Use Hoodi, chainId 560048**, per DECISIONS_ZH.md D-002. Sepolia is an optional rerun if needed. Holesky was deprecated in September 2025 and must not be used.
 
-已记录的权衡（不构成阻断，仅作背景）：ethereum.org 将 Sepolia 列为应用与合约开发的默认
-推荐测试网，Hoodi 的定位是验证者与质押测试。两者均可执行本合约测试。
+Recorded trade-off (context only; not a blocker): ethereum.org lists Sepolia as the default recommended testnet for application and contract development and describes Hoodi as intended for validator and staking tests. Both can run this contract test.
 
-**chainId 必须从 RPC 实际读取并断言等于 560048，不得在测试中硬编码** —— EIP-712 域随
-chainId 变化，硬编码会产生错误的域分隔符，而这正是本次上链最值得验证的部分。
+**Read chainId from the actual RPC and assert it equals 560048; do not hard-code it in tests.** The EIP-712 domain changes with chainId, and hard-coding creates an incorrect domain separator. This is one of the most valuable aspects to validate on-chain.
 
-**Hoodi 是测试链，不是生产链。** 本任务是测试执行，不是上线：本项目当前不存在生产链，
-Hoodi 不是主网的替代或预生产环境。**不得部署到主网，不得使用真实资金。**
+**Hoodi is a test chain, not a production chain.** This task runs tests, not a launch. This project currently has no production chain, and Hoodi is not a mainnet substitute or pre-production environment. **Do not deploy to mainnet or use real funds.**
 
-## 1. 本次上链测试能证明与不能证明什么
+## 1. What an on-chain test can and cannot prove
 
-**能证明**（本地测试无法覆盖）：
+**Can prove** (not covered by local tests):
 
-- 真实 chainId 下的 EIP-712 域分离与签名验证 —— 本地固定 chainId 31337 会掩盖域分隔符错误；
-- 真实区块时间下的 deadline 与过期行为（无作弊码）；
-- 真实部署可行性与 EIP-170 运行时大小；
-- ERC-1271 合约权威在真实部署合约上的验证路径。
+- EIP-712 domain separation and signature verification using the real chainId; local fixed chainId 31337 can hide domain-separator errors;
+- deadline and expiration behavior against real block time, without cheats;
+- feasibility of a real deployment and EIP-170 runtime size;
+- validation of ERC-1271 contract authority on the actual deployed contract.
 
-**不能证明**：不构成安全审计、形式化验证或经济性分析；状态机正确性本地已覆盖，公链不增加新证据。
+**Cannot prove:** this is not a security audit, formal verification, or economic analysis. State-machine correctness is already covered locally; the public chain adds no new evidence for that.
 
-## 2. 现状（执行前必读）
+## 2. Current state (read before execution)
 
-- 测试自带 solc 编译（`protocol.cjs` 中的 `compile()`），不依赖 hardhat artifacts；
-- 涉及三个合约：`VersionedRWACertificateReference`、`AssetAnchorRegistryLifecycleMock`、
-  `ERC1271AuthorityMock`；
-- **chainId 为动态读取**（`protocol.cjs:80`），EIP-712 域天然可移植 —— **不要改成硬编码**。
+- The test compiles solc itself (compile() in protocol.cjs) and does not depend on Hardhat artifacts.
+- Three contracts are involved: VersionedRWACertificateReference, AssetAnchorRegistryLifecycleMock, and ERC1271AuthorityMock.
+- **chainId is read dynamically** (protocol.cjs:80), so EIP-712 domains are portable. **Do not change this to a hard-coded value.**
 
-## 3. 必须改造的三点
+## 3. Three required adaptations
 
-### 3.1 时间作弊码（阻断项）
+### 3.1 Time cheat codes (blocker)
 
-`protocol.cjs` 第 398、430、490 行使用 `evm_setNextBlockTimestamp` 与 `evm_mine`，公链不存在。
-受影响用例：
+Lines 398, 430, and 490 of protocol.cjs use evm_setNextBlockTimestamp and evm_mine, which are unavailable on a public chain. Affected cases:
 
-1. `rejects expired authority data and finalization after settlement deadline`
-2. `rejects concurrent pending settlement and reused settlement IDs`
-3. `allows holder cancellation after deadline without changing holder or certificate`
+1. rejects expired authority data and finalization after settlement deadline
+2. rejects concurrent pending settlement and reused settlement IDs
+3. allows holder cancellation after deadline without changing holder or certificate
 
-**改法**：deadline 改为 `now + 90` 秒，随后真实等待至 `deadline + 1` 并确认已产生新区块
-（Hoodi 与 Sepolia 同为约 12 秒出块）。相应提高这三个用例的 mocha timeout。
+**Change:** set deadline to now + 90 seconds; then actually wait until deadline + 1 and confirm a new block has been produced (Hoodi and Sepolia both have roughly 12-second block times). Increase the Mocha timeout for these three cases accordingly.
 
-**禁止跳过或标记为 pending** —— 这三项正是公链测试中最有价值的部分。
+**Do not skip or mark pending**—these are among the most valuable public-chain tests.
 
-### 3.2 部署次数
+### 3.2 Deployment count
 
-`beforeEach` 为每个用例重新部署 2 个合约并 mint，17 个用例约 51 笔交易。可将不可变部署提升至
-`before`、按 `tokenId` 隔离用例以降低耗时与 gas。**不得为此弱化任何断言**；若采用此改法，
-需在报告中说明用例隔离方式。
+beforeEach deploys two contracts and mints for every case, resulting in about 51 transactions for 17 cases. Immutable deployments may be moved to before, with cases isolated by tokenId to reduce duration and gas. **Do not weaken any assertion.** If adopted, document how case isolation works.
 
-### 3.3 账户：只有 2 个测试钱包时的角色合并（约束条件）
+### 3.3 Accounts: merging roles when only two test wallets are available (constraint)
 
-测试套件原本使用 6 个角色。**在只有 2 个可操作测试钱包的前提下仍可完整运行 17 个用例**，
-依据是：`authority` 只用私钥做 EIP-712 签名，从不发送交易（`finalizeSettlement` 由
-administrator 发出），因此**可以是一个零余额的临时密钥**。
+All 17 cases can still run with only two operational test wallets, even though the suite originally used six roles. The authority only uses its private key for EIP-712 signing and never sends a transaction (finalizeSettlement is sent by the administrator), so it **may be an unfunded temporary key**.
 
-原角色的实际交易行为：
+Actual transaction behavior of the original roles:
 
-| 角色 | 是否发交易 | 说明 |
+| Role | Sends transactions? | Notes |
 | --- | --- | --- |
-| `administrator` | 是 | 默认签名者：部署 2 个合约并 mint |
-| `owner` | 是（11 处） | 主要操作者 |
-| `operator` | 是（1 处） | 以被批准 operator 身份尝试转移，必须失败 |
-| `outsider` | 是（1 处） | 提交有效权威取消数据 |
-| `recipient` | 是（多轮用例中轮换为持有人后） | finalize 的接收方 |
-| `authority` | **否** | **仅签名，无需 gas** |
+| administrator | Yes | Default signer: deploys two contracts and mints |
+| owner | Yes (11 call sites) | Primary operator |
+| operator | Yes (1 call site) | Attempts transfer as approved operator; must fail |
+| outsider | Yes (1 call site) | Submits valid authority-cancellation data |
+| recipient | Yes (after becoming holder in multi-round cases) | Finalize recipient |
+| authority | **No** | **Signs only; no gas required** |
 
-**要求的映射方案**：
+**Required mapping:**
 
-- **W1（注资）** = `administrator` + `operator` + `outsider` + 目标地址 B
-- **W2（注资）** = `owner`（初始持有人） + 目标地址 A
-- **K3（零余额临时密钥，测试内生成）** = `authority`
+- **W1 (funded)** = administrator + operator + outsider + destination B
+- **W2 (funded)** = owner (initial holder) + destination A
+- **K3 (unfunded temporary key, generated in the test)** = authority
 
-必须满足的不变量：`W1 ≠ W2`；`K3 ∉ {W1, W2}`（否则"错误签名人"与"权威签名"无法区分）。
+Required invariants: W1 ≠ W2; K3 ∉ {W1, W2} (otherwise “wrong signer” and “authority signature” cannot be distinguished).
 
-**陷阱（必须处理）**：W1 同时承担 `operator` 与 `outsider`。若某个用例已把 W1 批准为
-operator，而后续"外部地址提交有效权威取消数据"的用例仍复用同一 token，则该用例不再能证明
-*无特权调用者*也可取消。因此：**批准只能在 operator 用例内授予，并在该用例结束时撤销**；
-或为取消类用例使用未授予任何批准的独立 tokenId。此项须在报告中明确说明处理方式。
+**Pitfall (must address):** W1 acts as both operator and outsider. If a case approves W1 as operator, and a later case “external address submits valid authority cancellation data” reuses the same token, that case no longer proves that an *unprivileged caller* can cancel. Grant approval only within the operator case and revoke it at that case's end, or use a distinct tokenId for cancellation cases that was never approved to any operator. State the treatment explicitly in the report.
 
-**多轮 T+n 用例需要改造**：`protocol.cjs:569` 的
-`destinations = [recipient, outsider, operator, owner]` 在合并后会退化为
-`[W1, W1, W1, W2]`，而循环内的 `if (destination.address === currentOwner.address) continue;`
-会跳过其中约一半迭代，使 8 轮交割降为 4 轮。**改为 `[W1, W2]` 交替**即可让 8 轮全部执行，
-覆盖率不降反稳。不得直接减少循环轮数。
+**Adapt multi-round T+n cases:** destinations = [recipient, outsider, operator, owner] at protocol.cjs:569 collapses after role merging to [W1, W1, W1, W2]. The loop's if destination.address === currentOwner.address continue then skips about half the iterations, reducing eight settlements to four. **Alternate [W1, W2]** to run all eight rounds and maintain or improve coverage. Do not simply reduce the loop count.
 
-**注资与用量**：`beforeEach` 会导致约 51 笔交易，且全部由 W1、W2 承担。建议先按 3.2 节把
-不可变部署提升到 `before` 以降低交易量（若这样做，必须显式重置用例间的批准状态，见上方陷阱），
-并确保两个钱包各自持有充足的测试网 ETH。
+**Funding and usage:** beforeEach causes about 51 transactions, all borne by W1 and W2. Prefer moving immutable deployments to before as in §3.2 to reduce transactions (if done, explicitly reset approval state between cases, see the pitfall above), and ensure both wallets hold sufficient testnet ETH.
 
-**本方案的已知损失**（须在报告中如实记录）：`administrator` 与 `owner` 不再是独立地址，
-因此"单一管理员不得绕过权威授权"这一性质在本轮上链测试中不具备独立地址的证据强度；
-该性质仍由本地 17 项测试覆盖。
+**Known loss for this plan** (report honestly): administrator and owner are no longer separate addresses. Therefore this on-chain run does not independently evidence the property “a single administrator cannot bypass authority authorization”; that property remains covered by the 17 local tests.
 
-## 4. 网络与密钥配置
+## 4. Network and key configuration
 
-- 在 `hardhat.config.cjs` 增加 hoodi 网络，`url` 取自环境变量 `HOODI_RPC_URL`，
-  `accounts` 取自环境变量，**只提供 W1、W2 两个私钥**；`authority` 密钥在测试内以
-  `ethers.Wallet.createRandom()` 生成并仅用于签名，不得注资、不得写入配置；
-- **私钥与 RPC key 只能来自环境变量，绝不得写入仓库、配置文件或提交历史**；
-- 使用一次性测试账户，不得复用任何持有价值或用于其他用途的密钥；
-- 运行前断言 `provider.getNetwork().chainId === 560048n`；不等则立即中止，不得继续执行。
+- Add Hoodi to hardhat.config.cjs, with url from HOODI_RPC_URL and accounts from environment variables; **provide only the two W1/W2 private keys**. Generate the authority key in the test with ethers.Wallet.createRandom(), use it only to sign, do not fund it or write it to configuration.
+- **Private keys and RPC keys must come only from environment variables; never write them to the repository, configuration files, or commit history.**
+- Use one-time test accounts. Never reuse keys holding value or used for another purpose.
+- Before running, assert provider.getNetwork().chainId === 560048n; abort immediately if it differs.
 
-## 5. 数据合规（重要）
+## 5. Data compliance (important)
 
-测试网是公开链，写入不可撤回。**只能使用现有合成 fixture**（如 `certificate-v1`、
-`asset-anchor-1`）。不得写入任何真实证书字节、真实登记引用、真实资产标识、仓单信息或任何
-个人信息。此项与 PRD 的隐私要求一致。
+A testnet is a public chain and writes cannot be reversed. **Use only existing synthetic fixtures** (for example, certificate-v1 and asset-anchor-1). Do not write real certificate bytes, real registry references, real asset identifiers, warehouse-receipt information, or personal information. This matches PRD privacy requirements.
 
-## 6. 需要交付的证据
+## 6. Required evidence
 
-1. 网络名称与从 RPC 实际读取的 chainId（须为 560048）；
-2. 三个合约的部署地址与部署交易哈希；
-3. 完整测试输出，含 passing / failing 计数与逐用例结果；
-3b. 角色映射实况：W1 / W2 地址、`authority` 临时地址，以及 operator 批准的授予与撤销位置；
-4. 三个时间相关用例的实际等待时长与前后区块号；
-5. **链上接口核验**：对已部署合约调用 `supportsInterface`，确认以下返回 `true`：
-   - `0x01ffc9a7`（ERC-165）
-   - `0x80ac58cd`（ERC-721）
-   - `0x4a967b01`（ERC-8325 `IAssetBoundTokenId`）
-   - `0xebaa86a0`（`IVersionedRWACertificate`）
-   - `0x2773d4c9`（`IDeferredCertificateSettlement`）
+1. Network name and chainId read from the actual RPC (must be 560048).
+2. Deployment addresses and deployment transaction hashes for all three contracts.
+3. Complete test output with passing/failing counts and per-case results.
+3b. Actual role mapping: W1/W2 addresses, temporary authority address, and where operator approval was granted and revoked.
+4. Actual wait durations and before/after block numbers for the three time-dependent cases.
+5. **On-chain interface checks:** call supportsInterface on the deployed contract and confirm true for:
+   - 0x01ffc9a7 (ERC-165)
+   - 0x80ac58cd (ERC-721)
+   - 0x4a967b01 (ERC-8325 IAssetBoundTokenId)
+   - 0xebaa86a0 (IVersionedRWACertificate)
+   - 0x2773d4c9 (IDeferredCertificateSettlement)
 
-   并确认 `0xffffffff` 返回 `false`；
-6. 一次真实 finalize 的交易哈希，并从 receipt 确认 `CertificateSuperseded`、`Transfer`、
-   `SettlementFinalized` 三个事件齐备（顺序为 SHOULD，不作为失败条件）；
-7. 运行时字节码大小，确认低于 24,576 字节；
-8. 若有失败项，**如实报告**，不得跳过用例或放宽断言。
+   Also confirm 0xffffffff returns false.
+6. A real finalize transaction hash and receipt confirming CertificateSuperseded, Transfer, and SettlementFinalized events (their order is SHOULD, not a failure condition).
+7. Runtime bytecode size, confirmed below 24,576 bytes.
+8. If any case fails, report it honestly; do not skip a case or relax an assertion.
 
-## 7. 不得进行的操作
+## 7. Prohibited actions
 
-- 不得修改 ABI、两个 EIP-712 规范类型串或两个 interface ID —— 任何改动都会使已冻结的
-  `0xebaa86a0` / `0x2773d4c9` 及测试报告中记录的文件 SHA-256 失效；
-- 不得为使测试通过而放宽 MUST 级断言；
-- 不得部署到主网或使用真实资金；
-- 不得提交私钥、RPC key 或 `.env` 文件。
+- Do not modify the ABI, either of the two EIP-712 canonical type strings, or either interface ID. Any change invalidates the frozen 0xebaa86a0 / 0x2773d4c9 values and the file SHA-256 values in the test report.
+- Do not weaken any MUST-level assertion to make tests pass.
+- Do not deploy to mainnet or use real funds.
+- Do not commit private keys, RPC keys, or .env files.
 
-## 8. 完成后
+## 8. After completion
 
-在 `PRE_SUBMISSION_TEST_REPORT_ZH.txt` 中新增一节记录测试网结果（网络、chainId、合约地址、
-交易哈希、用例结果），并更新第六节中因改动而变化的文件 SHA-256。
+Add a testnet-results section to PRE_SUBMISSION_TEST_REPORT_ZH.txt with network, chainId, contract addresses, transaction hashes, and case results; update the file SHA-256 values in section 6 for any files changed.
 
-测试网通过**不构成**外部安全审计、法律意见、监管批准或 Ethereum 背书，也不解除
-GitHub 用户名、Ethereum Magicians 讨论地址、ERC 编号、CC0 与专利结论、对外发布授权
-这五项提交前门禁。
+Passing a testnet run is **not** an external security audit, legal opinion, regulatory approval, or Ethereum endorsement. It does not clear the five pre-submission gates for GitHub usernames, Ethereum Magicians discussion URL, ERC number, CC0/patent conclusion, or external-publication authorization.
 
-同样，**Hoodi 通过不解除生产门禁**：主网、真实资产、真实资金及各司法辖区的书面 go/no-go
-依验收标准 §2.1 为法律门禁，状态 `PENDING-GATE`，不因任何技术测试结果而解除。本任务产生的
-部署地址与交易哈希是测试证据，不得表述为产品已上线或已获批准。
+Likewise, **Hoodi passing does not clear production gates**. Under acceptance standard §2.1, written go/no-go for mainnet, real assets, real funds, and each jurisdiction is a legal gate with status PENDING-GATE, not cleared by any technical test. Deployment addresses and transaction hashes from this task are test evidence and must not be described as product launch or approval.
