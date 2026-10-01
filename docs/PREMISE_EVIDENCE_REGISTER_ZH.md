@@ -1,41 +1,41 @@
-# P1–P8 前提证据登记表
+# P1–P8 Premise Evidence Register
 
-本登记表只记录可审计元数据，不复制真实证书、仓单、个人信息或保密原件。原件必须由法务/业务保存在受控证据库；缺少经授权复核的记录时 Stage F 保持 `PENDING-GATE`。
+This register records only auditable metadata; it does not copy genuine certificates, warehouse receipts, personal data, or confidential originals. Originals must be held by Legal/Business in a controlled evidence repository. Until records with authorized review exist, Stage F remains `PENDING-GATE`.
 
-| ID | 前提 | 证据登记状态 | 责任人 | 复核周期 | Stage F 状态 |
+| ID | Premise | Evidence registration status | Owner | Review cycle | Stage F status |
 | --- | --- | --- | --- | --- | --- |
-| P1 | 文物艺术品的文保链登记及所有者记录 | 待法务登记文件哈希、出具方、签发/取证日期 | 法务 | 年度 | `PENDING-GATE` |
-| P2 | 监管、司法链衔接与法院证据接受边界 | 待法务登记规范性文件和适用判例/规则 | 法务 | 年度 | `PENDING-GATE` |
-| P3 | 中创文贸的运营方角色 | 待登记主体文件与授权链 | 法务 | 年度 | `PENDING-GATE` |
-| P4 | 股权、经营、仓储及经批准进出口资格 | 待登记工商、资质及批准文件 | 法务 | 年度 | `PENDING-GATE` |
-| P5 | 仓单包含登记引用与哈希 | 待产品/权威方签署数据字典及合成样例 | 产品 | 半年 | `PENDING-GATE` |
-| P6 | 一物、一证、一 Token 及完整排他提货权 | 已形成技术门禁；待业务/法律权利文本 | 产品/法务 | 半年 | `PENDING-GATE` |
-| P7 | T+0 快照、T+3 变更、注销及重签流程 | 已形成状态机和合成测试；待 SLA/工作日历签署 | 产品/法务 | 半年 | `PENDING-GATE` |
-| P8 | Giraffe 仅提供资产事实验证、隔离金融业务 | 已形成代码/API/UI 门禁；待正式合同和法律意见 | 法务 | 年度 | `PENDING-GATE` |
+| P1 | Cultural-property registry chain and owner records | Awaiting Legal entry of document hash, issuer, issue/collection dates | Legal | Annual | `PENDING-GATE` |
+| P2 | Regulatory/judicial-chain linkage and court evidence admissibility boundary | Awaiting Legal entry of normative documents and applicable cases/rules | Legal | Annual | `PENDING-GATE` |
+| P3 | Operating role of Zhongchuang Wenmao | Awaiting entity documents and authorization chain | Legal | Annual | `PENDING-GATE` |
+| P4 | Equity, operations, warehousing, and approved import/export qualifications | Awaiting corporate registry, qualifications, and approvals | Legal | Annual | `PENDING-GATE` |
+| P5 | Warehouse receipt includes registry reference and hash | Awaiting product/authority-signed data dictionary and synthetic example | Product | Semiannual | `PENDING-GATE` |
+| P6 | One asset, one certificate, one token, and exclusive redemption rights | Technical gate exists; awaiting business/legal rights text | Product/Legal | Semiannual | `PENDING-GATE` |
+| P7 | T+0 snapshot, T+3 change, revocation, and re-signing workflow | State machine and synthetic tests exist; awaiting signed SLA/business calendar | Product/Legal | Semiannual | `PENDING-GATE` |
+| P8 | Giraffe provides asset-fact verification only and isolates financial activity | Code/API/UI gates exist; awaiting formal contract and legal opinion | Legal | Annual | `PENDING-GATE` |
 
-每条正式证据记录必须至少包含：`evidenceId`、文件/登记名称、出具主体、签发日期、取证日期、SHA-256、保管位置逻辑引用、访问级别、复核周期、责任人、复核结论和到期日。不得在本仓库填写实际服务器路径、凭据或个人身份字段。
+Each formal evidence record must include at least: `evidenceId`, file/registry name, issuing entity, issue date, collection date, SHA-256, logical custody reference, access level, review cycle, owner, review conclusion, and expiration date. Do not enter actual server paths, credentials, or personal identity fields in this repository.
 
-## 现有材料的只读预审（不构成正式确认）
+## Read-only preliminary review of existing materials (not formal confirmation)
 
-2026-08-25 对业务方提供的《中创文贸（北京）文物艺术品有限公司介绍》进行只读预审；原始文件未复制入仓库，SHA-256 为 `009e5423b0e592465182c753eca0b5eb581ca7a41361b5036d34b34f878020c5`。该材料属于机构介绍文件，不是政府登记、许可证、法院裁判或主管机关证明，因此仅可登记为证据候选：
+On 2026-08-25, a read-only preliminary review was conducted of the business-provided “Introduction to Zhongchuang Wenmao (Beijing) Cultural Relics & Art Co., Ltd.” The original was not copied into the repository. SHA-256: `009e5423b0e592465182c753eca0b5eb581ca7a41361b5036d34b34f878020c5`. This is an institutional introduction, not a government registry, license, court judgment, or competent-authority certificate. It may only be recorded as candidate evidence:
 
-| 对应前提 | 材料内可观察内容 | 仍缺的正式证据 | 预审结论 |
+| Premise | Observable content in the material | Formal evidence still missing | Preliminary conclusion |
 | --- | --- | --- | --- |
-| P1 | 第 9–11 页描述中国文保链、区块链存证、登记确权和标准化登记字段，并展示数字化上链存证登记证书样式 | 权威数据字典、登记规则、所有者字段规则及正式样本 | `PARTIAL-EVIDENCE` |
-| P2 | 第 13 页描述与“证据链”联合试点及取证、公证、固证流程 | 主管机关文件、司法链技术/法律契约、互联网法院可采性规则或裁判依据；材料不能证明用户所述全部监管关系 | `PARTIAL-EVIDENCE` |
-| P3 | 第 9、14 页描述中国文保链由中创文贸管理运营，以及其开发/运营与代理角色 | 中国文物交流中心或相关权利主体签发的有效授权文件 | `PARTIAL-EVIDENCE` |
-| P4 | 第 4 页描述中创文贸由中国文物交流中心设立并为全资国有企业 | 企业登记档案、完整股权链、文物交易/仓储资格和经批准进出口许可；介绍材料不能替代许可证 | `PARTIAL-EVIDENCE` |
-| P5 | 第 10–11 页显示链上存证证书及哈希/登记信息概念 | 仓单数据字典、仓库签发规则及仓单与登记哈希绑定的正式样本 | `PARTIAL-EVIDENCE` |
+| P1 | Pages 9–11 describe the China Cultural Relics Preservation Chain, blockchain record-keeping, registration/ownership confirmation, standardized registration fields, and a sample digital registration certificate | Authoritative data dictionary, registry rules, owner-field rules, and formal samples | `PARTIAL-EVIDENCE` |
+| P2 | Page 13 describes a joint “Evidence Chain” pilot and evidence collection, notarization, and preservation workflows | Competent-authority documents, judicial-chain technical/legal contract, admissibility rules or judgments; the material cannot prove all regulatory relationships stated by the user | `PARTIAL-EVIDENCE` |
+| P3 | Pages 9 and 14 describe the China Cultural Relics Preservation Chain as managed/operated by Zhongchuang Wenmao and describe its development, operating, and agency roles | Valid authorization from China Cultural Relics Exchange Center or another relevant rights holder | `PARTIAL-EVIDENCE` |
+| P4 | Page 4 describes Zhongchuang Wenmao as established by China Cultural Relics Exchange Center and wholly state-owned | Corporate registry records, complete equity chain, cultural-property trading/warehousing qualifications, and approved import/export licenses; an introduction cannot replace a license | `PARTIAL-EVIDENCE` |
+| P5 | Pages 10–11 show a blockchain certificate and concepts for hashes/registry information | Warehouse-receipt data dictionary, warehouse issuance rules, and formal samples binding receipts to registry hashes | `PARTIAL-EVIDENCE` |
 
-《Pitch Deck -Chainart Registry And Compliance Layer》SHA-256 为 `d24c915e983a9425d3b526dba34e5e7d406228943e190d8917d91829db8b050f`，仅作为产品构想参考，不作为 P1–P8 的独立事实证据或法律依据。上述预审不得生成 `evidence/acceptance/premise-evidence.json`，须待法务对受控原件逐项复核并签署后方可解除门禁。
+The “Pitch Deck - Chainart Registry And Compliance Layer” has SHA-256 `d24c915e983a9425d3b526dba34e5e7d406228943e190d8917d91829db8b050f`; it is a product-concept reference only, not independent factual evidence or legal authority for P1–P8. This preliminary review must not generate `evidence/acceptance/premise-evidence.json`; gates can be cleared only after Legal reviews and signs off on each controlled original.
 
-## 官方公开来源候选（2026-08-25 只读检索）
+## Candidate official public sources (read-only research, 2026-08-25)
 
-以下公开来源可用于法务取证包的来源交叉核验，但不单独证明许可、股权、资产所有权或具体案件中的证据可采性：
+The following public sources may be used for cross-checking a Legal evidence package. They do not independently prove licenses, equity, asset ownership, or admissibility in a specific case:
 
-- 中国保护知识产权网（商务部知识产权公共服务来源）记录上海市知识产权局与国家文物局中国文物交流中心开展登记试点，并称中国文保链由中国文物交流中心建设、用于文博数据资源登记与管理：`https://ipr.mofcom.gov.cn/article/gnxw/zfbm/zfbmdf/sh/202602/1995149.html`；
-- 首都文明网记录“证据链”与中国文保链战略合作及数字文博成果，支持“存在司法协同存证合作”的有限事实，不等于互联网法院对任意文保链记录预先确认可采：`https://www.bjwmb.gov.cn/yw/10048173.html`；
-- 最高人民法院公开资料确认人民法院司法链平台及其在线核验应用，但未在该材料中确认中国文保链已经接入或其记录当然可采：`https://www.court.gov.cn/zixun/xiangqing/384671.html`；
-- 最高人民法院《互联网法院案件管辖规定》可用于核对互联网法院对网络数据、虚拟财产等案件的管辖边界，但不是对本项目或文保链证据的个案认可：`https://www.court.gov.cn/zixun/xiangqing/478291.html`。
+- China Intellectual Property Protection Network (a Ministry of Commerce IP public-service source) reports a registration pilot by the Shanghai Intellectual Property Office and China Cultural Relics Exchange Center, and describes the China Cultural Relics Preservation Chain as built by that Center for cultural data registration and management: `https://ipr.mofcom.gov.cn/article/gnxw/zfbm/zfbmdf/sh/202602/1995149.html`;
+- Capital Civilization Network reports strategic cooperation between “Evidence Chain” and the China Cultural Relics Preservation Chain and digital cultural-relic outcomes. This supports the limited fact that judicial evidence-preservation cooperation exists; it does not establish prior admissibility of arbitrary preservation-chain records by an Internet court: `https://www.bjwmb.gov.cn/yw/10048173.html`;
+- Supreme People’s Court public materials confirm the judicial-chain platform and online verification application but do not establish in that material that the China Cultural Relics Preservation Chain is connected or its records are automatically admissible: `https://www.court.gov.cn/zixun/xiangqing/384671.html`;
+- The Supreme People’s Court “Provisions on the Jurisdiction of Internet Courts” can be used to check jurisdictional boundaries for disputes involving network data and virtual property; it is not case-specific recognition of this project or the preservation-chain evidence: `https://www.court.gov.cn/zixun/xiangqing/478291.html`.
 
-因此，P1 的“平台存在及登记用途”和 P2 的“证据链合作/司法链一般能力”获得了官方公开来源的部分交叉支持；P2 的监管主体全称、文保链与司法链的正式接入关系及法院可采边界，P3 的有效运营授权，P4 的股权和全部许可，仍须正式原件与法务意见。
+Accordingly, P1’s limited premises (“the platform exists and is used for registration”) and P2’s limited premises (“Evidence Chain cooperation / general judicial-chain capability”) receive partial cross-checking from official public sources. P2’s full regulatory-entity name, formal connection between the preservation chain and judicial chain, and court-admissibility boundary, as well as P3 operating authority and P4 equity/all licenses, still require formal originals and legal opinion.
