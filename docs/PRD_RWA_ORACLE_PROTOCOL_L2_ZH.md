@@ -1,68 +1,61 @@
-# Giraffe RWA Oracle（L2）产品需求文档
+# Giraffe RWA Oracle (L2) Product Requirements Document
 
-## 0. 文档控制
+## 0. Document Control
 
-| 项目 | 内容 |
+| Item | Content |
 | --- | --- |
-| 文档名称 | Giraffe RWA Oracle（L2）PRD |
-| 文档版本 | v0.4 |
-| 日期 | 2026-09-03（v0.3：2026-08-24） |
-| 状态 | Oracle-only 范围确认稿；用于产品、架构、法律和开发验收对照 |
-| v0.4 变更 | 唯一实质变更为 **D-008**：登记在途期间不阻断 ERC-721 转让，权利改按可递延 / 易逝性区分。需求 ID 集合、编号体系与范围均未变，仍为 24 条。受影响条目：CONSUMER-004~009、前提 P7、新增 §7.0 |
-| 产品主体 | Giraffe ArtFi Corp. |
-| 产品定位 | RWA 登记、来源、证书、仓储及交割状态的验证与证明基础设施 |
-| 不包含 | NFT 金融化、份额化、贷款、质押、收益产品、做市、定价、撮合及金融结算；<br>以及一切**主体合规**职能：KYC/AML/制裁筛查、司法辖区资格判定、牌照适格性、投资者适当性 |
-| 配套文档 | `ACCEPTANCE_RWA_ORACLE_ZH.md`（验收标准）、`STATUS.md`（证据快照） |
-| 上一版本 | v0.2；本版修复需求 ID 断裂、前提取证缺失、金融隔离条款归属错误，并移除误写入协议的主体合规职能 |
+| Document name | Giraffe RWA Oracle (L2) PRD |
+| Version | v0.4 |
+| Date | 2026-09-03 (v0.3: 2026-08-24) |
+| Status | Oracle-only scope-confirmed draft for product, architecture, legal, and development acceptance cross-reference |
+| v0.4 change | The sole substantive change is D-008: ERC-721 transfers are not blocked while registration is in flight; rights are instead classified as deferrable or perishable. Requirement IDs, numbering, and scope are unchanged; 24 requirements remain. Affected items: CONSUMER-004 through CONSUMER-009, premise P7, and new §7.0. |
+| Product entity | Giraffe ArtFi Corp. |
+| Positioning | Verification and attestation infrastructure for RWA registration, provenance, certificates, custody, and settlement status |
+| Exclusions | NFT financialization, fractionalization, lending, pledging, yield products, market making, pricing, matching, and financial settlement; all subject-level compliance functions, including KYC/AML/sanctions screening, jurisdictional eligibility, licensing eligibility, and investor suitability |
+| Related documents | ACCEPTANCE_RWA_ORACLE_ZH.md (acceptance standard), STATUS.md (evidence snapshot) |
+| Previous version | v0.2; this version repairs broken requirement IDs, missing premise evidence, and misattributed financial-separation clauses, and removes subject-level compliance functions incorrectly included in the protocol |
 
-本文只定义 Giraffe 在 RWA 四层架构中的验证层（L2 Oracle）。链下资产登记、文物艺术品
-经营、仓储和证书签发属于资产层（L1）；Token 标准、NFT 状态机和 ERC 提案属于独立协议
-项目（L3）；贷款、质押、结构化产品等属于第三方应用层（L4）。
+This document defines only the verification layer (L2 Oracle) in Giraffe's four-layer RWA architecture. Off-chain asset registration, cultural-property and artwork operations, custody, and certificate issuance belong to the asset layer (L1); Token standards, NFT state machines, and ERC proposals belong to an independent protocol project (L3); lending, pledging, structured products, and similar services belong to third-party applications (L4).
 
-L3 ERC 提案及其参考合约已经移交独立任务"ERC"。本仓库可以定义下游协议必须验证的事实、
-证明格式和消费接口，但不得在本项目中自定 ERC 编号、提交 ERC 提案或把某个 NFT 合约实现
-列为 Oracle 完成条件。
+The L3 ERC proposal and its reference contract have been handed off to the independent task “ERC.” This repository may define facts that downstream protocols must verify, proof formats, and consumption interfaces, but this project must not assign an ERC number, submit an ERC proposal, or make implementation of a particular NFT contract an Oracle completion condition.
 
-本文中的合规描述是产品约束和上线门禁，不构成监管机关批准声明。任何主网、真实资产、
-真实资金或公开生产启用仍须通过独立书面 go/no-go。该门禁针对跨境文物、真实资金和实物
-提货权，属于法务放行条件，不得因技术测试通过而省略，也不得与工程排期门禁混淆。
+Compliance descriptions here are product constraints and launch gates, not statements of regulatory approval. Any mainnet, real-asset, real-funds, or public production enablement still requires a separate written go/no-go. This gate concerns cross-border cultural property, real funds, and physical-redemption rights; it is a legal release condition and must not be omitted because technical tests pass or confused with engineering schedule gates.
 
-### 0.1 与 ArtCCH:ArtFi 的关系（必须先行裁决）
+### 0.1 Relationship to ArtCCH:ArtFi (Decision Required First)
 
-本产品与 ArtFi 商业化项目在 Token 语义上**结构性互斥**，三处冲突已记录：
+This product and the ArtFi commercialization project are structurally incompatible in Token semantics; three conflicts are recorded:
 
-| 冲突点 | 本文档 | ArtFi 现有产品 |
+| Conflict | This document | Existing ArtFi product |
 | --- | --- | --- |
-| 份额化 | CONSUMER-001 一物一证一 NFT，禁止份额化 | 核心产品即 ERC-721 → Vault → ERC-20 份额 |
-| 撮合 | CONSUMER-008 不建订单簿、不撮合、不做对手方 | 报价模块 M2 含订单簿与撮合引擎 |
-| 慈善版 | 本产品与"一件作品发行 100 枚 NFT"结构完全独立、不得混用 | 慈善版 37×100 = 3,700 枚为其验证数据集 |
+| Fractionalization | CONSUMER-001: one physical asset, one certificate, one NFT; fractionalization prohibited | Core product: ERC-721 → Vault → ERC-20 fractions |
+| Matching | CONSUMER-008: no order book, matching, or counterparty role | Quoting module M2 includes an order book and matching engine |
+| Charity edition | Entirely separate from, and must not be mixed with, “issue 100 NFTs for one artwork” | Charity edition: 37 × 100 = 3,700 NFTs as its validation dataset |
 
-在下述裁决作出前，本 PRD 按**独立产品线**假设推进，不引用、不依赖、不复用 ArtFi 的合约、
-数据库、Token 语义或验证数据集：
+Until a decision below is made, this PRD proceeds on the assumption of an independent product line and does not cite, depend on, or reuse ArtFi contracts, databases, Token semantics, or validation datasets:
 
-- **裁决 A：独立产品线**——单独报价、单独仓库、单独排期，与 ArtFi 合同解耦。本文档无需修改。
-- **裁决 B：作为 ArtFi 底层**——ArtFi 须放弃份额化改为 1:1 数字权证，M1/M2/M3/M4 全部重写，
-  原报价范围作废重谈。本文档 §0.1 冲突表须转为 ArtFi 侧的范围变更单。
+- Decision A: Independent product line — separately quoted, separately maintained repository and schedule, decoupled from the ArtFi contract. No change to this document is needed.
+- Decision B: ArtFi underlying layer — ArtFi must abandon fractionalization and adopt 1:1 digital title certificates; M1/M2/M3/M4 must all be rewritten, and the original quotation scope must be renegotiated. The §0.1 conflict table must become an ArtFi-side scope-change request.
 
 The unresolved commercial and token-model decision remains a production gate. It does not change the authorized technical dependency direction: ArtFi may integrate only through the Oracle application-facing API and must not integrate ERC8415-Kit or ERC-8415 directly.
 
-### 0.2 范围与排期契约（待签署）
+### 0.2 Scope and Schedule Contract (Pending Signature)
 
-本 PRD 目前**没有对应的报价、人天预算和里程碑日期**。ArtFi 的 450 人天 / USD 155,000 六个
-模块不覆盖本项目任何工作。生产候选（Stage F）之前必须补齐：
+This PRD currently has no corresponding quotation, person-day budget, or milestone dates. ArtFi's six modules at 450 person-days / USD 155,000 do not cover any work in this project. Before the production candidate (Stage F), complete:
 
-| 待补项 | 责任人 | 需要时点 |
+| Outstanding item | Owner | Due |
 | --- | --- | --- |
-| 分模块人天与报价 | 商务 | Stage A 退出前 |
-| 里程碑日历（含 T+3 工作日历口径） | PM | Stage A 退出前 |
-| 第三方审计预算（法律、隐私、安全、合约） | 商务 | Stage E 退出前 |
-| 技术栈决策：本仓库 Node/TypeScript 与 ArtFi 的 Go 后端并行的运维成本 | 架构 | Stage B 退出前 |
+| Person-days and quotation by module | Business | Before exit from Stage A |
+| Milestone calendar (including the T+3 business-calendar convention) | PM | Before exit from Stage A |
+| Third-party audit budget (legal, privacy, security, contract) | Business | Before exit from Stage E |
+| Technology-stack decision: operating cost of running this repository's Node/TypeScript stack alongside ArtFi's Go backend | Architecture | Before exit from Stage B |
 
-### 0.3 Authorized integration architecture and repository responsibilities
+### 0.3 Authorized Integration Architecture and Repository Responsibilities
 
 The final application-to-authority architecture is:
 
-`ArtFi → Oracle → ERC8415-Kit → ERC-8415`
+~~~text
+ArtFi → Oracle → ERC8415-Kit → ERC-8415
+~~~
 
 - ArtFi consumes only the Oracle application-facing API. It must not directly integrate ERC8415-Kit, implement an ERC-8415 adapter, or own projection or settlement infrastructure.
 - Oracle owns institutional-source integration, authority verification, attestation, consumption of ERC8415-Kit, the ERC-8415 integration boundary, and the application-facing API.
@@ -71,129 +64,121 @@ The final application-to-authority architecture is:
 
 This allocation preserves existing code, the completed temporal projection slice, and historical evidence. It does not authorize a new settlement engine, payment integration, custody workflow, release workflow, or refund workflow. Documentation alignment is not delivery evidence.
 
-## 1. 项目前提
+## 1. Project Premises
 
-以下事实由业务方确认并作为设计前提。**每条必须留存书面依据、取证日期与复核周期**；前提
-失效或无法取证即触发范围复审，不得作为"已确认"继续沿用。
+The business owner has confirmed the following facts as design premises. Written support, an evidence date, and a review interval must be retained for every item; if a premise becomes invalid or cannot be evidenced, the scope must be reviewed and the premise must not continue to be treated as “confirmed.”
 
-| # | 前提 | 依据文件 | 取证日期 | 复核周期 | 责任人 |
+| # | Premise | Supporting document | Evidence date | Review interval | Owner |
 | --- | --- | --- | --- | --- | --- |
-| P1 | 中国境内文物艺术品在"中国文保链"登记，登记内容包括标的物详情和所有者信息 | 待补 | 待补 | 年度 | 法务 |
-| P2 | 中国文保链由国家版权局与国家文物局监管，证据与司法链衔接，并获互联网法院认可 | 待补 | 待补 | 年度 | 法务 |
-| P3 | 中国文保链运营方为中创文贸（北京）文物艺术品有限公司 | 待补 | 待补 | 年度 | 法务 |
-| P4 | 中创文贸由中国文物交流中心 100% 全资所有，具备文物艺术品交易、仓储及经批准的进出口资格，并可指导仓库监管 | 待补 | 待补 | 年度 | 法务 |
-| P5 | 实物仓单记录文保链登记事实、唯一登记引用及对应哈希值 | 待补 | 待补 | 半年 | 产品 |
-| P6 | 每个本产品 NFT 只对应一件唯一实物及一项完整、排他、可执行的提货权；不拆分、不共享 | 待补 | 待补 | 半年 | 产品 |
-| P7 | 境外交易在 T+0 形成交易快照；文保链最迟 T+3 完成所有者变更、旧证书注销及新证书签发 | 待补 | 待补 | 半年 | 产品 |
-| P8 | Giraffe 不提供 NFT 金融化服务；第三方链上金融机构可独立使用 NFT 开展其获准业务，Giraffe 只提供资产事实查询和验证接口技术支持 | 待补 | 待补 | 年度 | 法务 |
+| P1 | Cultural relics and artworks in China are registered on the China Cultural Relics Preservation Chain; registration includes subject-matter details and owner information | To be supplied | To be supplied | Annual | Legal |
+| P2 | The China Cultural Relics Preservation Chain is supervised by the National Copyright Administration and the National Cultural Heritage Administration, its evidence is connected to the judicial chain, and it is recognized by Internet Courts | To be supplied | To be supplied | Annual | Legal |
+| P3 | The operator of the China Cultural Relics Preservation Chain is Zhongchuang Wenmao (Beijing) Cultural Relics and Artworks Co., Ltd. | To be supplied | To be supplied | Annual | Legal |
+| P4 | Zhongchuang Wenmao is wholly owned (100%) by the China Cultural Relics Exchange Center, is qualified for cultural-relic and artwork trading, custody, and approved import/export, and can guide warehouse supervision | To be supplied | To be supplied | Annual | Legal |
+| P5 | The physical warehouse receipt records Preservation Chain registration facts, a unique registration reference, and the corresponding hash | To be supplied | To be supplied | Semiannual | Product |
+| P6 | Each product NFT corresponds to exactly one unique physical item and one complete, exclusive, enforceable physical-redemption right; it is not split or shared | To be supplied | To be supplied | Semiannual | Product |
+| P7 | An overseas transaction snapshot is created at T+0; the Preservation Chain completes the owner change, revokes the old certificate, and issues the new certificate no later than T+3 | To be supplied | To be supplied | Semiannual | Product |
+| P8 | Giraffe does not provide NFT financialization services; third-party on-chain financial institutions may independently use NFTs in their authorized businesses, while Giraffe provides only asset-fact query and verification-interface technical support | To be supplied | To be supplied | Annual | Legal |
 
-P1–P4 是整个产品的监管地基。任一条无法取证，Stage F 必须阻断。
+P1–P4 are the regulatory foundation of the product. If any one cannot be evidenced, Stage F must be blocked.
 
-> **P7 的拆分说明（v0.4，依 D-008）**：P7 在 v0.3 中还包含一句「完成后 NFT 才恢复可交易
-> 状态」。那不是关于外部世界的事实，而是本产品的设计选择，因此不属于前提表，已移出并改由
-> D-008 管辖：**登记在途期间转让不被阻断**。留在 P7 的是外部事实部分——文保链最迟 T+3 完成
-> 变更——其取证缺口按前提登记册为「待 SLA/工作日历签署」，属服务水平口径，不是监管裁定。
+> P7 split rationale (v0.4, per D-008): In v0.3, P7 also included “the NFT becomes tradable again only after completion.” That was a product design choice, not an external-world fact, so it did not belong in the premise table. It has been removed and is now governed by D-008: transfers are not blocked while registration is in flight. The portion retained in P7 is the external fact that the Preservation Chain completes the change no later than T+3. Its evidence gap is listed in the premise register as “pending SLA/business-calendar signature”; this is a service-level convention, not a regulatory determination.
 >
-> 检索全仓未发现任何文件把「交割期内不得转让」表述为文保链方、监管方或合规方的外部要求。
-> **若日后取得相反证据，D-008 须重新审议**，且须在 ERC 提交前处理。
+> A repository-wide search found no document describing “transfers must be prohibited during the settlement window” as an external requirement of the Preservation Chain, a regulator, or a compliance party. If contrary evidence is obtained later, D-008 must be reconsidered before any ERC submission.
 
-## 2. 产品目标
+## 2. Product Objectives
 
-### 2.1 核心目标
+### 2.1 Core Objectives
 
-1. 将中创文贸、文保链、仓库及证书提供的权威链下事实转换为可验证、可撤销、有时效的链上证明。
-2. 为"一物、一证、一 Token"的下游协议提供可独立验证的事实证明，不负责发行或转移 Token。
-3. 保证资产、仓单、权威登记和证书版本之间可追溯，并能发现冲突或多个有效权利主张。
-4. 建立 T+0 快照固定、T+3 登记及证书重签的确定性状态机，使任一过去时刻都能解析出唯一的确认持有人。
-5. 向第三方应用提供事实查询和技术集成能力，同时严格隔离任何金融产品、金融决策和金融执行。
+1. Convert authoritative off-chain facts provided by Zhongchuang Wenmao, the Preservation Chain, warehouses, and certificate issuers into verifiable, revocable, time-bounded on-chain attestations.
+2. Provide independently verifiable factual attestations to downstream protocols implementing “one asset, one certificate, one Token”; do not issue or transfer Tokens.
+3. Preserve traceability among assets, warehouse receipts, authoritative registrations, and certificate versions, and detect conflicts or multiple valid claims of right.
+4. Establish a deterministic state machine for fixing the T+0 snapshot and completing T+3 registration and certificate reissuance, so the confirmed holder at any past time can be resolved uniquely.
+5. Provide factual queries and technical integration capabilities to third-party applications while strictly separating all financial products, decisions, and execution.
 
-### 2.2 成功标准
+### 2.2 Success Criteria
 
-- 任意有效 NFT 均可反查唯一资产、当前有效证书、仓单哈希、文保链登记引用和交割状态。
-- 任意资产出现多个当前证书、仓单或权利主张时，Oracle 必须返回冲突并停止签发有效证明。
-- T+0 后至登记完成前，Oracle 必须持续返回 `TRANSFER_PENDING` 或更严格状态。
-- 登记完成后，Oracle 必须签发包含新证书哈希、递增版本和前序证书哈希的证明。
-- 所有预言机输出均可验证来源、签名、时间、有效期和撤销状态。
-- Giraffe 不产生价格、抵押率、收益、信用或投资适当性结论。
+- Any valid NFT can be traced back to one unique asset, current valid certificate, warehouse-receipt hash, Preservation Chain registration reference, and settlement status.
+- If an asset has multiple current certificates, warehouse receipts, or claims of right, Oracle must return a conflict and stop issuing valid attestations.
+- From T+0 until registration completes, Oracle must continuously return TRANSFER_PENDING or a stricter status.
+- After registration completes, Oracle must issue an attestation containing the new certificate hash, incremented version, and prior-certificate hash.
+- Every Oracle output can be verified for source, signature, time, validity period, and revocation status.
+- Giraffe produces no conclusion on price, collateral ratio, yield, credit, or investor suitability.
 
-## 3. 四层架构与产品边界
+## 3. Four-Layer Architecture and Product Boundary
 
-| 层级 | 责任主体 | 本产品责任 |
+| Layer | Responsible party | Responsibility of this product |
 | --- | --- | --- |
-| L1 资产层 | 中创文贸、文保链、受监管仓库、证书签发方 | 外部权威基础；Giraffe 不替代其鉴定、登记、保管或审批 |
-| L2 验证层 | Giraffe RWA Oracle | 本 PRD 唯一实现范围：查询、核验、签名证明、状态同步、撤销和审计 |
-| L3 协议层 | 独立 ERC/协议项目 | 本 PRD 仅定义消费 Oracle 证明的兼容边界，不实现 NFT 或负责 ERC 提交 |
-| L4 应用层 | 外部市场、钱包、持牌链上金融机构等 | 第三方独立责任；不属于 Giraffe 的金融或交易业务 |
+| L1 Asset layer | Zhongchuang Wenmao, Preservation Chain, regulated warehouses, certificate issuer | External authority foundation; Giraffe does not replace their appraisal, registration, custody, or approval |
+| L2 Verification layer | Giraffe RWA Oracle | The sole implementation scope of this PRD: query, verification, signed attestations, status synchronization, revocation, and audit |
+| L3 Protocol layer | Independent ERC/protocol project | This PRD defines only the compatibility boundary for consuming Oracle attestations; it does not implement NFTs or own ERC submissions |
+| L4 Application layer | External markets, wallets, licensed on-chain financial institutions, etc. | Independent third-party responsibility; not Giraffe's financial or trading business |
 
-The operational dependency chain is `ArtFi → Oracle → ERC8415-Kit → ERC-8415`. Oracle is the business and institutional integration layer, not an ArtFi vertical application. ArtFi consumes only Oracle's application-facing API. Oracle consumes ERC8415-Kit, and ERC8415-Kit implements reusable infrastructure under the normative authority of ERC-8415.
+The operational dependency chain is ArtFi → Oracle → ERC8415-Kit → ERC-8415. Oracle is the business and institutional integration layer, not an ArtFi vertical application. ArtFi consumes only Oracle's application-facing API. Oracle consumes ERC8415-Kit, and ERC8415-Kit implements reusable infrastructure under the normative authority of ERC-8415.
 
-### 3.1 Giraffe 的准确角色
+### 3.1 Giraffe's Exact Role
 
-Giraffe 是：
+Giraffe is:
 
-- RWA 资产事实与来源预言机；
-- 权属及仓储状态查询服务；
-- T+0/T+3 状态协调和事实证明服务；
-- 第三方验证 API、SDK 和集成技术支持提供商。
+- An oracle for RWA asset facts and provenance;
+- A query service for ownership and custody status;
+- A T+0/T+3 state-coordination and factual-attestation service;
+- A provider of third-party verification APIs, SDKs, and integration technical support.
 
-Giraffe 不是：
+Giraffe is not:
 
-- 文物鉴定或估值机构；
-- 中国境内文物交易、仓储或进出口主体；
-- 证券发行人、经纪商、交易所、做市商或清算机构；
-- 贷款人、质押平台、基金、SPV、收益产品或衍生品提供商；
-- 第三方金融机构的代理人、承销人、风控人或抵押物处置人；
-- KYC/AML/制裁筛查服务商、合规审查机构或司法辖区资格认定方。
+- An appraisal or valuation institution for cultural property;
+- An entity trading, storing, or importing/exporting cultural property within China;
+- A securities issuer, broker, exchange, market maker, or clearing institution;
+- A lender, pledge platform, fund, SPV, yield product, or derivatives provider;
+- An agent, underwriter, risk manager, or collateral liquidator for a third-party financial institution;
+- A KYC/AML/sanctions screening provider, compliance-review institution, or jurisdictional eligibility assessor.
 
-### 3.3 主体合规边界（v0.3 新增）
+### 3.3 Subject-Level Compliance Boundary (Added in v0.3)
 
-Oracle 只转述权威来源关于**资产**的事实，不生产、不转述、不裁决关于**人或机构**的合规结论。
+Oracle relays only authoritative-source facts about assets. It does not produce, relay, or adjudicate compliance conclusions about people or institutions.
 
-| | 属于本协议 | 不属于本协议 |
+| | Within this protocol | Outside this protocol |
 | --- | --- | --- |
-| 对象 | 资产、仓单、证书、登记、实物状态 | 自然人、机构、钱包持有人的合规身份 |
-| 示例（在范围） | 登记是否存在、证书哈希与版本、仓单哈希、权利负担、司法冻结、`transferEligibility` | — |
-| 示例（不在范围） | — | KYC 结果、AML 风险评级、制裁名单命中、司法辖区资格、牌照适格性、投资者适当性 |
-| 责任方 | Giraffe Oracle | 各机构自行解决 |
+| Subject | Assets, warehouse receipts, certificates, registrations, physical status | Compliance identity of natural persons, institutions, or wallet holders |
+| Examples (in scope) | Whether a registration exists; certificate hash and version; warehouse-receipt hash; encumbrance; judicial freeze; transferEligibility | — |
+| Examples (out of scope) | — | KYC result, AML risk rating, sanctions-list match, jurisdictional eligibility, licensing eligibility, investor suitability |
+| Responsible party | Giraffe Oracle | Each institution independently |
 
-`transferEligibility` 仅表示**权威来源声明的资产侧可转让性**（登记、仓储、权利负担、司法
-冻结），不包含任何交易对手方的合规状态。任何机构不得以 Oracle 返回 `VALID` 为由主张其自身
-的 KYC、AML、制裁或适当性义务已被满足。
+transferEligibility means only asset-side transferability declared by an authoritative source (registration, custody, encumbrance, judicial freeze); it does not include the compliance status of any counterparty. No institution may claim that its KYC, AML, sanctions, or suitability obligations have been satisfied because Oracle returned VALID.
 
-司法冻结属于权威来源关于资产的事实，在范围内；对被冻结主体的合规评价不在范围内。
+A judicial freeze is an in-scope fact about an asset reported by an authoritative source; compliance evaluation of the person subject to the freeze is out of scope.
 
-### 3.2 需求 ID 体系
+### 3.2 Requirement ID System
 
-| 前缀 | 含义 | 实现方 | 验收方式 |
+| Prefix | Meaning | Implementer | Acceptance method |
 | --- | --- | --- | --- |
-| `ORACLE-*` | L2 验证层需求 | **本项目** | 本项目自动化测试与运行证据 |
-| `CONSUMER-*` | 下游协议消费约束 | 独立协议项目（L3） | 本项目以合成消费者验证约束可被强制 |
-| `NFR-*` | 非功能需求 | 本项目 | 压测、演练、审计记录 |
+| ORACLE-* | L2 verification-layer requirement | This project | Project automation tests and runtime evidence |
+| CONSUMER-* | Downstream protocol-consumption constraint | Independent protocol project (L3) | This project uses a synthetic consumer to verify that the constraint can be enforced |
+| NFR-* | Non-functional requirement | This project | Load tests, drills, and audit records |
 
-`CONSUMER-*` 不是本项目的交付物。本项目的义务是：**证明这些约束在 Oracle 侧可被强制**，
-即无效、冲突、过期、撤销、乱序或重放的输入不可能通过验证。下游是否正确实现由 L3 项目验收。
+CONSUMER-* items are not deliverables of this project. This project's obligation is to prove these constraints can be enforced on the Oracle side: invalid, conflicting, expired, revoked, out-of-order, or replayed inputs cannot pass verification. Acceptance of downstream implementations belongs to the L3 project.
 
-## 4. 角色与权限
+## 4. Roles and Permissions
 
-| 角色 | 权限 | 禁止事项 |
+| Role | Permissions | Prohibited actions |
 | --- | --- | --- |
-| 中创文贸登记方 | 确认登记事实、所有者变更、证书签发/注销和文保链引用 | 不得通过 Giraffe 接口绕过自身审核流程 |
-| 仓储方 | 确认实物、仓单、冻结、解冻、提货和权利负担状态 | 不得为同一实物签发多个同时有效的提货凭证 |
-| Giraffe Oracle | 验证权威输入，签发有时效证明，发布状态和撤销事件 | 不得自行认定所有权、估值或金融适用性 |
-| 下游协议实现方 | 独立消费 Oracle 证明并执行 Token 生命周期 | 不属于本 Oracle 项目的实现或 ERC 提交范围 |
-| 卖方 | 发起挂牌/转让并接受 T+0 快照固定 | 缺口开启期间不得提货或质押（易逝性行使）；代币转让不受限 |
-| 买方 | 付款托管并在该 T+0 时刻终局后取得确认归属 | 该时刻未终局前不得提货；代币转让不受限 |
-| 第三方金融机构 | 查询资产事实证明并独立决定是否开展其业务 | 不得把查询结果表述为 Giraffe 的金融批准、合规放行或担保 |
-| 获准第三方（托管/支付/合规服务商） | 独立完成资金托管、支付与主体合规核验 | 其核验结果不进入 Oracle 证明，也不构成协议门禁 |
-| 系统审计员 | 读取不可变审计记录和证明链 | 不得修改业务状态或查看无权限个人信息 |
+| Zhongchuang Wenmao registrar | Confirm registration facts, owner changes, certificate issuance/revocation, and Preservation Chain references | Must not bypass its own review process through a Giraffe interface |
+| Custodian/warehouse | Confirm physical items, warehouse receipts, freeze/unfreeze, redemption, and encumbrance status | Must not issue multiple simultaneously valid redemption credentials for the same physical item |
+| Giraffe Oracle | Verify authoritative inputs, issue time-bounded attestations, publish statuses and revocation events | Must not determine ownership, valuation, or financial eligibility independently |
+| Downstream protocol implementer | Independently consume Oracle attestations and execute the Token lifecycle | Not within this Oracle project's implementation or ERC-submission scope |
+| Seller | Initiate listing/transfer and accept fixation of the T+0 snapshot | While a gap is open, may not redeem or pledge (perishable exercises); Token transfers remain unrestricted |
+| Buyer | Escrow payment and acquire confirmed attribution once the T+0 time is final | May not redeem before that time is final; Token transfers remain unrestricted |
+| Third-party financial institution | Query asset-fact attestations and independently decide whether to conduct its business | Must not describe query results as Giraffe financial approval, compliance clearance, or guarantee |
+| Authorized third party (custody/payment/compliance provider) | Independently perform fund custody, payment, and subject-level compliance checks | Its check results are not included in Oracle attestations and are not protocol gates |
+| System auditor | Read immutable audit records and attestation chains | Must not modify business status or access personal information without authorization |
 
-生产权限必须采用职责分离。中创文贸登记确认与 Giraffe 交割执行不得由同一单一密钥控制。
+Production permissions must implement separation of duties. Zhongchuang Wenmao registration confirmation and Giraffe settlement execution must not be controlled by the same single key.
 
-## 5. 核心对象模型
+## 5. Core Object Model
 
 ### 5.1 AssetRecord
 
-```text
+~~~text
 assetId
 wenbaoRegistryRef
 assetFingerprintHash
@@ -207,11 +192,11 @@ currentOwnerCommitment
 encumbranceStatus
 oracleStatus
 updatedAt
-```
+~~~
 
 ### 5.2 CertificateRecord
 
-```text
+~~~text
 assetId
 tokenId
 certificateVersion
@@ -222,14 +207,13 @@ warehouseReceiptHash
 effectiveAt
 supersededAt
 status
-```
+~~~
 
-证书历史必须追加，不得覆盖或删除。公开链只保存不可逆哈希、版本和非敏感引用，不保存姓名、
-证件号、住址、完整仓单、完整证书或其他个人信息。
+Certificate history must be append-only and must never be overwritten or deleted. A public chain stores only irreversible hashes, versions, and non-sensitive references; it must not store names, identity-document numbers, addresses, complete warehouse receipts, complete certificates, or other personal information.
 
 ### 5.3 OracleAttestation
 
-```text
+~~~text
 attestationId
 schemaVersion
 assetId
@@ -245,13 +229,13 @@ nonce
 revocationRef
 signerSetId
 signature
-```
+~~~
 
-每份证明必须绑定请求目的、链、合约和 Token ID，防止跨链、跨资产和跨用途重放。
+Every attestation must bind the request purpose, chain, contract, and Token ID to prevent cross-chain, cross-asset, and cross-purpose replay.
 
 ### 5.4 SettlementRecord
 
-```text
+~~~text
 settlementId
 assetId
 tokenId
@@ -267,32 +251,31 @@ startedAt
 deadlineAt
 finalizedAt
 failureReasonHash
-```
+~~~
 
-## 6. L2 验证层需求（本项目实现范围）
+## 6. L2 Verification-Layer Requirements (Implementation Scope of This Project)
 
-### ORACLE-001 权威数据源注册
+### ORACLE-001 Authoritative Source Registry
 
-系统必须使用批准的数据源注册表，至少标识中创文贸、文保链和仓储方。调用方不得在请求中传入
-任意 URL、RPC、数据库地址或替代数据源。未知来源默认拒绝。
+The system must use an approved source registry that identifies at least Zhongchuang Wenmao, the Preservation Chain, and the custodian/warehouse. Callers must not provide arbitrary URLs, RPC endpoints, database addresses, or replacement sources in requests. Unknown sources are rejected by default.
 
-### ORACLE-002 事实查询
+### ORACLE-002 Fact Queries
 
-系统必须提供以下事实查询：
+The system must provide queries for:
 
-- 资产登记是否存在；
-- NFT 与实物是否保持 1:1；
-- 当前证书哈希及版本；
-- 仓单哈希及仓储状态；
-- 当前所有者承诺值与钱包绑定状态；
-- 是否处于冻结、查封、质押、提货或交割中；
-- 是否允许转让；
-- T+0 快照和 T+3 交割是否完成；
-- 证明是否过期、撤销或需要人工复核。
+- Whether an asset registration exists;
+- Whether the NFT and physical item remain in a 1:1 relationship;
+- Current certificate hash and version;
+- Warehouse-receipt hash and custody status;
+- Current owner commitment and wallet-binding status;
+- Whether the item is frozen, seized, pledged, under redemption, or in settlement;
+- Whether transfer is permitted;
+- Whether the T+0 snapshot and T+3 settlement are complete;
+- Whether an attestation has expired, been revoked, or requires human review.
 
-查询结果只允许使用：
+Query results may use only:
 
-```text
+~~~text
 VALID
 INVALID
 TRANSFER_PENDING
@@ -301,173 +284,157 @@ REVOKED
 EXPIRED
 REVIEW_REQUIRED
 NOT_VERIFIED
-```
+~~~
 
-### ORACLE-003 签名证明
+### ORACLE-003 Signed Attestations
 
-每次证明必须包含版本化 schema、来源哈希、观察时间、有效期、nonce、签名集合和撤销引用。
-证明过期、签名不足、来源不一致或依赖项不可用时必须 fail closed。
+Every attestation must include a versioned schema, source hash, observation time, validity period, nonce, signer set, and revocation reference. The system must fail closed if an attestation is expired, has insufficient signatures, has inconsistent sources, or has unavailable dependencies.
 
-### ORACLE-004 撤销与紧急冻结
+### ORACLE-004 Revocation and Emergency Freeze
 
-当文保链登记被撤回、证书失效、仓储异常、司法冻结或来源争议出现时，系统必须：
+When a Preservation Chain registration is withdrawn, a certificate becomes invalid, a custody anomaly or judicial freeze occurs, or a source dispute arises, the system must:
 
-1. 撤销未过期证明；
-2. 将协议状态变为 `FROZEN` 或 `REVIEW_REQUIRED`；
-3. 阻止 NFT 转让和提货；
-4. 保留原因哈希、操作者、时间和证据引用；
-5. 向订阅方发布幂等事件。
+1. Revoke attestations that have not yet expired;
+2. Change protocol status to FROZEN or REVIEW_REQUIRED;
+3. Block NFT transfer and redemption;
+4. Retain the reason hash, operator, time, and evidence reference;
+5. Publish an idempotent event to subscribers.
 
-### ORACLE-005 主体合规结论隔离
+### ORACLE-005 Isolation of Subject-Level Compliance Conclusions
 
-> v0.2 允许 Oracle 返回 KYC、AML、制裁及司法辖区资格的状态证明。该条把机构自身的经营合规
-> 职能写进了协议，与 §3.1、§3.3 冲突，v0.3 反转为禁止项。
+> v0.2 allowed Oracle to return status attestations for KYC, AML, sanctions, and jurisdictional eligibility. This placed institutional business-compliance functions in the protocol, conflicting with §§3.1 and 3.3; v0.3 reversed this and prohibited those functions.
 
-系统不得生成、存储、转述或返回任何关于自然人或机构的合规结论，包括但不限于：
+The system must not generate, store, relay, or return any compliance conclusion about a natural person or institution, including but not limited to:
 
-- KYC 核验结果或核验等级；
-- AML 风险评级、可疑交易判断；
-- 制裁名单命中与否；
-- 司法辖区资格、投资者适当性、专业投资者认定；
-- 牌照适格性或经营资质评价。
+- KYC verification results or levels;
+- AML risk ratings or suspicious-transaction determinations;
+- Whether a sanctions-list match exists;
+- Jurisdictional eligibility, investor suitability, or professional-investor classification;
+- Licensing eligibility or business-qualification evaluations.
 
-主体合规由各机构依其自身监管义务独立解决。协议不提供、不代理、不缓存该类结论，
-也不因其缺失而阻断资产事实查询。
+Each institution independently handles subject-level compliance under its own regulatory obligations. The protocol neither provides, acts as agent for, nor caches such conclusions; their absence must not block asset-fact queries.
 
-`currentOwnerCommitment` 与钱包绑定状态是权威来源签发的**资产权属事实**，不是主体合规
-结论，在范围内。
+The currentOwnerCommitment and wallet-binding status are authoritative-source-issued **asset-ownership facts**, not subject-level compliance conclusions, and are in scope.
 
-### ORACLE-006 禁止金融输出
+### ORACLE-006 Prohibited Financial Outputs
 
-系统不得生成或返回：
+The system must not generate or return:
 
-- 估值、市场价格或价格预测；
-- 抵押率、清算价或信用评分；
-- 利率、收益率或流动性曲线；
-- 投资建议或金融产品合规批准；
-- "适合投资""保证可变现"或等价结论。
+- Valuation, market prices, or price forecasts;
+- Collateral ratios, liquidation prices, or credit scores;
+- Interest rates, yields, or liquidity curves;
+- Investment recommendations or financial-product compliance approvals;
+- Conclusions equivalent to “suitable for investment” or “guaranteed liquid.”
 
-### ORACLE-007 隐私与数据最小化
+### ORACLE-007 Privacy and Data Minimization
 
-- 公开链只保存哈希、版本、状态和非敏感引用。
-- 所有者姓名、证件、地址、仓储细节和完整证书仅保存在获准系统。
-- 钱包地址与实名身份的映射不得公开。
-- 跨境数据只传输完成交易和验证所必需的最少字段。
-- 查询机构按用途授权，记录访问者、目的、字段、时间和结果。
-- 面向第三方的查询不得泄露个人身份材料、密钥、内部服务器信息或未公开证书原文。
+- Public chains store only hashes, versions, statuses, and non-sensitive references.
+- Owner names, identity documents, addresses, custody details, and full certificates remain only in authorized systems.
+- The mapping between wallet addresses and real-world identities must not be public.
+- Cross-border transfers include only the minimum fields required to complete the transaction and verification.
+- Querying institutions are authorized by purpose; record the accessor, purpose, fields, time, and result.
+- Third-party queries must not disclose personal identity materials, keys, internal server information, or unpublished certificate text.
 
-### ORACLE-008 审计与可追溯
+### ORACLE-008 Audit and Traceability
 
-- 所有状态转换、证明签发、撤销、证书升级和管理员操作必须留存不可变审计记录。
-- T+0 至 T+3 全过程及证书历史必须可重放审计。
-- 时间统一保存 UTC，按用户界面时区展示；T+3 的工作日历和截止规则必须版本化。
+- Retain immutable audit records for every state transition, attestation issuance, revocation, certificate upgrade, and administrator operation.
+- Make the full T+0-to-T+3 process and certificate history auditable by replay.
+- Store time uniformly in UTC and display it in the user's interface time zone; version the T+3 business calendar and deadline rules.
 
-### ORACLE-009 金融隔离（Giraffe 自身义务）
+### ORACLE-009 Financial Separation (Giraffe's Own Obligation)
 
-> 本条在 v0.2 中被错误归入下游约束（原 PROTOCOL-009）。它约束的是 Giraffe 自己的行为，
-> 属于本项目实现与验收范围，故归位至 §6。
+> In v0.2 this item was incorrectly classified as a downstream constraint (formerly PROTOCOL-009). It governs Giraffe's own conduct and is therefore within this project's implementation and acceptance scope under §6.
 
-第三方链上金融机构可独立对 NFT 进行其获准的操作。Giraffe 仅提供查询、证明、SDK、文档和
-接口故障排查。Giraffe 不得：
+Third-party on-chain financial institutions may independently perform their authorized operations on NFTs. Giraffe provides only queries, attestations, SDKs, documentation, and interface troubleshooting. Giraffe must not:
 
-- 设计、部署或共同运营第三方金融产品合约；
-- 代用户提交、签署或托管金融交易；
-- 撮合融资、参与授信、估值、清算、强平或抵押物处置；
-- 接收本金、利息、收益或清算款；
-- 按融资额、收益或金融成交额收取报酬；
-- 将技术验证结果表述为金融产品批准、担保或投资建议。
+- Design, deploy, or jointly operate third-party financial-product contracts;
+- Submit, sign, or custody financial transactions on behalf of users;
+- Match financing, participate in credit decisions, valuation, liquidation, forced liquidation, or collateral disposal;
+- Receive principal, interest, yield, or liquidation proceeds;
+- Charge compensation based on financing amount, yield, or financial transaction volume;
+- Describe technical verification results as financial-product approval, guarantee, or investment advice.
 
-可收费项目限于固定订阅、查询、证明签发和通用接口技术支持，不与金融交易结果挂钩。
+Permitted fee items are limited to fixed subscriptions, queries, attestation issuance, and general interface technical support, none of which may be linked to financial-transaction outcomes.
 
-### ORACLE-010 消费适配器与 SDK
+### ORACLE-010 Consumer Adapter and SDK
 
-Oracle 可以提供只读验证库或链上消费适配器，但不得因此承担 NFT 发行、交易、托管或 ERC
-标准所有权。适配器的验收范围仅限：证明是否被正确验证、过期或撤销证明是否被拒绝、
-资产/链/合约/Token/用途绑定是否防止重放、消费失败是否 fail closed。
+Oracle may provide a read-only verification library or on-chain consumer adapter, but this must not make Oracle responsible for NFT issuance, trading, custody, or ownership of the ERC standard. Adapter acceptance is limited to whether attestations are correctly verified, expired or revoked attestations are rejected, asset/chain/contract/Token/purpose binding prevents replay, and consumer failure is fail-closed.
 
-## 7. 下游协议消费约束（非本项目实现范围）
+## 7. Downstream Protocol Consumption Constraints (Outside This Project's Implementation Scope)
 
-本节不定义 ERC，也不要求本项目部署 NFT 合约。它规定任何声称兼容 Giraffe Oracle 的下游
-协议在消费证明时必须遵守的安全语义。规范性 ERC 接口、编号、参考合约和社区提交流程由独立
-任务"ERC"维护。
+This section does not define an ERC or require this project to deploy an NFT contract. It specifies the security semantics that any downstream protocol claiming compatibility with Giraffe Oracle must follow when consuming attestations. The independent “ERC” task maintains normative ERC interfaces, numbers, reference contracts, and community-submission workflow.
 
-本项目对本节的义务见 §3.2：以合成消费者证明这些约束在 Oracle 侧可被强制。
+This project's obligation for this section is stated in §3.2: use a synthetic consumer to prove that these constraints can be enforced on the Oracle side.
 
-### 7.0 权利分类：可递延与易逝性（v0.4 新增，依 D-008）
+### 7.0 Right Classification: Deferrable and Perishable (Added in v0.4 per D-008)
 
-链下登记簿是异步更新的。T+0 成交到 T+3 登记完成之间存在一段窗口，在该窗口内「某时刻谁是
-确认持有人」这个问题尚无终局答案。**本节规定在这段窗口里如何处置各类权利。**
+The off-chain registry updates asynchronously. There is a window between a T+0 transaction and completion of T+3 registration during which the question “who was the confirmed holder at a given time?” has no final answer. This section defines how each type of right is handled in that window.
 
-v0.3 的做法是冻结代币直到登记完成。v0.4 不再这样做，原因是冻结解决不了它想解决的问题：
-**阻断转让并不能让那个问题变得可回答，只是把不确定性的成本转嫁给持有人**，并且会毁掉那些
-记录时刻恰好落在窗口内的权利。
+v0.3 froze the Token until registration completed. v0.4 no longer does so because freezing does not solve the problem it was intended to solve: **blocking transfers cannot make the question answerable; it only shifts the cost of uncertainty to the holder** and destroys rights whose recording time falls within the window.
 
-#### 基准的改变
+#### Change to the Baseline
 
-权利判定不再以「**当前谁持有代币**」为基准，改以链上投影为基准，判定依据是两个可查询事实：
+Rights are no longer determined by “who currently holds the Token.” The baseline is instead the on-chain projection, using two queryable facts:
 
-| 事实 | 含义 |
+| Fact | Meaning |
 | --- | --- |
-| 某时刻的**确认持有人** | 登记簿已确认在该时刻持有该资产的一方 |
-| 该时刻是否**终局** | 该时刻的答案是否还可能被后续登记条目改变 |
-| 是否存在**未决缺口** | 该 Token 是否有尚未闭合的登记变更 |
+| Confirmed holder at a given time | The party that the registry has confirmed held the asset at that time |
+| Whether that time is final | Whether later registry entries can still change the answer for that time |
+| Whether an unresolved gap exists | Whether that Token has an unclosed registration change |
 
-#### 两类权利
+#### Two Classes of Rights
 
-| 类别 | 判定规则 | 典型 |
+| Class | Rule | Typical examples |
 | --- | --- | --- |
-| **可递延权利** | **允许在窗口内发起。** 结算推迟到该时刻终局之后，按该时刻的确认持有人执行。不阻断，不丢失 | 收益分配、通知、分红一类可以延后兑现且不失其意义的权利 |
-| **易逝性权利** | 要求该时刻**已终局**且**无未决缺口**，否则**拒绝该次行使** | 提货、销毁、投票，以及任何不可逆的一次性行使 |
+| Deferrable right | May be initiated during the window. Settlement is deferred until the relevant time is final and executed for the confirmed holder at that time. It is neither blocked nor lost. | Distributions, notices, and dividends—rights whose delayed delivery does not defeat their purpose |
+| Perishable right | The relevant time must be final and have no unresolved gap; otherwise reject that exercise. | Redemption, destruction, voting, and any irreversible one-time exercise |
 
-判别标准是**该行使是否不可逆**：一旦发生就无法在归属查明后纠正的，属易逝性；可以延后按
-正确归属兑现的，属可递延。
+The test is whether the exercise is **irreversible**: if it cannot be corrected after attribution is determined, it is perishable; if it can be deferred and delivered to the correct holder without losing its meaning, it is deferrable.
 
-#### 与冻结的差别
+#### Difference from Freezing
 
-拒绝的是**该次行使**，不是该代币的**可转让性**。
+What is rejected is **that particular exercise**, not the Token's **transferability**.
 
-效果与冻结等价——不可逆动作不会在归属未定时发生——但代币始终可转让，市场不被阻断，
-且不再与 CONSUMER-008 外部交易兼容存在张力：外部市场不需要理解任何自定义的不可转让状态。
+The effect is equivalent to freezing—no irreversible action occurs while attribution is unresolved—but the Token remains transferable throughout, the market is not blocked, and there is no longer tension with CONSUMER-008 external-market compatibility: external markets need not understand a custom non-transferable state.
 
-#### 四个「冻结」的区分（术语约定）
+#### Four Distinct Meanings of “Freeze” (Terminology)
 
-本文档中「冻结」一词指四种互不相同的事物，阅读与实现时不得混用：
+In this document, “freeze” refers to four distinct things. They must not be conflated in reading or implementation:
 
-| # | 概念 | 本文档中的表述 | v0.4 状态 |
+| # | Concept | Usage in this document | v0.4 status |
 | --- | --- | --- | --- |
-| 1 | **快照冻结** | T+0 固定快照哈希，数据不再变动 | 保留 |
-| 2 | **转让冻结** | 登记在途期间禁止 ERC-721 转让 | **已删除** |
-| 3 | **紧急冻结** | ORACLE-004：登记撤回、证书失效、司法冻结、来源争议时撤销证明并阻止操作 | 保留，与本次改动无关 |
-| 4 | **外部受限状态** | `encumbranceStatus`：文保链上报的冻结/查封/质押代码 | 保留。这是来源事实，不是本产品的动作 |
+| 1 | Snapshot freeze | Fix the T+0 snapshot hash; the data cannot change | Retained |
+| 2 | Transfer freeze | Prohibit ERC-721 transfers while registration is in flight | **Removed** |
+| 3 | Emergency freeze | ORACLE-004: revoke attestations and block operations when registration is withdrawn, a certificate becomes invalid, a judicial freeze occurs, or a source dispute arises | Retained; unrelated to this change |
+| 4 | External encumbrance status | encumbranceStatus: a freeze/seizure/pledge code reported by the Preservation Chain | Retained. This is a source fact, not an action taken by this product |
 
-第 3 项是对**已签发证明**的撤销，触发条件是外部权威状态异常，与本节的交割窗口无关。
-第 4 项是文保链侧的登记事实，本产品只读取和呈现，不产生也不解除。
+Item 3 is revocation of an already-issued attestation, triggered by an abnormal external authoritative status and unrelated to the settlement window. Item 4 is a registration fact on the Preservation Chain side; this product only reads and presents it and neither creates nor removes it.
 
-### CONSUMER-001 一物一证一 NFT
+### CONSUMER-001 One Asset, One Certificate, One NFT
 
-- 每个 `assetId` 最多对应一个有效 Token ID；
-- 每个 Token ID 只对应一个 `assetId`；
-- 不允许份额化、批量同权发行或同一提货权的多 Token 映射；
-- 重复资产指纹、重复当前证书或重复仓单必须拒绝发行；
-- NFT 不得附带分红、利息、收益分配、回购或价格支持权利。
+- Each assetId maps to at most one valid Token ID;
+- Each Token ID maps to only one assetId;
+- Fractionalization, batch issuance with identical rights, and mapping one redemption right to multiple Tokens are prohibited;
+- Duplicate asset fingerprints, current certificates, or warehouse receipts must be rejected at issuance;
+- NFTs must not carry rights to dividends, interest, yield distributions, buybacks, or price support.
 
-### CONSUMER-002 初始发行
+### CONSUMER-002 Initial Issuance
 
-初始发行前必须取得有效 Oracle 证明，至少确认：
+Before initial issuance, obtain a valid Oracle attestation confirming at least that:
 
-- 资产已在文保链登记；
-- 中创文贸确认登记及允许进入本协议；
-- 仓单有效且哈希一致；
-- 当前证书有效；
-- 无阻止发行的权利负担；
-- 接收钱包与合法持有人绑定；
-- 资产未被其他有效 Token 占用。
+- The asset is registered on the Preservation Chain;
+- Zhongchuang Wenmao confirms the registration and permission to enter this protocol;
+- The warehouse receipt is valid and its hash matches;
+- The current certificate is valid;
+- No encumbrance prevents issuance;
+- The receiving wallet is bound to the lawful holder;
+- No other valid Token already represents the asset.
 
-### CONSUMER-003 生命周期
+### CONSUMER-003 Lifecycle
 
-允许状态为：
+Permitted states:
 
-```text
+~~~text
 DRAFT
 VERIFIED
 ACTIVE
@@ -477,185 +444,153 @@ FROZEN
 REVIEW_REQUIRED
 REVOKED
 REDEEMED
-```
+~~~
 
-主要状态机：
+Primary state machine:
 
-```text
+~~~text
 VERIFIED -> ACTIVE(v1)
 ACTIVE(vN) -> TRANSFER_PENDING
 TRANSFER_PENDING -> SETTLED
 SETTLED -> ACTIVE(vN+1)
-TRANSFER_PENDING -> ACTIVE(vN)       # 失败回滚
-任意可用状态 -> FROZEN/REVIEW_REQUIRED
-ACTIVE -> REDEEMED                  # 完成提货后终止流通
-```
+TRANSFER_PENDING -> ACTIVE(vN)       # failure rollback
+Any usable state -> FROZEN/REVIEW_REQUIRED
+ACTIVE -> REDEEMED                   # circulation ends after redemption
+~~~
 
-不存在有效证明的状态转换必须回滚。
+Any state transition without a valid attestation must revert.
 
-### CONSUMER-004 T+0 快照与登记缺口
+### CONSUMER-004 T+0 Snapshot and Registration Gap
 
-> **v0.4 变更（D-008）**：本条原名「T+0 快照与冻结」。**快照冻结保留**（第 1 项，数据固定）；
-> **转让冻结删除**（原第 2、4 项）。标题改名以消除「冻结」的歧义——参见 §7.0 的四项区分。
+> v0.4 change (D-008): This item was formerly titled “T+0 Snapshot and Freeze.” Snapshot freeze is retained (item 1; data is fixed); transfer freeze is removed (former items 2 and 4). The title was changed to eliminate ambiguity around “freeze”; see the four-way distinction in §7.0.
 
-外部市场报告成交匹配后，系统必须在 T+0：
+After an external market reports a matched trade, the system must at T+0:
 
-1. 生成包含资产、Token、买卖钱包、外部执行引用、旧证书、仓单和时间的快照哈希，
-   并**固定该快照**（此后不得变动）；
-2. 记录该 T+0 时刻，作为后续权利归属判定的基准时刻；
-3. 开启一个**登记缺口**，将原证书和实物置于 `TRANSFER_PENDING`；
-4. 创建最迟 T+3 到期的所有者变更任务；
-5. 按 §7.0 处置该窗口内的操作：
-   - **普通 ERC-721 转让不得被阻断**，`ownerOf` 立即随转让变动；
-   - **易逝性行使**（提货、销毁及任何不可逆的一次性行使）必须拒绝，直至该时刻终局且无未决缺口；
-   - **可递延权利**允许发起，结算推迟至该时刻终局后按该时刻的确认持有人执行；
-6. 对重复事件保持幂等，不得重复开启缺口或重复创建任务。
+1. Generate and fix a snapshot hash containing the asset, Token, buyer and seller wallets, external execution reference, old certificate, warehouse receipt, and time; the snapshot must not change thereafter;
+2. Record the T+0 time as the baseline for determining subsequent rights attribution;
+3. Open a registration gap and place the prior certificate and physical item in TRANSFER_PENDING;
+4. Create an owner-change task due no later than T+3;
+5. Handle operations in the window under §7.0:
+   - Ordinary ERC-721 transfers must not be blocked; ownerOf changes immediately with each transfer;
+   - Perishable exercises (redemption, destruction, and any irreversible one-time exercise) must be rejected until the relevant time is final and has no unresolved gap;
+   - Deferrable rights may be initiated; settlement is deferred until the relevant time is final and executed for the confirmed holder at that time;
+6. Process duplicate events idempotently; do not open duplicate gaps or create duplicate tasks.
 
-**不得**将 NFT 置于协议托管、不可转让状态或任何等价的转让阻断机制。缺口开启期间代币照常
-可交易——这不是疏漏，是 §7.0 的直接要求：阻断转让不能使缺口可解析，只会把不确定性的成本
-转嫁给持有人，并毁掉记录时刻落在窗口内的权利。
+The NFT must not be placed in protocol custody, a non-transferable state, or any equivalent transfer-blocking mechanism. The Token remains freely tradeable while the gap is open—this is not an omission but a direct requirement of §7.0: blocking transfers cannot resolve the gap; it only shifts uncertainty costs to holders and destroys rights whose recording time falls within the window.
 
-资金托管、支付和市场撮合必须由获准第三方完成，不得进入 Giraffe 账户或密钥控制范围。
+Funds custody, payment, and market matching must be performed by authorized third parties and must not enter Giraffe accounts or key-control scope.
 
-#### 结算权限：谁有权开启缺口
+#### Settlement Authority: Who May Open a Gap
 
-**有权开启登记缺口的是对链下登记簿负责的一方（中创文贸 / 文保链侧），不是当前代币持有人，
-也不是外部市场。** 下游协议必须把这一权限**显式暴露为可查询事实**，不得隐含，也不得由
-`ownerOf` 推导。
+The party responsible for the off-chain register (the Zhongchuang Wenmao / Preservation Chain side), not the current Token holder and not the external market, has authority to open a registration gap. The downstream protocol must expose this authority explicitly as a queryable fact; it must not be implicit or derived from ownerOf.
 
-理由有两个方向，缺一不可：
+There are two necessary reasons:
 
-| 若权限来自 `ownerOf` | 后果 |
+| If authority comes from ownerOf | Consequence |
 | --- | --- |
-| 登记方无权开启 | **登记簿已经完成的变更无法被记录上链**——负责该登记簿的一方反而不能记录它自己做出的变更 |
-| 持币人有权开启 | 最后一个买家可以反复开启并取代缺口，使近期时刻**永久不终局**，投影就此停止跟踪登记簿 |
+| Registrar cannot open a gap | A completed registry change cannot be recorded on-chain—the party responsible for the registry cannot record its own change |
+| Token holder may open a gap | The last buyer can repeatedly open and supersede gaps, making recent times permanently non-final and stopping the projection from tracking the registry |
 
-二者都不由「持有一个可交易头寸」推出。依赖投影的是与登记方**没有任何关系的第三方**，
-他们需要的不是一个固定答案（各部署不同），而是**能够查询**这个权限属于谁。
+Neither authority follows from holding a tradeable position. Third parties that depend on the projection but have no relationship with the registrar need a queryable answer as to who holds this authority; the answer may differ by deployment.
 
-配置层还必须**限定取代（supersession）的边界**：被取代的结算不再可终结，已为其产出的证明
-随之作废。无边界的取代能力等价于无限期审查登记更新。
+The configuration layer must also constrain the boundary of supersession: superseded settlements cannot be finalized, and attestations already produced for them become invalid. Unbounded supersession is equivalent to indefinitely censoring registry updates.
 
-> **对齐说明**：本节对齐 L3 提案的 `isSettlementAuthority` 语义。**该提案尚未获分配 ERC 编号**
-> ——preamble 仍为 `eip: XXXX`，材料中出现的 `9999` 是官方 linter `preamble-eip` 规则不接受
-> 非数字值而采用的**预检占位符**，不是分配结果（编号由 ERC 编辑分配）。引用请依 D-007
-> 使用分支与 commit，不要使用任何编号。
+> Alignment note: This section aligns with the isSettlementAuthority semantics in the L3 proposal. **No ERC number has been assigned to that proposal**—its preamble remains eip: XXXX. The “9999” found in the materials is only a pre-validation placeholder used because the official preamble-eip linter rejects non-numeric values; it is not an assigned number (the ERC editor assigns the number). For references, follow D-007 and use the branch and commit, not any number.
 
-### CONSUMER-005 T+3 交割
+### CONSUMER-005 T+3 Settlement
 
-只有在取得以下全部证据后才能完成交割：
+Settlement may be completed only after all of the following evidence is obtained:
 
-- 文保链所有者变更完成；
-- 中创文贸签发新证书并注销旧证书；
-- 仓储方确认新提货权人；
-- 新证书、仓单和 T+0 快照哈希一致；
-- Oracle 证明有效且未撤销；
-- 新持有人钱包绑定有效。
+- The Preservation Chain owner change is complete;
+- Zhongchuang Wenmao has issued the new certificate and revoked the old certificate;
+- The custodian/warehouse confirms the new redemption-right holder;
+- New certificate, warehouse receipt, and T+0 snapshot hashes match;
+- The Oracle attestation is valid and not revoked;
+- The new holder's wallet binding is valid.
 
-**交割对象是 T+0 时刻的确认持有人，不是交割发生时的当前持有人。** 系统必须在闭合缺口前
-确认该 T+0 时刻**已终局**；未终局即不得交割。缺口开启期间代币可能已多次易手，这不影响
-交割对象——归属由登记簿在该时刻的记录决定，不由链上持有情况决定。
+The settlement subject is the confirmed holder at T+0, not the current holder when settlement occurs. Before closing the gap, the system must confirm that the T+0 time is final; no settlement may occur while it is not final. Tokens may have changed hands several times during the gap, but that does not affect who settles: the registry record for T+0 determines attribution, not on-chain possession.
 
-成功后系统必须：
+After success, the system must:
 
-1. 保持原 Token ID 不变；
-2. 将 `currentCertificateHash` 更新为新证书哈希；
-3. `certificateVersion` 加一；
-4. 保存 `previousCertificateHash` 和完整追加式历史；
-5. 将该 T+0 时刻的确认持有人记入投影，并**闭合该缺口**；
-6. 状态更新为 `ACTIVE`；
-7. 发布 `CertificateSuperseded` 与 `SettlementFinalized` 事件。
+1. Keep the original Token ID unchanged;
+2. Update currentCertificateHash to the new certificate hash;
+3. Increment certificateVersion;
+4. Store previousCertificateHash and the full append-only history;
+5. Record the confirmed holder at T+0 in the projection and close the gap;
+6. Set status to ACTIVE;
+7. Publish CertificateSuperseded and SettlementFinalized events.
 
-> **v0.4 变更（D-008）**：原第 5 项「释放 NFT 给新持有人」与第 8 项「恢复再次交易能力」
-> 已删除——代币在整个窗口内从未被扣押，也从未失去可交易性，因此无物可释放、无能力可恢复。
-> 交割做的是**闭合缺口并确认归属**，不是解除冻结。
+> v0.4 change (D-008): Former item 5, “release the NFT to the new holder,” and item 8, “restore the ability to trade,” were removed—the Token was never seized or made non-tradeable during the window, so there is nothing to release and no ability to restore. Settlement closes the gap and confirms attribution; it does not lift a freeze.
 
-### CONSUMER-006 T+3 失败与超时
+### CONSUMER-006 T+3 Failure and Timeout
 
-任一必需确认失败、冲突或超时，系统必须：
+If any required confirmation fails, conflicts, or times out, the system must:
 
-- 不写入新证书哈希；
-- 不把买方显示为已完成提货权持有人；
-- 通知第三方托管系统执行退款流程；
-- 保存 `SettlementCancelled` 或 `SettlementDisputed` 审计事件；
-- 实物层面的处置须以中创文贸/仓储方证明为准。
+- Not write the new certificate hash;
+- Not display the buyer as having completed ownership of the redemption right;
+- Notify the third-party escrow system to execute its refund process;
+- Retain a SettlementCancelled or SettlementDisputed audit event;
+- Defer disposition of the physical item to Zhongchuang Wenmao/warehouse evidence.
 
-**取消或超时不使任何时刻终局。** 缺口被取消后，该 T+0 时刻的状态是「**仍未终局**」，
-不是「已确定失败」，也不是「归属回到原持有人」。这两者的区别是实质性的：
+Cancellation or timeout does not make any time final. After a gap is cancelled, the T+0 time remains **non-final**—it is not a “definitive failure” and attribution does not “revert to the former holder.” The distinction is substantive:
 
-- **未终局**意味着该时刻的答案仍可能被后续登记条目给出，易逝性行使因此仍须拒绝；
-- 若误判为「已确定」，则会在登记簿尚未表态时就允许不可逆动作发生，正是本模型要避免的。
+- Non-final means later registry entries can still provide the answer for that time, so perishable exercises must still be rejected;
+- Misclassifying it as final would allow irreversible actions before the registry has spoken, exactly what this model prevents.
 
-代币的可转让性在失败路径上同样不受影响——**没有需要「恢复给原持有人」的动作**，因为从未
-将其移离。原第 4 项已据此删除。
+Token transferability is also unaffected on the failure path—there is no action to “restore it to the former holder” because it was never moved. Former item 4 was removed accordingly.
 
-#### 取消的时点约束
+#### Timing Constraint on Cancellation
 
-**取消只能在 T+3 截止之后发生；截止前的取消必须被拒绝。** 否则发起方可以在登记簿其实已经
-完成变更、只是证明尚未提交时抢先取消，使一份已在远端终局的记录被单方面弃置而无法落账。
+Cancellation may occur only after the T+3 deadline; cancellation before the deadline must be rejected. Otherwise, an initiating party could cancel early after the registry has actually completed the change but before proof submission, unilaterally discarding a record that is already final remotely.
 
-取消**不改变投影**：它不写入任何条目，因此不使任何时刻终局（见上）。
+Cancellation does not change the projection: it writes no entry and therefore makes no time final (see above).
 
-> **对齐说明**：本节对齐 L3 提案的取消语义。该提案本轮还移除了取消路径上的 `proofData`
-> 参数——取消不再需要提交证明，因为它本就不改变投影，要求证明只会掩盖这一点。同上，
-> 引用依 D-007 使用分支与 commit。
+> Alignment note: This section aligns with the cancellation semantics of the L3 proposal. The proposal also removed the proofData parameter from cancellation: cancellation does not need proof because it does not change the projection; requiring proof would obscure that fact. As above, reference the branch and commit under D-007.
 
-### CONSUMER-007 提货与终止
+### CONSUMER-007 Redemption and Termination
 
-**提货是易逝性权利**（§7.0）：交付不可逆，一旦发生就无法在归属查明后纠正。
+Redemption is a perishable right (§7.0): delivery is irreversible and cannot be corrected after attribution is known.
 
-因此提货行使必须同时满足：
+Redemption therefore requires all of the following:
 
-1. 行使所依据的时刻**已终局**；
-2. 该 Token **无未决登记缺口**；
-3. 行使者是该时刻的**确认持有人**。
+1. The time on which the exercise is based is final;
+2. The Token has no unresolved registration gap;
+3. The exercising party is the confirmed holder at that time.
 
-任一不满足即拒绝**该次行使**——但不因此限制该代币的转让。
+If any condition is not met, reject that exercise, but do not restrict Token transferability.
 
-仓储方完成交付并由文保链确认后，NFT 必须进入 `REDEEMED`，不得继续作为有效提货权交易。
-是否销毁 Token 或保留为历史凭证由发布策略决定，但不能再次恢复为有效提货权。
+After the warehouse completes delivery and the Preservation Chain confirms it, the NFT must enter REDEEMED and must not continue to trade as a valid redemption right. Whether the Token is burned or retained as a historical credential is determined by release policy, but it cannot again become a valid redemption right.
 
-> **v0.4 变更（D-008）**：原文「提货只能由当前 `ACTIVE` 持有人发起」依赖的是「窗口内代币
-> 被置于非 `ACTIVE` 状态」这一冻结机制。该机制已删除，故改为按时刻终局性判定。原文「保留为
-> **不可转让**历史凭证」中的「不可转让」指 `REDEEMED` 终态本身不再交易，与被删除的窗口期
-> 转让冻结无关，保留但改写以免混淆。
+> v0.4 change (D-008): The former sentence “only the current ACTIVE holder may initiate redemption” depended on the freeze mechanism that placed the Token in a non-ACTIVE state during the window. That mechanism is removed, so the rule now depends on temporal finality. In the former phrase “retain as a non-transferable historical credential,” non-transferable refers to the REDEEMED terminal state no longer being traded; it is unrelated to the removed transfer freeze during the window. The text is retained but rewritten to avoid confusion.
 
-### CONSUMER-008 外部交易兼容
+### CONSUMER-008 External-Market Compatibility
 
-协议可以兼容获准的外部市场，但 Giraffe 不建立订单簿、不匿名撮合、不成为交易对手方，
-也不控制市场资金。外部市场事件只能触发待验证的 T+0 意图，不能绕过 Oracle 和证书更新门禁。
+The protocol may be compatible with authorized external markets, but Giraffe does not build an order book, conduct anonymous matching, become a counterparty, or control market funds. External-market events may trigger a pending T+0 intent only; they must not bypass Oracle or certificate-update gates.
 
-**代币对外部市场始终表现为普通 ERC-721。** 登记缺口开启期间不存在任何外部市场需要理解的
-自定义不可转让状态；缺口、终局性与确认持有人是**可查询的事实**，不是转让路径上的门禁。
+The Token always appears to external markets as an ordinary ERC-721. While a registration gap is open, there is no custom non-transferable state that an external market must understand; the gap, finality, and confirmed holder are queryable facts, not gates on the transfer path.
 
-> **v0.4 变更（D-008）**：v0.3 的转让冻结与本条存在内在张力——外部市场不会理解自定义的
-> 不可转让状态，而本条又要求兼容外部市场。删除转让冻结后该张力消失，本条不再需要在
-> 「兼容外部市场」与「窗口期阻断转让」之间调和。
+> v0.4 change (D-008): The v0.3 transfer freeze was inherently in tension with this item—external markets would not understand a custom non-transferable state, while this item requires compatibility with external markets. Removing the transfer freeze resolves that tension; no reconciliation between “external-market compatibility” and “blocking transfers during the window” is needed.
 
-### CONSUMER-009 证明消费失败关闭
+### CONSUMER-009 Fail-Closed Attestation Consumption
 
-下游消费者必须确定性拒绝无效、过期、撤销、乱序或重放的证明，并在依赖不可用时 fail closed，
-不得以缓存证明、默认值或乐观假设继续执行状态转换。
+Downstream consumers must deterministically reject invalid, expired, revoked, out-of-order, or replayed attestations and fail closed when dependencies are unavailable. They must not continue state transitions using cached attestations, defaults, or optimistic assumptions.
 
-fail closed 必须覆盖以下两种情形，二者均不得被当作「证明有效即可继续」：
+Fail-closed behavior must cover both cases below; neither may be treated as “the attestation is valid, so proceed”:
 
-| 情形 | 要求 |
+| Case | Requirement |
 | --- | --- |
-| 所依据的**时刻尚未终局** | 拒绝易逝性行使。证明本身可能完全有效——有效证明不等于归属已确定 |
-| 该 Token 存在**未决登记缺口** | 同上。缺口存在意味着后续条目仍可能改变该时刻的答案 |
+| The relevant time is not yet final | Reject perishable exercises. The attestation itself may be entirely valid; a valid attestation does not mean attribution is final |
+| The Token has an unresolved registration gap | Same. The gap means later registry entries may still change the answer for that time |
 
-> **v0.4 新增（D-008）**：v0.3 的 fail-closed 条件只覆盖证明自身的有效性。在冻结模型下这
-> 够用——归属未定时代币根本不能动。删除冻结后，「证明有效」与「归属已终局」成为两个独立
-> 事实，必须分别检查，否则会出现「证明有效但归属未定」时仍放行不可逆行使的缺口。
+> v0.4 addition (D-008): v0.3 fail-closed conditions covered only attestation validity. That was sufficient under the freeze model because a Token could not move while attribution was unresolved. Once the transfer freeze is removed, “attestation is valid” and “attribution is final” are independent facts and must be checked separately; otherwise, an irreversible exercise could be allowed while the attestation is valid but attribution remains unresolved.
 
-## 8. Oracle 链上消费适配器
+## 8. Oracle On-Chain Consumer Adapter
 
-Oracle owns the ERC-8415 adapter and consumes ERC8415-Kit for reusable projection infrastructure. ArtFi must not implement or directly integrate this adapter. The current verified Kit handoff covers the v2.0 temporal projection surface only; optional gap behavior and legacy `settle()` must not be represented as a v2.1 or v2.2 settlement product.
+Oracle owns the ERC-8415 adapter and consumes ERC8415-Kit for reusable projection infrastructure. ArtFi must not implement or directly integrate this adapter. The current verified Kit handoff covers the v2.0 temporal projection surface only; optional gap behavior and legacy settle() must not be represented as a v2.1 or v2.2 settlement product.
 
-以下接口是现有产品讨论形成的非规范性兼容示例，不是 ERC 草案，也不是 Oracle 生产部署的
-强制 ABI。下游合约实现可以不同，验收口径见 ORACLE-010。
+The following interface is a non-normative compatibility example from existing product discussions. It is not an ERC draft or a mandatory ABI for Oracle production deployments. Downstream contracts may differ; acceptance criteria are in ORACLE-010.
 
-```solidity
+~~~solidity
 function assetOf(uint256 tokenId) external view returns (bytes32 assetId);
 function currentCertificateHash(uint256 tokenId) external view returns (bytes32);
 function certificateVersion(uint256 tokenId) external view returns (uint64);
@@ -681,11 +616,11 @@ function cancelSettlement(
 ) external;
 function freeze(uint256 tokenId, bytes32 reasonHash) external;
 function markRedeemed(uint256 tokenId, bytes32 redemptionEvidenceHash) external;
-```
+~~~
 
-最低事件：
+Minimum events:
 
-```solidity
+~~~solidity
 event SettlementStarted(...);
 event CertificateSuperseded(...);
 event SettlementFinalized(...);
@@ -693,13 +628,13 @@ event SettlementCancelled(...);
 event AssetFrozen(...);
 event AttestationRevoked(...);
 event AssetRedeemed(...);
-```
+~~~
 
-## 9. API 最低接口
+## 9. Minimum API
 
 This is the application-facing boundary consumed by ArtFi. ArtFi must not bypass it to call ERC8415-Kit or an ERC-8415 adapter directly.
 
-```text
+~~~text
 GET  /healthz
 GET  /readyz
 GET  /v1/oracle/statuses
@@ -714,143 +649,130 @@ GET  /v1/rwa/settlements/{settlementId}
 POST /v1/rwa/settlements/{settlementId}/finalize
 POST /v1/rwa/settlements/{settlementId}/cancel
 POST /v1/rwa/revocations
-```
+~~~
 
-所有写接口必须使用强身份认证、RBAC、请求签名、幂等键、重放保护和不可变审计日志。
-当前迭代外部写入禁用且不可由本迭代开启；开发服务仅绑定 `localhost`。
+All write interfaces must use strong authentication, RBAC, request signatures, idempotency keys, replay protection, and immutable audit logs. External writes are disabled in the current iteration and cannot be enabled by this iteration; development services bind to localhost only.
 
-接口命名不得出现 `kyc`、`aml`、`sanction`、`suitability`、`accredit` 等主体合规语义；
-`transfer-eligibility` 仅返回资产侧可转让性。
+Interface names must not contain subject-level compliance semantics such as kyc, aml, sanction, suitability, or accredit; transfer-eligibility returns asset-side transferability only.
 
-## 10. UI 需求
+## 10. UI Requirements
 
-### ORACLE-011 资产详情展示
+### ORACLE-011 Asset Detail Display
 
-资产详情必须显示：
+The asset detail view must display:
 
-- 一物一 NFT 标识；
-- 文保链登记状态及非敏感引用；
-- 当前证书哈希、版本和更新时间；
-- 仓单哈希及仓储状态；
-- NFT 状态和是否允许交易/提货；
-- T+0 快照时间、T+3 截止时间和当前进度；
-- 数据来源、观察时间和证明到期时间；
-- 明确声明 Giraffe 不提供金融化服务。
+- One physical item / one NFT identification;
+- Preservation Chain registration status and non-sensitive reference;
+- Current certificate hash, version, and update time;
+- Warehouse-receipt hash and custody status;
+- NFT status and whether trading/redemption is permitted;
+- T+0 snapshot time, T+3 deadline, and current progress;
+- Data source, observation time, and attestation expiry time;
+- An explicit statement that Giraffe does not provide financialization services.
 
-交易期间 UI 必须区分：
+During a transaction, the UI must distinguish:
 
-- `快照已固定`：T+0 已匹配，缺口已开启但尚未闭合；
-- `登记处理中`：文保链变更和证书重签进行中；
-- `交割完成`：证书哈希已更新，该 T+0 时刻已终局，缺口已闭合；
-- `交割失败/争议`：不得展示新持有人已取得完整提货权；须显示该时刻**仍未终局**，不得显示为「已确定失败」或「归属已回到原持有人」。
+- Snapshot fixed: T+0 has matched; the gap is open and not yet closed;
+- Registration in progress: Preservation Chain change and certificate reissuance are in progress;
+- Settlement complete: certificate hash is updated, the T+0 time is final, and the gap is closed;
+- Settlement failed/disputed: do not display the new holder as having obtained a complete redemption right; show that the time is still non-final, not “definitively failed” or “attribution reverted to the former holder.”
 
-UI **不得**把上述任何状态呈现为「代币被锁定」「不可转让」或等价表述——代币在整个窗口内
-始终可转让（D-008）。缺口开启期间必须同时显示：该时刻是否终局、是否存在未决缺口，
-以及在此期间**提货等易逝性行使会被拒绝**，以免持有人误以为可转让即可提货。
+The UI must not describe any of these states as “Token locked,” “non-transferable,” or equivalent—the Token remains transferable throughout the entire window (D-008). While the gap is open, also display whether the time is final, whether an unresolved gap exists, and that perishable exercises such as redemption will be rejected during this period, so holders do not infer that transferability also permits redemption.
 
-> **v0.4 变更（D-008）**：原标签为 `成交锁定`，原「交割完成」写作「NFT **恢复可交易**」。
-> 二者都暗示窗口期内代币不可交易，与 §7.0 不符，已改写。
+> v0.4 change (D-008): The former label was “Trade Locked,” and the former “Settlement Complete” text said “NFT tradability restored.” Both implied that the Token could not be traded during the window, contrary to §7.0, and have been rewritten.
 
-查询页不得出现估值、收益、抵押率、金融推荐或"SEC 批准"等误导性文案。
+Query pages must not contain misleading wording about valuation, yield, collateral ratios, financial recommendations, or “SEC approval.”
 
-## 11. 安全与非功能要求
+## 11. Security and Non-Functional Requirements
 
-### NFR-001 密钥与权限
+### NFR-001 Keys and Permissions
 
-- Oracle 签名密钥与协议管理员权限分离；生产使用多签或门限签名。
-- 管理员不能绕过中创文贸、仓储方和 Oracle 证明直接恢复交易。
-- 合约升级、签名人轮换、紧急暂停和恢复均须有 timelock、审计及回滚方案。
-- 生产凭证、个人数据、原始单证和签名密钥不得进入本仓库；测试夹具全部为合成数据。
+- Separate Oracle signing keys from protocol-administrator permissions; use multisignature or threshold signatures in production.
+- Administrators must not bypass Zhongchuang Wenmao, the custodian/warehouse, and Oracle attestations to restore trading directly.
+- Contract upgrades, signer rotation, emergency pause, and recovery must each have timelocks, audits, and rollback plans.
+- Production credentials, personal data, original documents, and signing keys must not enter this repository; all test fixtures must be synthetic.
 
-### NFR-002 防重放与顺序保证
+### NFR-002 Replay Protection and Ordering
 
-- 所有证明绑定 chain ID、合约、Token ID、nonce、有效期和 schema 版本。
-- 证书升级必须防重放、防乱序、防重复交割和防旧证明覆盖新版本。
+- Bind all attestations to chain ID, contract, Token ID, nonce, validity period, and schema version.
+- Certificate upgrades must prevent replay, out-of-order events, duplicate settlement, and an old attestation overwriting a new version.
 
-### NFR-003 默认关闭
+### NFR-003 Fail Closed by Default
 
-任一权威数据源不可用、冲突或超时，系统默认冻结或等待复核，不得猜测、不得使用缓存值、
-不得回退到乐观默认。
+If any authoritative source is unavailable, inconsistent, or times out, the system defaults to frozen or review-pending status. It must not guess, use cached values, or fall back to optimistic defaults.
 
-### NFR-004 可用性与恢复
+### NFR-004 Availability and Recovery
 
-- 查询 API 目标可用性不低于 99.9%。
-- 交割写入服务须支持队列恢复和幂等重试。
-- 必须提供对账、灾难恢复、密钥轮换、证书冲突和数据源中断演练。
+- Target query API availability of at least 99.9%.
+- Settlement write services must support queue recovery and idempotent retries.
+- Provide drills for reconciliation, disaster recovery, key rotation, certificate conflicts, and data-source interruptions.
 
-## 12. 公共表述边界
+## 12. Public-Statement Boundaries
 
-允许的产品表述：
+Permitted product statement:
 
-> Giraffe provides RWA provenance, custody and settlement attestations about assets, and a 1:1
-> digital title protocol connecting authoritative off-chain cultural-asset records with blockchain
-> systems. Giraffe does not provide or participate in NFT financialization.
+> Giraffe provides RWA provenance, custody and settlement attestations about assets, and a 1:1 digital title protocol connecting authoritative off-chain cultural-asset records with blockchain systems. Giraffe does not provide or participate in NFT financialization.
 
-禁止的表述：
+Prohibited statements:
 
-- SEC approved / SEC certified；
-- 保证非证券；
-- 保证升值、流动性、收益或可变现；
-- Giraffe 对实物进行官方鉴定或估值；
-- Giraffe 为第三方金融产品提供批准、担保或承销；
-- 文保链哈希本身替代中创文贸、仓库或法定审批；
-- Giraffe 已对任何自然人或机构完成 KYC、AML、制裁或适当性核验；
-- 查询返回 `VALID` 表示交易对手方合规。
+- SEC approved / SEC certified;
+- Guaranteed not to be a security;
+- Guaranteed appreciation, liquidity, yield, or marketability;
+- Giraffe officially appraises or values physical items;
+- Giraffe approves, guarantees, or underwrites third-party financial products;
+- A Preservation Chain hash itself replaces Zhongchuang Wenmao, warehouse, or statutory approval;
+- Giraffe has completed KYC, AML, sanctions, or suitability checks on any natural person or institution;
+- A query returning VALID means a counterparty is compliant.
 
-1:1 NFT 的非证券设计以实际权利、发行方式、营销材料和交易事实为准。若第三方基于 NFT 创建
-贷款、质押、包装、证券化、收益或衍生产品，该产品为第三方独立业务，全部牌照、披露、适当性、
-托管、清算、AML 和监管责任由该第三方承担。
+The non-security design of a 1:1 NFT depends on actual rights, issuance method, marketing materials, and transaction facts. If a third party creates lending, pledging, packaging, securitization, yield, or derivatives products based on the NFT, that is an independent third-party business; all licensing, disclosure, suitability, custody, clearing, AML, and regulatory responsibilities belong to that third party.
 
-## 13. 分阶段交付
+## 13. Phased Delivery
 
 The completed temporal projection slice and its historical evidence are preserved. The next bounded implementation direction is Oracle-owned integration of the pinned ERC8415-Kit v2.0 temporal projection surface and exposure of the Oracle application-facing API to ArtFi. It does not authorize a new settlement engine, payment or custody handling, or a delivery claim.
 
-阶段退出条件与需求 ID 的完整对应见 `ACCEPTANCE_RWA_ORACLE_ZH.md` §5。
+The complete mapping between stage exit criteria and requirement IDs is in ACCEPTANCE_RWA_ORACLE_ZH.md §5.
 
-| 阶段 | 内容 | 主要覆盖 |
+| Stage | Content | Primary coverage |
 | --- | --- | --- |
-| A 合同与数据契约 | 固化各方角色责任；确认权威字段、签名格式、变更 SLA、T+3 日历、撤销与争议流程；完成数据最小化、保留期和跨境传输评估 | P1–P8 取证、ORACLE-001、ORACLE-007 |
-| B L2 Oracle 沙盒 | 来源适配器、证明 schema、签名验证、到期、撤销及查询 API；合成资产与合成身份完成冲突、延迟、离线和重放测试 | ORACLE-001~009、NFR-001~003 |
-| C 下游协议兼容性测试 | 合成下游消费者验证证明校验、状态输入、撤销、过期及证书升级事件；SDK、验证库、适配器与 fail-closed 语义测试 | ORACLE-010、CONSUMER-001~009 |
-| D 端到端受控演练 | 外部市场事件、Oracle、文保链测试接口、证书重签和恢复交易演练；对账、超时、争议、撤销、冻结、灾难恢复 | 全量 + NFR-004 |
-| E 第三方只读集成 | 向获准第三方提供查询 API、SDK 和验证库；验证第三方无法触发 Giraffe 金融交易、绕过门禁或取得主体合规结论 | ORACLE-005、ORACLE-009 |
-| F 生产候选 | 法律、隐私、安全、合约及运营独立审计；修复并复测；单独批准主网、真实资产、外部市场及每类司法辖区 | 全量 + §0.2 契约补齐 |
+| A Contract and data contract | Fix roles and responsibilities; confirm authoritative fields, signature format, change SLA, T+3 calendar, revocation and dispute process; complete data-minimization, retention, and cross-border-transfer assessment | P1–P8 evidence, ORACLE-001, ORACLE-007 |
+| B L2 Oracle sandbox | Source adapters, attestation schema, signature verification, expiry, revocation, and query API; use synthetic assets and identities for conflict, latency, offline, and replay tests | ORACLE-001 through ORACLE-009, NFR-001 through NFR-003 |
+| C Downstream protocol compatibility tests | Synthetic downstream consumers verify attestation validation, status inputs, revocation, expiry, and certificate-upgrade events; test SDK, verification library, adapter, and fail-closed semantics | ORACLE-010, CONSUMER-001 through CONSUMER-009 |
+| D Controlled end-to-end drill | External-market event, Oracle, Preservation Chain test interface, certificate reissuance, and recovery-settlement drill; reconciliation, timeout, dispute, revocation, freeze, disaster recovery | Full scope + NFR-004 |
+| E Third-party read-only integration | Provide query API, SDK, and verification library to authorized third parties; verify they cannot trigger Giraffe financial transactions, bypass gates, or obtain subject-level compliance conclusions | ORACLE-005, ORACLE-009 |
+| F Production candidate | Independent legal, privacy, security, contract, and operations audits; remediation and retest; separate approval for mainnet, real assets, external markets, and each jurisdiction | Full scope + completion of §0.2 contract |
 
-Stage A–E 全部使用合成数据，不接触真实资产、真实资金和真实个人信息。
+Stages A–E use synthetic data only; they do not touch real assets, real funds, or real personal information.
 
-## 14. 发布阻断项
+## 14. Production Release Blockers
 
-出现以下任一情形必须阻断生产发布：
+Block production release if any of the following applies:
 
-- 不能证明一物一证一 NFT；
-- 文保链、证书或仓单哈希不一致；
-- 中创文贸或仓储方状态不可验证；
-- P1–P4 任一监管前提无法取证；
-- T+0 后 Oracle 仍签发允许转让、提货或质押的有效证明；
-- 权威登记完成前 Oracle 即签发买方已完成交割的证明；
-- 旧证书未注销或证书历史被覆盖；
-- Oracle 可以自行认定所有权或绕过权威来源；
-- API、UI 或合同包含估值、收益、抵押率、投资建议或金融产品批准；
-- Oracle 输出、schema、接口命名或合同包含 KYC、AML、制裁、司法辖区资格、适当性或牌照结论；
-- Giraffe 接触第三方金融交易签名、资金、授信、清算或按交易结果收费；
-- 个人信息、证书原文、仓单原文或身份映射进入公开链；
-- 缺少独立法律、安全、隐私或 Oracle 消费适配器审计；
-- 缺少主网、真实资产及真实资金的单独书面批准；
-- §0.1 与 ArtFi 的裁决未作出而已发生接口对接；
-- §0.2 范围与排期契约未签署。
+- One asset, one certificate, one NFT cannot be proven;
+- Preservation Chain, certificate, or warehouse-receipt hashes do not match;
+- Zhongchuang Wenmao or custodian/warehouse status cannot be verified;
+- Any regulatory premise P1–P4 cannot be evidenced;
+- After T+0, Oracle still issues a valid attestation permitting transfer, redemption, or pledge;
+- Oracle attests that the buyer has completed settlement before the authoritative registry has completed;
+- The old certificate is not revoked or certificate history is overwritten;
+- Oracle can determine ownership independently or bypass authoritative sources;
+- API, UI, or contract includes valuation, yield, collateral ratios, investment advice, or financial-product approval;
+- Oracle output, schema, interface names, or contract include KYC, AML, sanctions, jurisdictional eligibility, suitability, or licensing conclusions;
+- Giraffe handles third-party financial-transaction signatures, funds, credit, clearing, or outcome-based compensation;
+- Personal information, certificate text, warehouse-receipt text, or identity mapping enters a public chain;
+- Independent legal, security, privacy, or Oracle consumer-adapter audit is missing;
+- Separate written approval for mainnet, real assets, and real funds is missing;
+- ArtFi integration has occurred before the §0.1 decision;
+- The §0.2 scope and schedule contract remains unsigned.
 
-## 15. 监管与规则参考
+## 15. Regulatory and Rules References
 
-- SEC Release No. 33-11412 / 34-105020，`Application of the Federal Securities Laws to
-  Certain Types of Crypto Assets and Certain Transactions Involving Crypto Assets`。
-- SEC 2026 `Statement on Tokenized Securities`。
-- 《中华人民共和国民法典》关于动产指示交付、仓单及仓储合同的规定。
-- 《中华人民共和国文物保护法》及适用的文物交易、仓储和进出口规则。
-- 《人民法院在线诉讼规则》关于区块链电子证据核验的规定。
-- 适用的隐私、数据跨境和消费者保护规则（约束 Giraffe 自身的数据处理行为）。
+- SEC Release No. 33-11412 / 34-105020, Application of the Federal Securities Laws to Certain Types of Crypto Assets and Certain Transactions Involving Crypto Assets.
+- SEC 2026 Statement on Tokenized Securities.
+- Civil Code of the People's Republic of China provisions on delivery by instruction, warehouse receipts, and warehousing contracts.
+- Cultural Relics Protection Law of the People's Republic of China and applicable rules for cultural-property trading, custody, import, and export.
+- Provisions of the Online Litigation Rules of the People's Courts concerning verification of blockchain electronic evidence.
+- Applicable privacy, cross-border data, and consumer-protection rules (governing Giraffe's own data-processing conduct).
 
-KYC、AML、制裁及投资者适当性规则约束相应机构自身，不构成本协议的实现或验收要求，
-仅在此记录以说明其归属。
+KYC, AML, sanctions, and investor-suitability rules govern the respective institutions themselves; they are not implementation or acceptance requirements of this protocol and are listed here only to clarify ownership.
 
-以上参考不替代逐司法辖区法律意见、监管沟通或真实资产上线批准。以上条款引用须在 Stage A
-核验现行有效版本并记录核验日期。
+These references do not replace jurisdiction-specific legal advice, regulatory engagement, or approval to launch real assets. During Stage A, verify the currently effective version of every cited provision and record the verification date.
