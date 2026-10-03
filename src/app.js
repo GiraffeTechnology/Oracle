@@ -1,3 +1,4 @@
+import { createApplicationProjectionApi } from './services/application-projection-api.js';
 import http from "node:http";
 import { createHash, randomBytes } from "node:crypto";
 import { ORACLE_STATUSES } from "./domain/oracle-status.js";
@@ -106,8 +107,9 @@ export function createApp(options) {
   return http.createServer(createRequestHandler(options));
 }
 
-export function createRequestHandler({ config, sourceRegistry, runtime = null, controlPlane = null, adminOperations = null, authenticateAdmin = null, readinessCheck = null, l2Profile = null, protocolProfile = null, verificationRateLimiter = new FixedWindowRateLimiter({ limit: 60, windowMs: 60000 }) }) {
+export function createRequestHandler({ config, sourceRegistry, runtime = null, controlPlane = null, adminOperations = null, authenticateAdmin = null, readinessCheck = null, projectionSource = null, projectionBinding = null, positionSource = null, l2Profile = null, protocolProfile = null, verificationRateLimiter = new FixedWindowRateLimiter({ limit: 60, windowMs: 60000 }) }) {
   if (!config || !sourceRegistry) throw new Error("APP_DEPENDENCY_MISSING");
+  const projectionApi = createApplicationProjectionApi({ projectionSource, projectionBinding, positionSource });
 
   return async (request, response) => {
     const requestUrl = new URL(request.url, "http://localhost");
@@ -119,6 +121,11 @@ export function createRequestHandler({ config, sourceRegistry, runtime = null, c
       assertAssetFactsOnly(Object.fromEntries(requestUrl.searchParams));
     } catch (error) {
       sendJson(response, 400, { ok: false, errorCode: error.message });
+      return;
+    }
+    if (requestUrl.pathname === projectionApi.prefix || requestUrl.pathname.startsWith(`${projectionApi.prefix}/`)) {
+      const result = await projectionApi.handle(request.method, requestUrl.pathname);
+      sendJson(response, result?.status ?? 404, result?.body ?? { ok: false, errorCode: "PROJECTION_ROUTE_NOT_FOUND" });
       return;
     }
     if (request.method === "POST" && requestUrl.pathname === "/v1/rwa/attestations/verify") {

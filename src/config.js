@@ -1,3 +1,4 @@
+import { loadApplicationProjectionConfig } from './config/application-projection.js';
 const ALLOWED_ENVIRONMENTS = new Set(["development", "test", "production"]);
 
 function parsePort(raw) {
@@ -37,8 +38,10 @@ export function loadConfig(env = process.env) {
   if (env.GIRAFFE_ORACLE_SHUTDOWN_TIMEOUT_MS !== undefined && lifecycle !== "true") throw new Error("SHUTDOWN_TIMEOUT_REQUIRES_LIFECYCLE");
   if (lifecycle === "true" && (!/^[1-9][0-9]*$/.test(shutdownTimeout) || !Number.isSafeInteger(Number(shutdownTimeout)) || Number(shutdownTimeout) > 2147483647)) throw new Error("CONFIG_SHUTDOWN_TIMEOUT_INVALID");
 
+  const applicationProjection = loadApplicationProjectionConfig(env);
   return Object.freeze({
     environment: runtimeEnvironment,
+    ...(applicationProjection ? { applicationProjection } : {}),
     host,
     port: parsePort(env.GIRAFFE_ORACLE_PORT ?? "8780"),
     ...(lifecycle === "true" ? { processLifecycleEnabled: true, shutdownTimeoutMs: Number(shutdownTimeout) } : {}),

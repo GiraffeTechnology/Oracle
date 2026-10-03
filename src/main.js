@@ -2,6 +2,7 @@ import { pathToFileURL } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { createApp, createRequestHandler } from './app.js';
 import { loadConfig } from './config.js';
+import { assembleApplicationProjection } from './config/application-projection.js';
 import { SourceRegistry } from './domain/source-registry.js';
 import { assembleIsolatedTestApplication } from './config/test-assembly.js';
 import { bootstrapProductionApplication } from './config/production-bootstrap.js';
@@ -159,6 +160,8 @@ export function startApplication({
             : null;
       const options = {
         config,
+        ...assembleApplicationProjection(config.applicationProjection),
+        positionSource: assembly?.positionSource,
         sourceRegistry: assembly?.sourceRegistry ?? new SourceRegistry(),
         runtime: assembly?.runtime ?? null,
         controlPlane: assembly?.controlPlane,
