@@ -81,6 +81,11 @@ Oracle provides a controlled application boundary:
 
 Oracle is not a vertical application. ArtFi and other RWA applications consume Oracle services.
 
+The read-only [application projection API](docs/APPLICATION_PROJECTION_API.md) exposes
+the Kit temporal surface through Oracle with an explicit server-owned source binding.
+Its runtime assembly and synthetic regression evidence do not establish deployment
+or institutional commissioning.
+
 ## Security defaults
 
 - The development server binds to `localhost` only.
@@ -126,15 +131,15 @@ Write operations remain disabled unless production controls are explicitly enabl
 
 Read in this order:
 
-| Document | Purpose |
-| --- | --- |
-| `docs/DECISIONS_ZH.md` | Architecture decisions and precedence rules |
-| `docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` | Product requirements |
-| `docs/ACCEPTANCE_RWA_ORACLE_ZH.md` | Acceptance criteria and evidence requirements |
-| `docs/TRACEABILITY_ZH.md` | Requirement traceability |
-| `docs/STATUS.md` | Current implementation status |
-| `docs/GAP_AUDIT_ZH.md` | Remaining gaps |
-| `docs/PRODUCTION_READINESS_ZH.md` | Production readiness assessment |
+| Document                                | Purpose                                       |
+| --------------------------------------- | --------------------------------------------- |
+| `docs/DECISIONS_ZH.md`                  | Architecture decisions and precedence rules   |
+| `docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md` | Product requirements                          |
+| `docs/ACCEPTANCE_RWA_ORACLE_ZH.md`      | Acceptance criteria and evidence requirements |
+| `docs/TRACEABILITY_ZH.md`               | Requirement traceability                      |
+| `docs/STATUS.md`                        | Current implementation status                 |
+| `docs/GAP_AUDIT_ZH.md`                  | Remaining gaps                                |
+| `docs/PRODUCTION_READINESS_ZH.md`       | Production readiness assessment               |
 
 Run verification:
 
@@ -146,9 +151,9 @@ pnpm run verify
 
 The following patent applications may be disclosed by project decision:
 
-| Application | Number | Scope |
-| --- | --- | --- |
-| Unattended issuance system and method for facts from off-chain data sources | `202611389399.6` | Oracle |
-| Data-certificate mapping method and system based on an off-chain registry | `202611389374.6` | ERC registration mapping |
+| Application                                                                 | Number           | Scope                    |
+| --------------------------------------------------------------------------- | ---------------- | ------------------------ |
+| Unattended issuance system and method for facts from off-chain data sources | `202611389399.6` | Oracle                   |
+| Data-certificate mapping method and system based on an off-chain registry   | `202611389374.6` | ERC registration mapping |
 
 Submission or acceptance does not represent patent grant, production deployment or commercial acceptance.
