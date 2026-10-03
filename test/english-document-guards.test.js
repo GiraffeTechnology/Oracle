@@ -85,3 +85,13 @@ test('scope guard still rejects a missing acceptance row', (t) => {
   const result = f.run('check-scope-coverage.mjs');
   assert.equal(result.status, 1); assert.match(result.stderr, /no acceptance row for: ORACLE-009/);
 });
+
+
+for (const label of ['\u4f18\u5148\u516c\u94fe\u6d4b\u8bd5\u7f51', '\u76ee\u6807\u7f51\u7edc']) {
+  test(`legacy network declarations remain enforced (${label.length} characters)`, (t) => {
+    const f = fixture(t);
+    writeFileSync(path.join(f.root, 'docs/legacy-conflict.md'), `${label}: Sepolia; Hoodi optional.\n`);
+    const result = f.run('check-decision-consistency.mjs');
+    assert.equal(result.status, 1); assert.match(result.stderr, /legacy-conflict.md does not name Hoodi first/);
+  });
+}

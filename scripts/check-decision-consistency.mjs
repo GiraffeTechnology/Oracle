@@ -105,7 +105,7 @@ if (netMatch === null || chainMatch === null) {
     // Match the whole line: a line may legitimately name the priority network first and
     // the fallback second, so a match starting at the keyword would cut the decision off.
     for (const match of text.matchAll(
-      /^.*(?:(?:preferred|priority) (?:public-chain )?testnet|target network|优先(?:公链)?测试网|目标网络).*$/gim,
+      /^.*(?:(?:preferred|priority) (?:public-chain )?testnet|target network|\u4f18\u5148(?:\u516c\u94fe)?\u6d4b\u8bd5\u7f51|\u76ee\u6807\u7f51\u7edc).*$/gim,
     )) {
       const line = match[0];
       if (namesDecidedFirst(line) === false) {
