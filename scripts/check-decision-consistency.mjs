@@ -29,14 +29,17 @@ const decisions = await readFile(join(docs, 'DECISIONS_ZH.md'), 'utf8');
 const failures = [];
 
 // --- D-001: authoritative PRD -------------------------------------------------
-const prdMatch = /`docs\/(PRD_[\w.]+\.md)`\s*(v[\d.]+)\s*为唯一权威需求文档/.exec(decisions);
+const prdMatch =
+  /`?docs\/(PRD_[\w.]+\.md)`?\s*(v[\d.]+)\s+is the sole authoritative requirements document/.exec(
+    decisions,
+  );
 if (prdMatch === null) {
   failures.push('D-001 does not state an authoritative PRD file and version');
 } else {
   const [, prdFile, prdVersion] = prdMatch;
   try {
     const prd = await readFile(join(docs, prdFile), 'utf8');
-    const stated = /^\| 文档版本 \| (v[\d.]+) \|/m.exec(prd)?.[1];
+    const stated = /^\| Version \| (v[\d.]+) \|/m.exec(prd)?.[1];
     if (stated !== prdVersion) {
       failures.push(`D-001 names ${prdVersion} but ${prdFile} states ${stated ?? 'no version'}`);
     } else {
@@ -48,7 +51,7 @@ if (prdMatch === null) {
 }
 
 // --- D-002: priority testnet --------------------------------------------------
-const netMatch = /\*\*([A-Za-z]+) 为优先公链测试网\*\*/.exec(decisions);
+const netMatch = /\*\*([A-Za-z]+) is the preferred public-chain testnet\*\*/.exec(decisions);
 const chainMatch = /\| Chain ID \| \*\*(\d+)\*\*/.exec(decisions);
 if (netMatch === null || chainMatch === null) {
   failures.push('D-002 does not state a priority testnet and chain ID');
@@ -76,7 +79,7 @@ if (netMatch === null || chainMatch === null) {
   const brief = 'TESTNET_TASK_HOODI_ZH.md';
   try {
     const text = await readFile(join(docs, brief), 'utf8');
-    const target = /^\| 目标网络 \| (.+?) \|/m.exec(text)?.[1] ?? '';
+    const target = /^\| Target network \| (.+?) \|/m.exec(text)?.[1] ?? '';
     if (namesDecidedFirst(target) !== true) {
       failures.push(`${brief} target network row does not name ${network} first: ${target}`);
     }
@@ -101,7 +104,9 @@ if (netMatch === null || chainMatch === null) {
     const text = await readFile(file, 'utf8');
     // Match the whole line: a line may legitimately name the priority network first and
     // the fallback second, so a match starting at the keyword would cut the decision off.
-    for (const match of text.matchAll(/^.*(?:优先(?:公链)?测试网|目标网络).*$/gm)) {
+    for (const match of text.matchAll(
+      /^.*(?:(?:preferred|priority) (?:public-chain )?testnet|target network|优先(?:公链)?测试网|目标网络).*$/gim,
+    )) {
       const line = match[0];
       if (namesDecidedFirst(line) === false) {
         failures.push(`${relative(root, file)} does not name ${network} first: ${line.trim()}`);
@@ -119,11 +124,20 @@ if (netMatch === null || chainMatch === null) {
    * fails the build rather than being noticed later.
    */
   const REQUIRED_CLAUSES = [
-    { file: 'DECISIONS_ZH.md', text: `**${network} 是测试链，不是生产链。**` },
-    { file: 'DECISIONS_ZH.md', text: '不解除' },
-    { file: 'TESTNET_TASK_HOODI_ZH.md', text: `**${network} 是测试链，不是生产链。**` },
-    { file: 'TESTNET_TASK_HOODI_ZH.md', text: '不得部署到主网，不得使用真实资金。' },
-    { file: 'TESTNET_TASK_HOODI_ZH.md', text: '不解除生产门禁' },
+    { file: 'DECISIONS_ZH.md', text: `**${network} is a test chain, not a production chain.**` },
+    {
+      file: 'DECISIONS_ZH.md',
+      text: `Passing ${network} tests does **not** clear the written go/no-go`,
+    },
+    {
+      file: 'TESTNET_TASK_HOODI_ZH.md',
+      text: `**${network} is a test chain, not a production chain.**`,
+    },
+    { file: 'TESTNET_TASK_HOODI_ZH.md', text: '**Do not deploy to mainnet or use real funds.**' },
+    {
+      file: 'TESTNET_TASK_HOODI_ZH.md',
+      text: `**${network} passing does not clear production gates**`,
+    },
   ];
   for (const { file, text } of REQUIRED_CLAUSES) {
     const contents = await readFile(join(docs, file), 'utf8');
@@ -145,7 +159,11 @@ if (netMatch === null || chainMatch === null) {
  * Scope is src/ only. Documentation necessarily names ArtFi to describe the boundary, and
  * the Hoodi test plan labels its two test wallets ArtFi1 and ArtFi2.
  */
-if (/\*\*ArtFi 是文保链上登记产品在公链交易的 agent\*\*/.test(decisions)) {
+if (
+  /\*\*ArtFi is the agent for public-chain trading of the cultural-relic-chain registration product\*\*/.test(
+    decisions,
+  )
+) {
   const COUPLING = [
     { label: 'ArtFi reference', pattern: /\bartfi\b/i },
     {
@@ -236,17 +254,17 @@ if (/\*\*ArtFi 是文保链上登记产品在公链交易的 agent\*\*/.test(dec
     {
       file: join(docs, 'DECISIONS_ZH.md'),
       label: 'D-008 decision',
-      text: '**登记在途期间，普通 ERC-721 转让不被阻断。**',
+      text: '**Ordinary ERC-721 transfers are not blocked while registry processing is pending.**',
     },
     {
       file: join(docs, 'PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md'),
       label: 'PRD prohibition on any transfer block',
-      text: '**不得**将 NFT 置于协议托管、不可转让状态或任何等价的转让阻断机制。',
+      text: 'The NFT must not be placed in protocol custody, a non-transferable state, or any equivalent transfer-blocking mechanism.',
     },
     {
       file: join(docs, 'PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md'),
       label: 'PRD deferrable / perishable rights section',
-      text: '权利分类：可递延与易逝性',
+      text: 'Right Classification: Deferrable and Perishable',
     },
   ];
   let ok = 0;

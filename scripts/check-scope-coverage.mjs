@@ -46,8 +46,8 @@ for (const prefix of ['ORACLE', 'CONSUMER', 'NFR']) {
 
 // Section 8.6: ORACLE-009 is Giraffe's own obligation and must sit in the L2 section.
 const oracleSection = prd.slice(
-  prd.indexOf('## 6. L2 验证层需求'),
-  prd.indexOf('## 7. 下游协议消费约束'),
+  prd.indexOf('## 6. L2 Verification-Layer Requirements'),
+  prd.indexOf('## 7. Downstream Protocol Consumption Constraints'),
 );
 if (!oracleSection.includes('### ORACLE-009')) {
   failures.push('ORACLE-009 is not in the L2 section; acceptance section 8.6 fails the audit');
