@@ -38,7 +38,7 @@
 | 文件 | 阶段 | 效力 |
 | --- | --- | --- |
 | `ERC_SUBMISSION_CANDIDATE_EN.md` | EIP-1 提交候选稿 | **提交用规范文本**；带 YAML front matter |
-| `CLAUDE_AUDIT_REMEDIATION_REPORT_ZH.txt` | 整改报告 | 对 `SUBMISSION_REVIEW_ZH.md` 第一轮意见的逐项回应 |
+| `AUDIT_REMEDIATION_REPORT_ZH.txt` | 整改报告 | 对 `SUBMISSION_REVIEW_ZH.md` 第一轮意见的逐项回应 |
 | `reference/VersionedRWACertificateReference.sol` | CC0 参考实现 | 参考资料；本仓库不编译、不部署 |
 | `reference/protocol.cjs` | 参考实现测试套件 | 参考资料；17 项，需外部 hardhat 环境 |
 | `GIRAFFE_ERC_FORMAL_ZH.txt` | 正式中文文本 | 内部副本，非规范性译本；与候选稿一致 |
