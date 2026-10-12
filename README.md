@@ -160,19 +160,8 @@ Submission or acceptance does not represent patent grant, production deployment 
 
 ## License
 
-Oracle's project licensing policy is proprietary, aligned with ArtFi. Oracle
-makes no new project-wide CC0 dedication. Historical ERC reference notices and
-valid prior grants remain separate from the current project policy.
-
-This repository is publicly viewable for investor and technical review. Public
-visibility does not itself grant permission to use the material covered by
-[LICENSE](LICENSE). Applicable GitHub viewing and forking rights are preserved.
-
-Use, copying, modification, distribution, and deployment of material covered
-by [LICENSE](LICENSE) require separate written permission, subject to its
-stated exceptions. Authorized copies must identify Oracle, this repository,
-and their source version and retain the required notices. Attribution alone
-does not grant permission.
-
-Separately licensed components retain their own terms. See
-[NOTICE](NOTICE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Oracle uses the proprietary terms in [LICENSE](LICENSE), aligned with ArtFi.
+Use, modification, distribution, and deployment of covered material require
+written permission, subject to the stated exceptions.
+See [NOTICE](NOTICE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for
+attribution, historical references, and prior rights.
