@@ -115,8 +115,8 @@ test("ORACLE-007 public API and UI omit owner and warehouse identity commitments
       assert.doesNotMatch(api, new RegExp(secret));
       assert.doesNotMatch(page, new RegExp(secret));
     }
-    assert.match(page, /一物一证一 NFT/);
-    assert.match(page, /不提供或参与 NFT 金融化/);
+    assert.match(page, /One asset, one certificate, one NFT/);
+    assert.match(page, /does not provide or take part in NFT financialization/);
   });
 });
 
@@ -272,10 +272,10 @@ test("CONSUMER-007 redemption requires a final instant with no open gap", () => 
 
 test("ORACLE-011 renders all four settlement presentation states without implying completed title", () => {
   const common = { asset: { assetId: "asset-ui", wenbaoRegistryRef: "registry" }, certificate: { certificateHash: HASH_A, certificateVersion: 1 }, warehouse: { warehouseReceiptHash: HASH_B }, status: "TRANSFER_PENDING" };
-  assert.match(renderAssetDetailHtml({ ...common, settlement: null }), /快照已固定/);
-  assert.match(renderAssetDetailHtml({ ...common, settlement: { status: "PENDING" } }), /登记处理中/);
-  assert.match(renderAssetDetailHtml({ ...common, status: "VALID", settlement: { status: "FINALIZED" } }), /交割完成/);
-  assert.match(renderAssetDetailHtml({ ...common, settlement: { status: "DISPUTED" } }), /交割失败\/争议/);
+  assert.match(renderAssetDetailHtml({ ...common, settlement: null }), /Snapshot fixed/);
+  assert.match(renderAssetDetailHtml({ ...common, settlement: { status: "PENDING" } }), /Registry processing/);
+  assert.match(renderAssetDetailHtml({ ...common, status: "VALID", settlement: { status: "FINALIZED" } }), /Settlement complete/);
+  assert.match(renderAssetDetailHtml({ ...common, settlement: { status: "DISPUTED" } }), /Settlement failed or disputed/);
   const evidencePage = renderAssetDetailHtml({ ...common, asset: { ...common.asset, sourceAuthority: "approved-source", attestationExpiresAt: "2026-08-25T00:00:00.000Z" }, warehouse: { ...common.warehouse, observedAt: "2026-08-24T00:00:00.000Z" }, settlement: { status: "PENDING", businessCalendarRef: "synthetic:\/\/calendar\/wenbao-v1", deadlineAt: "2026-08-27T00:00:00.000Z" } });
   assert.match(evidencePage, /approved-source/);
   assert.match(evidencePage, /data-display-time-zone="browser-local"/);

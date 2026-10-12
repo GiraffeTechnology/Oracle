@@ -91,7 +91,7 @@ test("admin dashboard exposes authenticated operations and is protected against 
     assert.match(body, /signers\/rotate/);
     assert.match(body, /value="reconcile"/);
     assert.match(body, /actions\/approve/);
-    assert.match(body, /受控操作状态/);
+    assert.match(body, /Controlled operation status/);
     assert.match(body, /crypto\.subtle\.digest\('SHA-256'/);
     assert.match(body, /admin\.export\.'\+crypto\.randomUUID\(\)/);
     assert.match(body, /idempotency-key/);
