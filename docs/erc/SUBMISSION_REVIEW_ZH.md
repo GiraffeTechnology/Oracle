@@ -158,7 +158,7 @@ Definitions 将 certificate hash 固定为 keccak256，而 Rationale 又称 cano
 | 项目 | 内容 |
 | --- | --- |
 | 审查对象 | `ERC_SUBMISSION_CANDIDATE_EN.md`（SHA-256 `C335F2E1…52FC`）及修订后的正式文本 |
-| 新增材料 | CC0 参考实现、17 项测试套件、`CLAUDE_AUDIT_REMEDIATION_REPORT_ZH.txt` |
+| 新增材料 | CC0 参考实现、17 项测试套件、`AUDIT_REMEDIATION_REPORT_ZH.txt` |
 | 审查日期 | 2026-08-24 |
 
 ## 1. 第一轮问题的处理结论

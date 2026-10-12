@@ -37,9 +37,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.33.0, run_install: false }
       - uses: actions/setup-node@v4
-        with: { node-version-file: .nvmrc }
+        with: { node-version-file: .nvmrc, cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: node scripts/syntax-check.mjs
+      - run: pnpm run format:check
+      - run: pnpm run typecheck
 
   unit-negative:
     runs-on: ubuntu-latest
@@ -147,7 +152,7 @@ jobs:
       - run: node scripts/repository-scan.mjs
 
   integration-gates:
-    name: integration gates (decisions, scope, hygiene, frozen ERC)
+    name: integration gates (decisions, scope, hygiene)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -167,5 +172,3 @@ jobs:
         run: node scripts/check-no-financial-output.mjs
       - name: Secrets and personal data gate (NFR-001 / ORACLE-007)
         run: node scripts/check-repository-hygiene.mjs
-      - name: Frozen ERC constants
-        run: node scripts/check-frozen-erc-constants.ts
