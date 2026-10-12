@@ -9,7 +9,7 @@ import { SyntheticConsumerStateMachine } from "../src/domain/consumer-state-mach
  * Oracle is not an ERC-8415-only project; it is compatible with it. What that compatibility
  * requires is that where Oracle answers a question the standard defines, it answers the
  * standard's way. `isFinalAsOf` is such a question, and the PRD already states the rule the
- * same way (§ "该时刻是否终局": whether a later register entry could still change the answer).
+ * same way (§ "whether that moment is final": whether a later register entry could still change the answer).
  *
  * These tests exist because both properties below regressed once: an instant preceding the
  * first entry was reported final, and an open gap was folded into the answer.
