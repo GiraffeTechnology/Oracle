@@ -6,10 +6,11 @@ Licensing notice issued in 2026. Copyright remains with the respective copyright
 All rights reserved, subject to the exceptions stated below.
 Covered original material: otherwise-unlicensed copyrightable original Oracle service code,
 build/configuration files, and documentation under src/, test/, config/, db/,
-schemas/, scripts/, docs/, .github/, and repository-root project files, only
+schemas/, scripts/, docs/, erc-8415/, .github/, and repository-root project files, only
 to the extent the Rights Holder owns or is authorized to license them.
-The erc-8415/, erc-reference/, docs/erc/, and docs/erc-working-draft/ reference
-material, archived ERC bundles, CC0-marked material, vendored conformance vectors,
+The erc-reference/, docs/erc/, and docs/erc-working-draft/ historical reference
+material, archived ERC bundles, material subject to valid prior CC0 grants,
+vendored conformance vectors,
 dependencies, externally owned artwork/data, and other independently licensed
 or public-domain portions are excluded.
 
