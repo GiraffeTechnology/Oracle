@@ -3,7 +3,7 @@
 | Item | Content |
 | --- | --- |
 | Data source | `requirementIds` field in `config/iteration-acceptance.json` |
-| Authoritative requirements | v0.3 of `PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md`, 24 in-scope IDs |
+| Authoritative requirements | v0.4 of `PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md`, 24 legacy IDs only; full revision dated 2026-10-17 HKT additionally requires the separate 15-row OX/OT overlay |
 | Enforced by | `scripts/check-scope-coverage.mjs` (CI job `integration-gates`) |
 
 ## Why this mapping exists
@@ -47,7 +47,7 @@ This file is rendered from the manifest, not maintained by hand. The guard check
 | `CONSUMER-001` | One asset, one certificate, one NFT | `I3` |
 | `CONSUMER-002` | Initial issuance | `I11` |
 | `CONSUMER-003` | Lifecycle | `I11` |
-| `CONSUMER-004` | T+0 snapshot and freeze | `I8` |
+| `CONSUMER-004` | T+0 snapshot and registration gap | `I8` |
 | `CONSUMER-005` | T+3 settlement | `I8` |
 | `CONSUMER-006` | T+3 failure and timeout | `I8` |
 | `CONSUMER-007` | Redemption and termination | `I11` |
@@ -63,3 +63,7 @@ This file is rendered from the manifest, not maintained by hand. The guard check
 
 - `CONSUMER-*` items are not implementation deliverables of this project under PRD §3.2. The listed iterations are responsible only for “proving the constraint can be enforced on the Oracle side”; they do not mean L3 protocol implementation or deployment.
 - Complete mapping coverage does **not** mean requirements are verified. See `STATUS.md` for actual status by requirement and acceptance standard §5 for stage gates.
+
+## Full-revision overlay
+
+EX_ALIGNMENT_ACCEPTANCE.md maps all OX-001–012 and OT-001–003 headings bidirectionally to sources, assertions, evidence layers and stage ownership. These 15 rows are deliberately separate from the unchanged legacy 24-ID/I0–I12 denominator. The existing scope checker parses only ORACLE/CONSUMER/NFR; a pass cannot imply overlay execution or acceptance. The legacy title lists above are mapping labels, not current completion claims. Revised semantic clauses need their own tests even if their parent ID is unchanged.

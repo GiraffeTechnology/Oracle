@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "prdVersion": "v0.4",
-  "prdSha256": "1d285d23ddbc0c36e57cb1d3b34467f5f57985a3a8e7f953808d3011c9f58631",
-  "acceptanceSha256": "c8e137a0627f80fa6de7c705a78e3b927fd95646f892259b9e2607db8bbef2cc",
+  "prdSha256": "862bc53a62c6a31b655929a6f17a23886000fde174134b91a49fcd537c8aab4e",
+  "acceptanceSha256": "0725ab2f140e93484a178feb69225d19028f7fac5e60253c7ea92d6439a15b3b",
   "requirements": [
     {
       "id": "ORACLE-001",

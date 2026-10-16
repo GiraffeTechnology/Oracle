@@ -1,6 +1,6 @@
-# Giraffe RWA Oracle v0.3 Implementation Status
+# Giraffe RWA Oracle Implementation Status
 
-The authoritative status is in `STATUS.md` and the machine-generated `output/prd-v0.4-acceptance-report.json`. This file provides only an engineering summary.
+The current evidence identities are in STATUS.md. The machine-generated output/prd-v0.4-acceptance-report.json covers only 24 legacy IDs, not the full 2026-10-17 HKT revision or OX/OT overlay. This file summarizes baseline engineering, not receipt integration or production acceptance. Main, draft PR48 and unpublished stage2 must remain distinct.
 
 ## Implemented and covered by local automation
 
@@ -19,6 +19,8 @@ The authoritative status is in `STATUS.md` and the machine-generated `output/prd
 - NFR-004 operational evidence for formal 99.9% availability/capacity, 72-hour stability, recovery, and protected-signer rotation.
 - Independent legal, privacy, security, contract, and operations reviews, remediation, and retesting.
 - Scope/quotation/milestone contract, formal ArtFi independent product-line decision, and written go/no-go for each jurisdiction.
-- Complete CI and approved merge for the same final commit.
+- Exact-candidate CI and merge for any new delivery; main already has audited green CI.
+- OX/OT integration evidence, approved institutional original-format/profile, complete mint-policy mapping and live receipt-journal durability tests.
+- Verification of the separate blocked authenticated-identity security fix; this revision does not perform it.
 
 Commits, pushes, PRs, and CI starts do not constitute completion. Until all applicable gates are met, `allComplete` must remain `false`.

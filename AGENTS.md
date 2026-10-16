@@ -271,7 +271,7 @@ Its finality query answers ERC-8415's own rule: an instant is final if and only 
 
 ### Current bounded direction
 
-The next implementation direction is the Oracle-owned application integration boundary:
+Exact main already contains the read-only Oracle-owned application integration boundary. Preserve it:
 
 - preserve the architecture `ArtFi → Oracle → ERC8415-Kit → ERC-8415`;
 - expose an Oracle application-facing API for ArtFi;
@@ -282,7 +282,7 @@ The next implementation direction is the Oracle-owned application integration bo
 
 The current verified ERC8415-Kit handoff covers the v2.0 temporal projection surface only. Optional gap behavior and the legacy `settle()` surface MUST NOT be represented as a v2.1 or v2.2 settlement product.
 
-No new settlement engine, payment implementation, custody workflow, release workflow, or refund workflow is authorized by this documentation alignment.
+The full PRD revision dated 2026-10-17 HKT separately describes receipt-bound source ingress and atomic registration requirements OX-001–012 and temporal requirements OT-001–003. PR48 receipt binding and the unpublished stage-2 ingress tree are not main delivery. Read their distinct evidence identities before making claims. Oracle owns receipt verification and authorized registration writing; EX/Wallet retain matching, financial execution, gas and owner rollback. No new financial settlement engine, payment implementation, custody workflow, release workflow, refund workflow or physical pickup is authorized by this documentation alignment. The legacy 24-ID acceptance count does not certify the new overlay. Concrete blocked security remediation remains blocked and must not be retried through documentation work.
 
 Agents MUST NOT:
 

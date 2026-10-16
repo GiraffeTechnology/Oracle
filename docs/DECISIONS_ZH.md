@@ -1,6 +1,20 @@
 # Project Decision Log
 
-This file records decisions already made and their rationale. **If a later document conflicts with this file, this file prevails.** A new explicit requirement may supersede an existing decision; add a new entry here and identify the superseded decision number.
+This file preserves decisions and their rationale. ERC-8415 and latest explicit authorized compatible product rulings take precedence, as AGENTS.md requires. Historical entries do not override the current normative protocol or a specifically superseding ruling. D-009 below records the current reconciliation; older entries remain for provenance.
+
+## D-009 Full-product revision and receipt-integration reconciliation (2026-10-17 HKT)
+
+The full PRD revision retains v0.4 and all 24 baseline IDs, adds separately tracked OX-001–012/OT-001–003, and preserves Stages A–F. The legacy 24-ID verifier does not certify the new overlay or every corrected semantic clause.
+
+This records already authorized product direction, not autonomous protocol governance:
+
+- Current architecture is Application → Oracle → ERC8415-Kit → ERC-8415. The current main application projection API exists. D-006's statements that Oracle has no application interface and may never write registration facts are superseded for the authorized receipt integration. Its financial separation, independent repositories and no custody of user keys remain intact. Existing main's no-broadcast code guard is a historical baseline check, not authority to reject the separately authorized source writer or to claim it is already shipped.
+- ArtFi whole-artwork and EX whole-receipt alignment are settled technical boundaries. Commercial/legal evidence stays open; historical fractionalization/charity semantics are not imported. D-004's old technical decision prerequisite is superseded accordingly.
+- D-008's transfer freedom remains. Temporal finality is gap-independent; cancellation does not change it. The separately approved 2026-10-16 20:06 UTC clarification distinguishes a future timestamp from the uint64 maximum and requires genuine source time, strict increase and the actual approved profile. It is not an EX v1.2 quotation or a claim that an unpublished ERC wording correction is already canonical.
+- D-002's historical Oracle Hoodi evidence remains valid for its own runs. EX joint demonstration uses its specified Sepolia 11155111 configuration and approved test asset; this is a separate integration scenario, not silent replacement of the standalone Oracle test plan.
+- PR48 and unpublished stage2 remain distinct from main. No publication, security change, deployment or real-funds action is authorized by documentation revision.
+
+The original D-001 version wording and historical D-006 marker are retained for compatibility with existing baseline checks; those checks do not validate all new OX/OT semantics. Do not weaken a guard to manufacture a pass.
 
 ## D-001 Authoritative PRD is v0.4
 
@@ -181,10 +195,10 @@ Before execution, a repository-wide search under work-item §0 (PRD, WENBAO_INTE
 
 When statements conflict, apply this order:
 
-1. Latest explicit requirement (append it as a new entry to this file).
-2. Existing decisions in this file.
-3. Authoritative PRD and acceptance standard.
-4. Other documents.
+1. ERC-8415 normative semantics.
+2. Latest explicit authorized compatible product ruling, with supersession recorded.
+3. AGENTS.md execution policy and current implementation requirements/acceptance.
+4. Historical decisions and other evidence, subject to D-009 and explicit supersession.
 
 ## D-004 Matters not resolved by this decision process
 
