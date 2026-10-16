@@ -157,3 +157,11 @@ The following patent applications may be disclosed by project decision:
 | Data-certificate mapping method and system based on an off-chain registry   | `202611389374.6` | ERC registration mapping |
 
 Submission or acceptance does not represent patent grant, production deployment or commercial acceptance.
+
+## License
+
+Oracle uses the proprietary terms in [LICENSE](LICENSE), aligned with ArtFi.
+Use, modification, distribution, and deployment of covered material require
+written permission, subject to the stated exceptions.
+See [NOTICE](NOTICE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for
+attribution, historical references, and prior rights.

@@ -1,4 +1,5 @@
-// SPDX-License-Identifier: CC0-1.0
+// Project license: see ../../LICENSE, subject to its prior-rights exceptions.
+// Historical licensing provenance: see ../../THIRD_PARTY_NOTICES.md.
 pragma solidity ^0.8.20;
 
 interface IERC165 {
