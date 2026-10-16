@@ -1,3 +1,24 @@
+# Giraffe RWA Oracle Evidence Snapshot
+
+Current review: 2026-10-17 HKT / 2026-10-16 UTC. Requirements are the complete PRD v0.4 revision and EX_ALIGNMENT_ACCEPTANCE.md. This is an evidence index, not a completion statement.
+
+| Evidence scope | Current status and limit |
+| --- | --- |
+| Main `27217e65a6e71baaeff5d7c53a2c8de126e5b69d` | Generic verification/persistence/control-plane and temporal API; audited CI [38829743213](https://github.com/GiraffeTechnology/Oracle/actions/runs/38829743213) has 12 successful jobs, 450 Node tests and 13 contract tests. The old all-CI-red/quota claim below is historical and no longer current. |
+| Legacy 24 IDs | Exact-main verifier reports 23 engineering mappings, NFR-004 PENDING-GATE and allComplete=false. Named-test/artifact coverage is not full semantic, institutional or production acceptance. |
+| Draft PR48 `b9c1b410a35fa017622c1971d714bb35defd57f1` | Atomic receipt tuple and immutable opaque policy hash; CI [38944884171](https://github.com/GiraffeTechnology/Oracle/actions/runs/38944884171) has 12 successful jobs, 450 Node and 25 contract tests. Draft only, not main. |
+| Reviewed unpublished tree `2fda94c7701fdb17e625f9617fbd17249d415c9f` | 25-file ingress/journal/writer/receipt-API extension. Prior local evidence: 503 Node+TypeScript, 496 dependency-free Node, 27 Mocha plus 30 pipeline tests; no stage-2 commit/PR/remote CI/deployment. SQL-capture and synthetic parser only. |
+| OX-001–012 / OT-001–003 | Separate full-revision requirements; none verified by this documentation revision. Main/candidate differences and NOT_RUN execution markers are in EX_ALIGNMENT_ACCEPTANCE.md. |
+| Institutional parser / full policy / deployment | PENDING-GATE for approved profile and exact authorized integration; opaque commitment and signed normalized intent alone are insufficient. |
+| Identity/security residual | BLOCKED; previously identified final fix remains unverified. No blocked action retried or reproduced by this revision. |
+| NFR-004, P1–P8, Stage F | PENDING-GATE; operational load/stability/recovery/protected-signer evidence, premise support, independent reviews, commercial scope and legal go/no-go remain required. |
+
+The iteration v0.3/v0.4 drift and obsolete I11 title are corrected as documentation metadata in this candidate. Paired acceptance executor/test changes are a separate implementation work item; until integrated and executed on the exact candidate, do not claim the full iteration runner repaired. The legacy report is not expanded to cover OX/OT automatically.
+
+## Preserved historical snapshot (not current status)
+
+The following original text records the 2026-08-28 baseline and later historical notes. Its old test counts, missing-CI claim and implementation assertions must not be used for present acceptance. Current facts are above; no history was rewritten.
+
 # Giraffe RWA Oracle v0.3 Evidence Snapshot
 
 This file is a status index, not a completion statement. The authoritative requirements are in `PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md`; authoritative acceptance rules are in `ACCEPTANCE_RWA_ORACLE_ZH.md`. A commit, push, PR, or CI start does not automatically change status.

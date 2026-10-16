@@ -1,3 +1,17 @@
+# Production Readiness: Current Review
+
+Review: 2026-10-17 HKT. **Not a production candidate.** Current source/CI identities are in STATUS.md; full requirements are in the revised PRD and EX_ALIGNMENT_ACCEPTANCE.md.
+
+Main has substantial implementation, application projection APIs, and green CI at the reviewed exact commit. The older assessment below predates integration and must not be used to claim the current repository lacks source adapters, certificate history, CI jobs or a dedicated application boundary. Nor may its old post-T+0 transfer blocker override D-008.
+
+Current production prerequisites remain NFR-004 candidate-bound availability/capacity/stability/recovery and protected-signer evidence, P1–P8 support, approved institutional profiles/original-document validation, live receipt-journal driver testing, exact authorized deployment/source bindings, independent legal/privacy/security/contract/operations reviews, commercial scope and written jurisdictional go/no-go. The separate blocked identity/security fix remains unverified. Receipt binding is draft PR48; ingress/receipt API is unpublished stage2, not commissioned main.
+
+Retain completed synthetic temporal capabilities without treating future production work as a global blocker. For a receipt-bound production release, all applicable OX/OT assertions require their own exact-candidate evidence. No historical 23/24 count clears them. No deployment, publication or security permission is granted here.
+
+## Historical assessment retained for provenance only
+
+Everything below is the original 2026-08/09 assessment. Its contemporaneous counts, branch/CI deficiencies and technical integration assumptions are superseded by the current review above; valid legal/operational gates remain in effect through the current PRD.
+
 # Production Readiness Assessment
 
 | Item | Content |

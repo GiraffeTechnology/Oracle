@@ -1,9 +1,9 @@
 # Giraffe RWA Oracle (L2) Delivery and Acceptance Standard
 
-Version: v0.4 | Date: 2026-09-03 (v0.3: 2026-08-24)  
+Version: v0.4 | Full revision: 2026-10-17 HKT (2026-10-16 UTC); baseline 2026-09-03  
 Companion documents: PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md (requirements), STATUS.md (evidence snapshot)
 
-The sole substantive change in v0.4 is D-008: ERC-721 transfers are not blocked while registry processing is pending; rights are instead classified as deferrable or perishable. The affected acceptance scope is CONSUMER-004–009; see the matrix in §5. The requirement-ID set and numbering are unchanged.
+The original v0.4 baseline introduced D-008. This full revision preserves its 24 legacy requirement IDs and Stages A–F, corrects active wording conflicts and adds the separately tracked OX-001–012 / OT-001–003 integration acceptance contract. The legacy verifier and iteration manifest still assess only their 24 original mappings; their historical 23/24 count does not verify revised semantics or the 15 new rows. See EX_ALIGNMENT_ACCEPTANCE.md for full bidirectional overlay coverage and evidence limits.
 
 ## 1. Purpose and boundaries
 
@@ -63,7 +63,7 @@ All Stage A–E work uses synthetic data. Synthetic data is the correct form for
 | ORACLE-001 | Approved sources only | Negative tests for unknown sources, arbitrary URLs/RPC/database addresses, and replacement endpoints; registry changes require approval records |
 | ORACLE-002 | Accurate state queries | Positive cases for all eight states; degradation tests for expiration, conflict, source outage, and partial availability |
 | ORACLE-003 | Verifiable proofs | Negative tests for insufficient signatures, nonce reuse, expiration, schema-version mismatch, and cross-chain/contract/token/purpose replay |
-| ORACLE-004 | Immediate revocation effect | Query returns REVOKED after revocation; protocol transfer fails after revocation; idempotent event replay test; reason hash and operator trace |
+| ORACLE-004 | Immediate revocation effect | Query returns REVOKED after revocation; affected attestation and irreversible exercise fail after revocation; the synthetic compatible consumer enforces the asset-specific authoritative emergency transfer/redemption restriction; an ordinary gap alone does not block ERC transfer; idempotent event replay test; reason hash and operator trace |
 | ORACLE-005 | Isolate entity-compliance conclusions | Gate scan confirms no KYC/AML/sanctions/jurisdictional-eligibility/suitability/licensing fields or endpoints in repository, schema, API response, interface paths, UI, or contracts; such queries must be rejected rather than return an empty value |
 | ORACLE-006 | No financial outputs | Keyword and field-gate tests for API responses, schema, and UI copy (valuation/price/collateral ratio/returns/ratings/investment advice) |
 | ORACLE-007 | No personal information on public surfaces | Scans of ABI, events, metadata, logs, database exports, and API responses; cross-border field-minimization review |
@@ -78,13 +78,13 @@ All Stage A–E work uses synthetic data. Synthetic data is the correct form for
 | --- | --- | --- |
 | CONSUMER-001 | One asset / one certificate conflict closes | Proof issuance fails for a duplicate asset fingerprint, warehouse receipt, or current certificate; fractionalization request is rejected |
 | CONSUMER-002 | Complete issuance prerequisites | Negative test for each of seven missing prerequisites; reject an already-occupied asset |
-| CONSUMER-003 | Valid state machine | Full coverage of legal transitions among nine states; illegal or proof-less transitions roll back |
+| CONSUMER-003 | Valid state machine | Full coverage of legal transitions among nine states; illegal transitions or transitions missing their required evidence roll back; workflow cancellation does not require fabricated registration evidence or write a register entry |
 | CONSUMER-004 | T+0 snapshot and registry gap | Snapshot hash integrity; snapshot immutable after creation; deadline generation; duplicate-event idempotency; ordinary transfer succeeds while a gap is open; perishable exercises such as redemption/pledge fail; no protocol escrow or non-transferable state exists |
 | CONSUMER-005 | Proof of completed registry processing | New certificate hash, incremented version, previousCertificateHash, and authoritative change reference match exactly; Token ID unchanged; settlement recipient is the confirmed holder at T+0, not the current holder; settlement must be rejected if that moment was not final |
-| CONSUMER-006 | Recoverable failure | Six scenarios: timeout, rejection, data conflict, out-of-order event, replay, and dispute; no new certificate hash is written; refund notification fires; after cancellation or timeout, that moment remains “not final,” not “confirmed failure”; perishable exercises still fail; token transferability is unaffected |
+| CONSUMER-006 | Recoverable failure | Six scenarios: timeout, rejection, data conflict, out-of-order event, replay, and dispute; no new certificate hash is written; factual failure notification is delivered without executing a refund; cancellation/timeout leaves finality unchanged, so an already-final time does not revert and an otherwise non-final time does not become final; perishable exercises still require finality and no gap; token transferability is unaffected |
 | CONSUMER-007 | Redemption is a perishable right | Redemption requires that the moment be final with no open gap and that the exerciser be the confirmed holder at that moment; failure of any condition rejects that exercise; rejection must not restrict transfer; later stale input must not overwrite REDEEMED or restore a valid redemption right |
 | CONSUMER-008 | External markets cannot bypass gates | External events may trigger only a pending T+0 intent; no order book/matching/counterparty/funds-control path exists; to external markets, the token always behaves as an ordinary ERC-721 with no custom non-transferable state |
-| CONSUMER-009 | Proof consumption fails closed | Invalid/expired/revoked/out-of-order/replayed proofs are deterministically rejected; no cache or optimistic default on dependency outage; both “moment not final” and “open gap exists” must also fail closed; a valid proof does not mean ownership is final |
+| CONSUMER-009 | Proof consumption fails closed | Invalid/expired/revoked/out-of-order/replayed proofs are deterministically rejected; no cache or optimistic default on dependency outage; for perishable exercises, both “moment not final” and “open gap exists” must independently fail closed; the finality accessor remains gap-independent; a valid proof does not mean ownership is final |
 
 ### 4.3 Non-functional requirements
 
@@ -101,9 +101,15 @@ All Stage A–E work uses synthetic data. Synthetic data is the correct form for
 | --- | --- | --- |
 | PREMISE-P1–P8 | Each PRD §1 premise has a written basis, collection date, review cycle, and owner | Basis document archived; any missing P1–P4 item blocks Stage F |
 
+### 4.5 Integration and temporal overlay
+
+Every OX/OT heading in the PRD must have exactly one row in EX_ALIGNMENT_ACCEPTANCE.md and vice versa. The overlay is part of full-revision acceptance, not a replacement for §§4.1–4.4. Its evidence must distinguish main, draft PR #48, unpublished stage-2 tree and deployed candidate. A requirement can be IMPLEMENTED-NOT-VERIFIED for a candidate while NOT-IMPLEMENTED on main. NOT_RUN records missing execution and never counts as VERIFIED.
+
+The untouched legacy scripts recognize ORACLE/CONSUMER/NFR IDs only. They must not be advertised as checking OX/OT rows or as proving every edited clause within a legacy ID. No script, test or guard may be weakened to turn this coverage gap into a pass. Exact revision/manifest checks and the separate overlay must accompany any full-product acceptance decision.
+
 ## 5. Stage gates
 
-Execute in order. The exit condition of each gate authorizes the next stage without an extra approval step, except for Stage F legal go/no-go (see §2.1).
+Product gates remain in order for acceptance. Independently authorized development may proceed without waiting for unrelated later-stage prerequisites. Gate completion does not grant new credentials, permissions, publication, transactions or deployment authority; those require the applicable execution approval. Stage F legal go/no-go remains separate (§2.1).
 
 | Gate | Stage | Exit condition |
 | --- | --- | --- |
@@ -138,7 +144,7 @@ CI passes only when every required job is green on the reviewed commit. A green 
 
 Giraffe RWA Oracle is a production candidate only when all of the following are true:
 
-1. Every in-scope requirement in §4 is VERIFIED, or excluded by a signed scope change as OUT-OF-SCOPE.
+1. Every applicable in-scope requirement in §4, including the OX/OT overlay for a receipt-bound delivery, is VERIFIED, or excluded by a signed scope change as OUT-OF-SCOPE. A legacy 24-ID report alone cannot establish this.
 2. All G-A through G-F exit conditions are met on the same commit.
 3. CI is green on that commit and the PR is approved and merged.
 4. The commit referenced by tests, deployment, and documentation is identical.
@@ -154,7 +160,7 @@ Production enablement additionally requires the written go/no-go in §2.1; reach
 1. Audit the exact commit SHA, not an uncommitted working tree.
 2. Report every requirement using one of the six values in §2.
 3. Cite file paths, test names, CI run links, transaction hashes, and receipts.
-4. Check scope coverage first: every ID in PRD §§6, 7, and 11 must have a row in the §4 matrix, and vice versa. An ID present on only one side is an audit failure.
+4. Check scope coverage first: every legacy ID in PRD §§6, 7, and 11 must have a row in the §4.1–4.3 matrices, and every OX/OT ID must have a row in the companion overlay incorporated by §4.5, and vice versa. An ID present on only one side of its corresponding matrix is an audit failure.
 5. Fail if CONSUMER-* is treated as an implementation deliverable of this project; this project must only prove enforceability.
 6. Fail if ORACLE-009 is treated as a downstream constraint; it is Giraffe's own obligation.
 7. Fail if in-scope work is marked OUT-OF-SCOPE without a signed scope change; if a scheduled item awaiting a prerequisite is marked BLOCKED or OUT-OF-SCOPE instead of PENDING-GATE, fail.
@@ -166,4 +172,5 @@ Production enablement additionally requires the written go/no-go in §2.1; reach
 13. Fail if transferEligibility or transfer-eligibility values include counterparty-compliance status.
 14. Fail if documents or contracts imply that Oracle returning VALID reduces an institution's own KYC/AML/sanctions obligations.
 15. If a PRD §1 premise lacks written basis and collection date, mark it as a Stage F blocker.
-16. Output a gap table grouped by ID and list the current state of the §0.1 decision and §0.2 contract.
+16. Output a gap table grouped by ID and list the current state of the §0.1 commercial scope and §0.2 contract, without reopening the already-settled application integration direction.
+17. Report legacy and OX/OT coverage separately, including main/candidate identity, source-profile availability, real-driver evidence, actual chain execution and security residuals. Never substitute a reviewed tree for a published commit or an authenticated signature for original-document validation.

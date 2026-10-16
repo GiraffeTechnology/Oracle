@@ -21,11 +21,11 @@ Authoritative sources / registers
 
 Applications do not implement ERC-8415 adapters directly. Oracle owns the integration boundary.
 
-## Current implementation status (2026-09-20)
+## Current implementation status (snapshot 2026-10-16)
 
 This repository has progressed beyond a verification-only prototype. Current implementation includes:
 
-### Completed implementation
+### Implemented baseline capabilities (not production commissioning)
 
 - authoritative source model:
   - registry source;
@@ -45,6 +45,12 @@ This repository has progressed beyond a verification-only prototype. Current imp
   - historical entries;
   - finality semantics;
   - projection identity.
+
+The exact reviewed main is `27217e65a6e71baaeff5d7c53a2c8de126e5b69d`. Its latest audited CI run is [38829743213](https://github.com/GiraffeTechnology/Oracle/actions/runs/38829743213), with 12 successful jobs, 450 Node tests and 13 contract tests. This is evidence for that main commit, not this uncommitted documentation revision or production.
+
+Receipt binding is only in [draft PR #48](https://github.com/GiraffeTechnology/Oracle/pull/48), head `b9c1b410a35fa017622c1971d714bb35defd57f1`. Authenticated source ingress and receipt APIs are in reviewed unpublished tree `2fda94c7701fdb17e625f9617fbd17249d415c9f`; no stage-2 commit, PR, CI or deployment is established. An approved institutional parser and live receipt-journal database evidence remain missing. NFR-004 and the separate blocked identity/security residual remain unresolved.
+
+The complete PRD v0.4 revision dated 2026-10-17 HKT preserves all Oracle requirements and adds the separately tracked [EX/temporal acceptance overlay](docs/EX_ALIGNMENT_ACCEPTANCE.md). Legacy 23/24 counts and I0–I12 mapping do not verify those 15 additional rows or corrected semantic clauses.
 
 ## ERC-8415 integration status
 
