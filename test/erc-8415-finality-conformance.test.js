@@ -94,7 +94,7 @@ test("CONSUMER-007 still refuses a perishable exercise while a gap is open", () 
   const attestation = { attestationId: "a" };
   const accept = () => true;
   machine.transition({ tokenRef: "t", to: "VERIFIED", attestation, verify: accept });
-  machine.transition({ tokenRef: "t", to: "ACTIVE", attestation, verify: accept });
+  machine.transition({ tokenRef: "t", to: "ACTIVE", attestation: { attestationId: "b" }, verify: accept });
   entries(machine, "t", [10, "wallet-a"], [20, "wallet-b"]);
 
   assert.equal(machine.assertOperationAllowed("t", "redeem", { instant: 10 }), true);

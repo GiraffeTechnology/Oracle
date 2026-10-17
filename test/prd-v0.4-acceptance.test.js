@@ -178,6 +178,18 @@ test("CONSUMER-004 and CONSUMER-009 fail closed without a verified attestation",
   }
 });
 
+test("CONSUMER-009 rejects replayed attestation IDs without mutating the consumer", () => {
+  const machine = new SyntheticConsumerStateMachine();
+  machine.transition({ tokenRef: "replay", to: "VERIFIED", attestation: consumerAttestation("single-use"), verify: accept });
+  const history = machine.history("replay");
+  assert.throws(
+    () => machine.transition({ tokenRef: "replay", to: "ACTIVE", attestation: consumerAttestation("single-use"), verify: accept }),
+    /CONSUMER_ATTESTATION_REPLAYED/,
+  );
+  assert.equal(machine.current("replay"), ConsumerStatus.VERIFIED);
+  assert.deepEqual(machine.history("replay"), history);
+});
+
 /**
  * CONSUMER-004 under D-008. The ERC this project is submitting says ordinary ERC-721 transfers
  * MUST NOT be blocked while a projection gap is open, so an open gap must not make transfer
