@@ -29,7 +29,12 @@ test("Stage F decision requires every written contract and go-no-go", () => {
 
 test("integrated CI requires one approved merged run with every mandated job", () => {
   const ids = ["locked-install", "format-lint-typecheck", "unit-negative", "production-build", "contract", "consumer-integration", "mysql-migrate-backup-restore", "financial-boundary", "subject-compliance-boundary", "personal-information-boundary", "secret-credential-boundary"];
-  const evidence = { ...base, type: "integrated-ci", singleRun: true, prApproved: true, prMerged: true, mergedHeadCommit: COMMIT, jobs: ids.map((id) => ({ id, status: "PASS" })) };
+  const runId = "run-12345";
+  const evidence = { ...base, type: "integrated-ci", runId, runRef: "https://github.example/actions/runs/run-12345", singleRun: true, prApproved: true, prMerged: true, mergedHeadCommit: COMMIT, jobs: ids.map((id) => ({ id, status: "PASS", runId, candidateCommit: COMMIT })) };
   assert.equal(validateIntegratedCiEvidence(evidence), true);
   assert.throws(() => validateIntegratedCiEvidence({ ...evidence, jobs: evidence.jobs.slice(1) }), /INTEGRATED_CI_INSUFFICIENT:locked-install/);
+  assert.throws(() => validateIntegratedCiEvidence({ ...evidence, jobs: [...evidence.jobs, evidence.jobs[0]] }), /INTEGRATED_CI_JOB_MATRIX_INSUFFICIENT/);
+  assert.throws(() => validateIntegratedCiEvidence({ ...evidence, jobs: evidence.jobs.map((job, index) => index === 0 ? { ...job, runId: "other-run" } : job) }), /INTEGRATED_CI_INSUFFICIENT:locked-install/);
+  assert.throws(() => validateIntegratedCiEvidence({ ...evidence, jobs: evidence.jobs.map((job, index) => index === 0 ? { ...job, candidateCommit: "c".repeat(40) } : job) }), /INTEGRATED_CI_INSUFFICIENT:locked-install/);
+  assert.throws(() => validateIntegratedCiEvidence({ ...evidence, runRef: "" }), /INTEGRATED_CI_JOB_MATRIX_INSUFFICIENT/);
 });
