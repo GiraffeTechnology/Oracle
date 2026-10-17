@@ -2,6 +2,7 @@ import { ADDRESS, BYTES32, ProjectionSourceError, assertUint64, assertUint256 } 
 
 const malformed = () => new ProjectionSourceError('PROJECTION_SOURCE_MALFORMED', 502);
 const MAX_RESPONSE_BYTES = 64 * 1024;
+const MAX_CURRENT_ENTRY_READ_ATTEMPTS = 2;
 const REFUSALS = new Set(['INSTANT_NOT_COVERED', 'UNKNOWN_TOKEN', 'UNKNOWN_VERSION', 'EMPTY_PROJECTION']);
 
 function uint64(value) {
@@ -59,12 +60,16 @@ export class KitProjectionSource {
 
   async currentEntry(tokenId) {
     const id = assertUint256(tokenId, 'TOKEN_ID_INVALID');
-    const count = await this.entryCount(id);
-    if (count === '0') throw new ProjectionSourceError('EMPTY_PROJECTION', 404);
-    // Kit has no current route. Count is the consecutive latest version, not
-    // the last item of its first (at most 100-entry) history page. Reads are not
-    // an atomic snapshot: an admission may happen after this count was read.
-    return this.entryAt(id, count);
+    // Kit exposes no current-entry HTTP route, so construct a bounded read from
+    // count + exact-version reads. Rechecking count detects a concurrent append;
+    // equal counts provide the linearization point for append-only versions.
+    for (let attempt = 0; attempt < MAX_CURRENT_ENTRY_READ_ATTEMPTS; attempt += 1) {
+      const count = await this.entryCount(id);
+      if (count === '0') throw new ProjectionSourceError('EMPTY_PROJECTION', 404);
+      const current = await this.entryAt(id, count);
+      if (await this.entryCount(id) === count) return current;
+    }
+    throw new ProjectionSourceError('PROJECTION_SOURCE_UNAVAILABLE', 503);
   }
 
   async entryAt(tokenId, version) {

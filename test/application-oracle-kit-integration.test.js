@@ -35,7 +35,10 @@ const BINDING = { chainId: '560048', contract: `0x${'cc'.repeat(20)}`, registerI
 const REGISTER_ID = `0x${"84".repeat(32)}`;
 
 /** A stand-in Kit speaking the routes Oracle consumes. */
-function startKit() {
+function startKit({ advanceAfterProjectionRead = false, advanceOnce = false } = {}) {
+  let entries = [...ENTRIES];
+  let advanced = false;
+  let projectionReads = 0;
   const requested = [];
   const server = http.createServer((request, response) => {
     requested.push(`${request.method} ${request.url}`);
@@ -62,15 +65,25 @@ function startKit() {
 
     const version = /^\/projection\/(\d+)\/entry\/version\/(\d+)$/.exec(path);
     if (version) {
-      const found = ENTRIES.find((item) => item.version === version[2]);
+      const found = entries.find((item) => item.version === version[2]);
       return found ? json(200, { tokenId: version[1], entry: found }) : json(404, { error: "UNKNOWN_VERSION" });
     }
 
     if (/^\/projection\/(\d+)\/entries$/.test(path)) {
-      return json(200, { entryCount: ENTRIES.length, entries: ENTRIES });
+      return json(200, { entryCount: entries.length, entries });
     }
     if (/^\/projection\/(\d+)$/.test(path)) {
-      return json(200, { tokenId: path.split("/")[2], registerId: REGISTER_ID, entryCount: ENTRIES.length, openGap: null });
+      projectionReads += 1;
+      const result = { tokenId: path.split("/")[2], registerId: REGISTER_ID, entryCount: entries.length, openGap: null };
+      json(200, result);
+      // The first projection read is registerId validation. Mutate only after
+      // the initial entry-count read so this fixture exercises the count/entry/count race.
+      if (advanceAfterProjectionRead && projectionReads >= 2 && (!advanceOnce || !advanced)) {
+        const nextVersion = entries.length + 1;
+        entries.push(entry(nextVersion, BOB, 130 + nextVersion, 0));
+        advanced = true;
+      }
+      return;
     }
     return json(404, { error: "NOT_FOUND" });
   });
@@ -173,5 +186,39 @@ test("Oracle reports a Kit outage rather than inventing an answer", async () => 
   assert.equal(result.body.errorCode, "PROJECTION_SOURCE_UNAVAILABLE");
   assert.equal(result.body.holder, undefined);
   assert.ok(!JSON.stringify(result.body).includes(BOB));
+});
+
+test("the HTTP current-entry route retries a concurrent append and fails closed under continuous churn", async () => {
+  const onceKit = startKit({ advanceAfterProjectionRead: true, advanceOnce: true });
+  onceKit.server.listen(0);
+  await once(onceKit.server, "listening");
+  const onceApi = createApplicationProjectionApi({ projectionBinding: BINDING,
+    projectionSource: new KitProjectionSource({ baseUrl: `http://127.0.0.1:${onceKit.server.address().port}` }),
+  });
+  try {
+    const current = await onceApi.handle("GET", "/v1/oracle/projection/1/entry/current");
+    assert.equal(current.status, 200);
+    assert.equal(current.body.entry.version, "3");
+  } finally {
+    onceKit.server.close();
+    await once(onceKit.server, "close");
+  }
+
+  const kit = startKit({ advanceAfterProjectionRead: true });
+  kit.server.listen(0);
+  await once(kit.server, "listening");
+  const kitPort = kit.server.address().port;
+  const api = createApplicationProjectionApi({ projectionBinding: BINDING,
+    projectionSource: new KitProjectionSource({ baseUrl: `http://127.0.0.1:${kitPort}` }),
+  });
+  try {
+    const result = await api.handle("GET", "/v1/oracle/projection/1/entry/current");
+    assert.equal(result.status, 503);
+    assert.equal(result.body.errorCode, "PROJECTION_SOURCE_UNAVAILABLE");
+    assert.equal(result.body.entry, undefined);
+  } finally {
+    kit.server.close();
+    await once(kit.server, "close");
+  }
 });
 

@@ -1,0 +1,5 @@
+/docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md -text
+/docs/ACCEPTANCE_RWA_ORACLE_ZH.md -text
+src/adapters/kit-projection-source.js text eol=lf
+test/application-projection-regressions.test.js text eol=lf
+test/application-oracle-kit-integration.test.js -text
