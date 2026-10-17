@@ -1,5 +1,19 @@
 const HASH = /^[a-f0-9]{64}$/;
 const COMMIT = /^[a-f0-9]{40}$/;
+export const I12_NFR004_FAULT_CASES = Object.freeze([
+  "invalid-input",
+  "unauthorized-write",
+  "source-timeout",
+  "source-invalid-proof",
+  "mysql-interruption",
+  "durability-failure",
+  "outbox-pause",
+  "evidence-storage-failure",
+  "process-restart",
+  "resource-reduction",
+  "restore-tamper",
+  "clock-skew",
+]);
 const PERFORMANCE_CONTRACT = Object.freeze({
   loadProfileRef: (value) => value === "oracle-nfr004-mixed-synthetic-v1",
   requestsCompleted: (value) => value === 240000,
@@ -14,7 +28,8 @@ const PERFORMANCE_CONTRACT = Object.freeze({
   cpuFiveMinuteAveragePercent: (value) => finiteNumber(value) && value < 80,
   memoryPeakPercent: (value) => finiteNumber(value) && value < 85,
   faultInjectionPassed: (value) => value === true,
-  faultMatrixPassed: (value) => value === 12,
+  faultMatrixPassed: (value) => value === I12_NFR004_FAULT_CASES.length,
+  faultMatrix: Array.isArray,
 });
 export const I12_PERFORMANCE_FIELDS = Object.freeze(Object.keys(PERFORMANCE_CONTRACT));
 export const I12_INDEPENDENT_REVIEW_ROLES = Object.freeze(["security", "privacy", "legal", "contract", "operations"]);function base(value, type) {
@@ -23,6 +38,20 @@ export const I12_INDEPENDENT_REVIEW_ROLES = Object.freeze(["security", "privacy"
 function finiteNumber(value, { minimum = 0, integer = false } = {}) {
   return typeof value === "number" && Number.isFinite(value) && value >= minimum && (!integer || Number.isInteger(value));
 }
+function faultMatrixEvidenceValid(entries, candidateCommit) {
+  if (!Array.isArray(entries) || entries.length !== I12_NFR004_FAULT_CASES.length) return false;
+  const cases = new Set();
+  const evidenceRefs = new Set();
+  for (const entry of entries) {
+    if (!entry || !I12_NFR004_FAULT_CASES.includes(entry.caseId) || cases.has(entry.caseId)
+      || entry.status !== "PASS" || entry.candidateCommit !== candidateCommit
+      || typeof entry.evidenceRef !== "string" || !entry.evidenceRef.trim()
+      || !HASH.test(entry.evidenceSha256 ?? "") || evidenceRefs.has(entry.evidenceRef.trim())) return false;
+    cases.add(entry.caseId);
+    evidenceRefs.add(entry.evidenceRef.trim());
+  }
+  return cases.size === I12_NFR004_FAULT_CASES.length;
+}
 export function validateI12Evidence(type, value) {
   base(value, type);
   if (type === "security-scans") {
@@ -30,6 +59,7 @@ export function validateI12Evidence(type, value) {
     if ((value.unacceptedP0 ?? 1) !== 0) throw new Error("I12_SECURITY_UNACCEPTED_P0");
   } else if (type === "performance-capacity") {
     for (const [field, accepts] of Object.entries(PERFORMANCE_CONTRACT)) if (!accepts(value[field])) throw new Error(`I12_PERFORMANCE_INSUFFICIENT:${field}`);
+    if (!faultMatrixEvidenceValid(value.faultMatrix, value.candidateCommit)) throw new Error("I12_PERFORMANCE_FAULT_MATRIX_INSUFFICIENT");
   } else if (type === "72h-stability") {
     if (!finiteNumber(value.durationSeconds, { minimum: 259200 }) || value.continuous !== true || !finiteNumber(value.sampleCount, { minimum: 4320, integer: true }) || !finiteNumber(value.maxSampleIntervalSeconds) || value.maxSampleIntervalSeconds > 120 || value.secretScanPassed !== true || !finiteNumber(value.unexplainedFailures, { integer: true }) || value.unexplainedFailures !== 0) throw new Error("I12_STABILITY_INSUFFICIENT");
     const availabilityPercent = finiteNumber(value.availabilityPercent)
