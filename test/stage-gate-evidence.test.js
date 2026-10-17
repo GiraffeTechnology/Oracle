@@ -7,9 +7,13 @@ const COMMIT = "b".repeat(40);
 const base = { schemaVersion: 1, status: "PASS", artifactSha256: HASH, candidateCommit: COMMIT };
 
 test("premise evidence requires P1-P8 with dated review ownership", () => {
-  const premises = Array.from({ length: 8 }, (_, index) => ({ id: `P${index + 1}`, confirmed: true, evidenceSha256: HASH, obtainedAt: "2026-08-25T00:00:00.000Z", reviewDueAt: "2027-08-25T00:00:00.000Z", responsibleRole: index < 4 ? "legal" : "product" }));
+  const premises = Array.from({ length: 8 }, (_, index) => ({ id: `P${index + 1}`, confirmed: true, candidateCommit: COMMIT, evidenceRef: `evidence/premises/P${index + 1}#supporting-record`, evidenceSha256: HASH, obtainedAt: "2026-08-25T00:00:00.000Z", reviewDueAt: "2027-08-25T00:00:00.000Z", responsibleRole: index < 4 || index === 7 ? "legal" : "product" }));
   assert.equal(validatePremiseEvidence({ ...base, type: "premise-evidence", premises }), true);
   assert.throws(() => validatePremiseEvidence({ ...base, type: "premise-evidence", premises: premises.slice(1) }), /PREMISE_EVIDENCE_INSUFFICIENT:P1/);
+  assert.throws(() => validatePremiseEvidence({ ...base, type: "premise-evidence", premises: premises.map((item, index) => index === 0 ? { ...item, candidateCommit: "c".repeat(40) } : item) }), /PREMISE_EVIDENCE_INSUFFICIENT:P1/);
+  assert.throws(() => validatePremiseEvidence({ ...base, type: "premise-evidence", premises: premises.map((item, index) => index === 0 ? { ...item, responsibleRole: "product" } : item) }), /PREMISE_EVIDENCE_INSUFFICIENT:P1/);
+  assert.throws(() => validatePremiseEvidence({ ...base, type: "premise-evidence", premises: premises.map((item, index) => index === 0 ? { ...item, evidenceRef: premises[1].evidenceRef } : item) }), /PREMISE_EVIDENCE_REFERENCES_NOT_UNIQUE/);
+  assert.throws(() => validatePremiseEvidence({ ...base, type: "premise-evidence", premises: [...premises, premises[0]] }), /PREMISE_EVIDENCE_MATRIX_INSUFFICIENT/);
 });
 
 test("Stage F decision requires every written contract and go-no-go", () => {

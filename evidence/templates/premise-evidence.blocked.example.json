@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "type": "premise-evidence",
+  "status": "BLOCKED",
+  "artifactSha256": "<sha256-of-controlled-premise-evidence-report>",
+  "candidateCommit": "<40-character-commit-sha>",
+  "premises": [
+    {
+      "id": "P1",
+      "confirmed": false,
+      "responsibleRole": "legal",
+      "candidateCommit": "<40-character-commit-sha>",
+      "evidenceRef": "",
+      "evidenceSha256": "<sha256-of-supporting-record>",
+      "obtainedAt": "",
+      "reviewDueAt": ""
+    },
+    {
+      "id": "P2",
+      "confirmed": false,
+      "responsibleRole": "legal",
+      "candidateCommit": "<40-character-commit-sha>",
+      "evidenceRef": "",
+      "evidenceSha256": "<sha256-of-supporting-record>",
+      "obtainedAt": "",
+      "reviewDueAt": ""
+    },
+    {
+      "id": "P3",
+      "confirmed": false,
+      "responsibleRole": "legal",
+      "candidateCommit": "<40-character-commit-sha>",
+      "evidenceRef": "",
+      "evidenceSha256": "<sha256-of-supporting-record>",
+      "obtainedAt": "",
+      "reviewDueAt": ""
+    },
+    {
+      "id": "P4",
+      "confirmed": false,
+      "responsibleRole": "legal",
+      "candidateCommit": "<40-character-commit-sha>",
+      "evidenceRef": "",
+      "evidenceSha256": "<sha256-of-supporting-record>",
+      "obtainedAt": "",
+      "reviewDueAt": ""
+    },
+    {
+      "id": "P5",
+      "confirmed": false,
+      "responsibleRole": "product",
+      "candidateCommit": "<40-character-commit-sha>",
+      "evidenceRef": "",
+      "evidenceSha256": "<sha256-of-supporting-record>",
+      "obtainedAt": "",
+      "reviewDueAt": ""
+    },
+    {
+      "id": "P6",
+      "confirmed": false,
+      "responsibleRole": "product",
+      "candidateCommit": "<40-character-commit-sha>",
+      "evidenceRef": "",
+      "evidenceSha256": "<sha256-of-supporting-record>",
+      "obtainedAt": "",
+      "reviewDueAt": ""
+    },
+    {
+      "id": "P7",
+      "confirmed": false,
+      "responsibleRole": "product",
+      "candidateCommit": "<40-character-commit-sha>",
+      "evidenceRef": "",
+      "evidenceSha256": "<sha256-of-supporting-record>",
+      "obtainedAt": "",
+      "reviewDueAt": ""
+    },
+    {
+      "id": "P8",
+      "confirmed": false,
+      "responsibleRole": "legal",
+      "candidateCommit": "<40-character-commit-sha>",
+      "evidenceRef": "",
+      "evidenceSha256": "<sha256-of-supporting-record>",
+      "obtainedAt": "",
+      "reviewDueAt": ""
+    }
+  ]
+}

@@ -1,5 +1,15 @@
 const HASH = /^[a-f0-9]{64}$/;
 const COMMIT = /^[a-f0-9]{40}$/;
+const PREMISE_OWNERS = Object.freeze({
+  P1: "legal",
+  P2: "legal",
+  P3: "legal",
+  P4: "legal",
+  P5: "product",
+  P6: "product",
+  P7: "product",
+  P8: "legal",
+});
 
 function base(value, type) {
   if (!value || value.schemaVersion !== 1 || value.type !== type || value.status !== "PASS" || !COMMIT.test(value.candidateCommit ?? "") || !HASH.test(value.artifactSha256 ?? "")) {
@@ -9,14 +19,24 @@ function base(value, type) {
 
 export function validatePremiseEvidence(value) {
   base(value, "premise-evidence");
-  const premises = new Map((value.premises ?? []).map((item) => [item.id, item]));
-  for (let index = 1; index <= 8; index += 1) {
-    const id = `P${index}`;
+  const expectedIds = Object.keys(PREMISE_OWNERS);
+  if (!Array.isArray(value.premises) || value.premises.length !== expectedIds.length) throw new Error("PREMISE_EVIDENCE_MATRIX_INSUFFICIENT");
+  const premises = new Map(value.premises.map((item) => [item?.id, item]));
+  if (premises.size !== expectedIds.length || [...premises.keys()].some((id) => !expectedIds.includes(id))) throw new Error("PREMISE_EVIDENCE_MATRIX_INSUFFICIENT");
+  const evidenceRefs = new Set();
+  for (const id of expectedIds) {
     const item = premises.get(id);
-    if (!item || item.confirmed !== true || !HASH.test(item.evidenceSha256 ?? "") || !Number.isFinite(Date.parse(item.obtainedAt ?? "")) || !Number.isFinite(Date.parse(item.reviewDueAt ?? "")) || Date.parse(item.reviewDueAt) <= Date.parse(item.obtainedAt) || typeof item.responsibleRole !== "string" || !item.responsibleRole.trim()) {
+    const evidenceRef = typeof item?.evidenceRef === "string" ? item.evidenceRef.trim() : "";
+    if (!item || item.candidateCommit !== value.candidateCommit || item.confirmed !== true
+      || item.responsibleRole !== PREMISE_OWNERS[id] || !HASH.test(item.evidenceSha256 ?? "")
+      || !evidenceRef || !Number.isFinite(Date.parse(item.obtainedAt ?? ""))
+      || !Number.isFinite(Date.parse(item.reviewDueAt ?? ""))
+      || Date.parse(item.reviewDueAt) <= Date.parse(item.obtainedAt)) {
       throw new Error(`PREMISE_EVIDENCE_INSUFFICIENT:${id}`);
     }
+    evidenceRefs.add(evidenceRef);
   }
+  if (evidenceRefs.size !== expectedIds.length) throw new Error("PREMISE_EVIDENCE_REFERENCES_NOT_UNIQUE");
   return true;
 }
 
