@@ -159,7 +159,9 @@ test("CONSUMER-003 covers all nine lifecycle states and rejects illegal transiti
 test("CONSUMER-004 and CONSUMER-009 fail closed without a verified attestation", () => {
   const machine = new SyntheticConsumerStateMachine();
   assert.throws(() => machine.transition({ tokenRef: "token", to: "VERIFIED", attestation: consumerAttestation(), verify: () => false }), /CONSUMER_ATTESTATION_REQUIRED/);
+  assert.throws(() => machine.transition({ tokenRef: "token", to: "VERIFIED", attestation: consumerAttestation("unavailable"), verify: () => { throw new Error("verifier dependency unavailable"); } }), /CONSUMER_ATTESTATION_REQUIRED/);
   assert.equal(machine.current("token"), ConsumerStatus.DRAFT);
+  assert.deepEqual(machine.history("token"), [], "a verifier outage must not create a partial state transition");
   assert.throws(() => machine.transition({ tokenRef: "token", to: "TRANSFER_PENDING", attestation: consumerAttestation(), verify: accept }), /CONSUMER_TRANSITION_REJECTED/);
   machine.transition({ tokenRef: "token", to: "VERIFIED", attestation: consumerAttestation("verified"), verify: accept });
   machine.transition({ tokenRef: "token", to: "ACTIVE", attestation: consumerAttestation("active"), verify: accept });

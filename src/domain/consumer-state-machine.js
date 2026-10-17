@@ -178,9 +178,18 @@ export class SyntheticConsumerStateMachine {
 
   transition({ tokenRef, to, attestation, verify }) {
     if (!tokenRef || !Object.hasOwn(ConsumerStatus, to)) throw new Error("CONSUMER_STATE_INVALID");
-    if (!attestation || typeof verify !== "function" || verify(attestation) !== true) {
+    if (!attestation || typeof verify !== "function") {
       throw new Error("CONSUMER_ATTESTATION_REQUIRED");
     }
+    let verified = false;
+    try {
+      verified = verify(attestation) === true;
+    } catch {
+      // Dependency errors are a deterministic refusal; never leak an exception into
+      // optimistic consumer logic or mutate state when verification is unavailable.
+      throw new Error("CONSUMER_ATTESTATION_REQUIRED");
+    }
+    if (!verified) throw new Error("CONSUMER_ATTESTATION_REQUIRED");
     const from = this.current(tokenRef);
     if (!TRANSITIONS[from]?.has(to)) throw new Error(`CONSUMER_TRANSITION_REJECTED:${from}:${to}`);
     if (from === ConsumerStatus.REDEEMED) throw new Error("REDEEMED_TERMINAL");
