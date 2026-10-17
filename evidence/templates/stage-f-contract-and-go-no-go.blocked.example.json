@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "type": "stage-f-contract-and-go-no-go",
+  "status": "BLOCKED",
+  "artifactSha256": "<sha256-of-controlled-stage-f-record>",
+  "candidateCommit": "<40-character-commit-sha>",
+  "scopeDecisionAccepted": false,
+  "scopeDecisionRef": "",
+  "commercialContractSigned": false,
+  "dataContractSigned": false,
+  "contractPackageRef": "",
+  "mainnetGoNoGoWritten": false,
+  "realAssetGoNoGoWritten": false,
+  "realFundsGoNoGoWritten": false,
+  "jurisdictionGoNoGoWritten": false,
+  "releaseBlockersCleared": false,
+  "releaseManifestRef": "",
+  "signerSetRef": "",
+  "rollbackPlanRef": "",
+  "incidentResponseRef": "",
+  "operationsHandoffAccepted": false,
+  "unacceptedP0": 1,
+  "decisionEvidence": [
+    {
+      "id": "scope-decision",
+      "status": "BLOCKED",
+      "candidateCommit": "<40-character-commit-sha>",
+      "evidenceRef": "",
+      "evidenceSha256": "<sha256-of-source-artifact>"
+    },
+    {
+      "id": "commercial-contract",
+      "status": "BLOCKED",
+      "candidateCommit": "<40-character-commit-sha>",
+      "evidenceRef": "",
+      "evidenceSha256": "<sha256-of-source-artifact>"
+    },
+    {
+      "id": "data-protection-contract",
+      "status": "BLOCKED",
+      "candidateCommit": "<40-character-commit-sha>",
+      "evidenceRef": "",
+      "evidenceSha256": "<sha256-of-source-artifact>"
+    },
+    {
+      "id": "mainnet-go-no-go",
+      "status": "BLOCKED",
+      "candidateCommit": "<40-character-commit-sha>",
+      "evidenceRef": "",
+      "evidenceSha256": "<sha256-of-source-artifact>"
+    },
+    {
+      "id": "real-assets-go-no-go",
+      "status": "BLOCKED",
+      "candidateCommit": "<40-character-commit-sha>",
+      "evidenceRef": "",
+      "evidenceSha256": "<sha256-of-source-artifact>"
+    },
+    {
+      "id": "real-funds-go-no-go",
+      "status": "BLOCKED",
+      "candidateCommit": "<40-character-commit-sha>",
+      "evidenceRef": "",
+      "evidenceSha256": "<sha256-of-source-artifact>"
+    },
+    {
+      "id": "jurisdiction-go-no-go",
+      "status": "BLOCKED",
+      "candidateCommit": "<40-character-commit-sha>",
+      "evidenceRef": "",
+      "evidenceSha256": "<sha256-of-source-artifact>"
+    },
+    {
+      "id": "release-blockers",
+      "status": "BLOCKED",
+      "candidateCommit": "<40-character-commit-sha>",
+      "evidenceRef": "",
+      "evidenceSha256": "<sha256-of-source-artifact>"
+    },
+    {
+      "id": "operations-handoff",
+      "status": "BLOCKED",
+      "candidateCommit": "<40-character-commit-sha>",
+      "evidenceRef": "",
+      "evidenceSha256": "<sha256-of-source-artifact>"
+    }
+  ]
+}
