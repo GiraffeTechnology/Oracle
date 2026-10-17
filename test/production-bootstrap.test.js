@@ -558,6 +558,29 @@ test("Stage D dispute remains non-final and replay cannot reissue a certificate"
   assert.equal(assembly.runtime.auditJournal.verify(), true);
 });
 
+test("Stage D reconciliation mismatch refuses a verification snapshot without mutation", async () => {
+  const { assembly, persisted, setSourceRecord } = await productionFixture();
+  const conflictingCertificate = { ...records("asset-production").certificate, certificateHash: HASH_A };
+  setSourceRecord("authoritative-certificate", conflictingCertificate);
+
+  await assert.rejects(
+    () => assembly.controlPlane.verifyAsset({
+      actorId: "production-operator",
+      idempotencyKey: "stage-d-reconciliation-conflict",
+      evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" },
+      evidenceVersion: 1,
+    }),
+    /ASSET_EVIDENCE_BUNDLE_MISMATCH/,
+  );
+
+  assert.equal(persisted.filter(({ method }) => method === "verifyAsset").length, 0);
+  assert.equal(assembly.runtime.stateEngine.current("asset-production"), "NOT_VERIFIED");
+  assert.equal(assembly.runtime.recordStore.getAsset("asset-production"), null);
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production"), null);
+  assert.equal(assembly.runtime.auditJournal.list().length, 0);
+  assert.equal(assembly.runtime.auditJournal.verify(), true);
+});
+
 test("async alert rejection is awaited and makes production readiness fail closed", async () => {
   const { assembly } = await productionFixture({ rejectAlerts: true });
   const event = assembly.runtime.outbox.enqueue({ eventType: "test", subjectId: "asset-alert", payloadHash: HASH_A, createdAt: NOW.toISOString() });
