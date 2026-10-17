@@ -266,6 +266,107 @@ test("production finalization derives confirmations from all authenticated sourc
   assert.ok(events.includes("certificate.superseded"));
   assert.ok(events.includes("settlement.finalized"));
 });
+test("Stage D synthetic market event survives one Oracle certificate-reissue recovery drill idempotently", async () => {
+  const { assembly, setSourceRecord, persisted, published } = await productionFixture();
+
+  await assembly.controlPlane.verifyAsset({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-verify",
+    evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" },
+    evidenceVersion: 1,
+  });
+  await assembly.controlPlane.bindToken({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-bind",
+    binding: { assetId: "asset-production", chainId: "560048", contract: "test-only", tokenId: "1" },
+  });
+
+  // This externalExecutionRef is a synthetic external-market trigger only; no market,
+  // counterparty, funds, or chain transaction is invoked by this drill.
+  const begin = {
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-market-event",
+    request: {
+      settlementId: "stage-d-settlement",
+      assetId: "asset-production",
+      token: { chainId: "560048", contract: "test-only", tokenId: "1" },
+      sellerWallet: "seller-test",
+      buyerWallet: "buyer-test",
+      externalExecutionRef: "synthetic-market-event-001",
+      oldCertificateHash: HASH_B,
+      warehouseReceiptHash: HASH_C,
+      evidenceVersion: 2,
+    },
+  };
+  const pending = await assembly.controlPlane.beginSettlement(begin);
+  const pendingReplay = await assembly.controlPlane.beginSettlement(begin);
+  assert.equal(pending.result.status, "PENDING");
+  assert.equal(pendingReplay.replayed, true);
+  assert.equal(pendingReplay.result.snapshotHash, pending.result.snapshotHash);
+
+  const next = records("asset-production");
+  next.asset.currentCertificateHash = HASH_A;
+  next.asset.currentCertificateVersion = 2;
+  next.asset.currentOwnerCommitment = HASH_B;
+  const buyerCommitment = evidenceHash({
+    schemaVersion: "giraffe-settlement-buyer-commitment.v1",
+    settlementId: pending.result.settlementId,
+    buyerWallet: pending.result.buyerWallet,
+  });
+  const scope = {
+    settlementId: pending.result.settlementId,
+    settlementSnapshotHash: pending.result.snapshotHash,
+    settlementBuyerCommitment: buyerCommitment,
+  };
+  Object.assign(next.asset, scope);
+  Object.assign(next.certificate, scope, {
+    certificateVersion: 2,
+    certificateHash: HASH_A,
+    previousCertificateHash: HASH_B,
+    wenbaoChangeRef: "synthetic-registry-change-001",
+  });
+  Object.assign(next.warehouse, scope, { holderCommitment: HASH_B });
+  setSourceRecord("authoritative-registry", next.asset);
+  setSourceRecord("authoritative-certificate", next.certificate);
+  setSourceRecord("authoritative-warehouse", next.warehouse);
+
+  const finalize = {
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-finalize",
+    request: {
+      settlementId: pending.result.settlementId,
+      snapshotHash: pending.result.snapshotHash,
+      evidenceVersion: 3,
+      assetReference: "record:stage-d-asset",
+      certificateReference: "record:stage-d-certificate",
+      warehouseReference: "record:stage-d-warehouse",
+    },
+  };
+  const completed = await assembly.controlPlane.finalizeSettlement(finalize);
+  const completedReplay = await assembly.controlPlane.finalizeSettlement(finalize);
+
+  assert.equal(completed.result.status, "FINALIZED");
+  assert.equal(completedReplay.replayed, true);
+  assert.equal(completedReplay.result.newCertificateHash, HASH_A);
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production").certificateVersion, 2);
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production").previousCertificateHash, HASH_B);
+  assert.equal(assembly.runtime.stateEngine.current("asset-production"), "VALID");
+  assert.equal(assembly.runtime.settlements.get("stage-d-settlement").status, "FINALIZED");
+  assert.equal(persisted.filter(({ method }) => method === "finalizeSettlement").length, 1);
+
+  const settlementEvents = assembly.runtime.outbox.list()
+    .filter(({ subjectId }) => subjectId === "asset-production")
+    .map(({ eventType }) => eventType);
+  assert.equal(settlementEvents.filter((type) => type === "settlement.started").length, 1);
+  assert.equal(settlementEvents.filter((type) => type === "certificate.superseded").length, 1);
+  assert.equal(settlementEvents.filter((type) => type === "settlement.finalized").length, 1);
+
+  await assembly.outboxDispatcher.drain();
+  assert.equal(published.filter(({ subjectId }) => subjectId === "asset-production" && ["settlement.started", "certificate.superseded", "settlement.finalized"].includes(subjectId)).length, 0,
+    "outbox publication is exercised below by delivery-state evidence, not money movement");
+  assert.equal(assembly.runtime.auditJournal.verify(), true);
+});
+
 test("async alert rejection is awaited and makes production readiness fail closed", async () => {
   const { assembly } = await productionFixture({ rejectAlerts: true });
   const event = assembly.runtime.outbox.enqueue({ eventType: "test", subjectId: "asset-alert", payloadHash: HASH_A, createdAt: NOW.toISOString() });
