@@ -75,14 +75,22 @@ export function validateI12Evidence(type, value) {
   } else if (type === "reproducible-build") {
     if (!HASH.test(value.buildOneSha256 ?? "") || value.buildOneSha256 !== value.buildTwoSha256 || value.sbomVerified !== true || value.artifactSignatureVerified !== true) throw new Error("I12_REPRODUCIBLE_BUILD_INSUFFICIENT");
   } else if (type === "independent-reviews") {
-    const reviews = new Map((value.reviews ?? []).map((review) => [review.role, review]));
+    if (!Array.isArray(value.reviews) || value.reviews.length !== I12_INDEPENDENT_REVIEW_ROLES.length) throw new Error("I12_REVIEW_MATRIX_INSUFFICIENT");
+    const reviews = new Map(value.reviews.map((review) => [review?.role, review]));
+    if (reviews.size !== I12_INDEPENDENT_REVIEW_ROLES.length || [...reviews.keys()].some((role) => !I12_INDEPENDENT_REVIEW_ROLES.includes(role))) throw new Error("I12_REVIEW_MATRIX_INSUFFICIENT");
     const reviewerRefs = new Set();
+    const evidenceRefs = new Set();
     for (const role of I12_INDEPENDENT_REVIEW_ROLES) {
       const review = reviews.get(role);
-      if (!review || review.accepted !== true || typeof review.reviewerRef !== "string" || !review.reviewerRef.trim() || !HASH.test(review.evidenceSha256 ?? "")) throw new Error(`I12_REVIEW_INSUFFICIENT:${role}`);
+      const evidenceRef = typeof review?.evidenceRef === "string" ? review.evidenceRef.trim() : "";
+      if (!review || review.accepted !== true || review.candidateCommit !== value.candidateCommit
+        || typeof review.reviewerRef !== "string" || !review.reviewerRef.trim()
+        || !evidenceRef || !HASH.test(review.evidenceSha256 ?? "")) throw new Error(`I12_REVIEW_INSUFFICIENT:${role}`);
       reviewerRefs.add(review.reviewerRef.trim());
+      evidenceRefs.add(evidenceRef);
     }
-    if (reviewerRefs.size !== 5) throw new Error("I12_REVIEWS_NOT_INDEPENDENT");
+    if (reviewerRefs.size !== I12_INDEPENDENT_REVIEW_ROLES.length) throw new Error("I12_REVIEWS_NOT_INDEPENDENT");
+    if (evidenceRefs.size !== I12_INDEPENDENT_REVIEW_ROLES.length) throw new Error("I12_REVIEW_EVIDENCE_NOT_INDEPENDENT");
     if ((value.unacceptedP0 ?? 1) !== 0) throw new Error("I12_UNACCEPTED_P0");
   } else throw new Error("I12_EVIDENCE_TYPE_UNKNOWN");
   return true;

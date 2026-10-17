@@ -104,31 +104,31 @@
           "role": "security",
           "accepted": false,
           "reviewerRef": "",
-          "evidenceSha256": "<review-sha256>"
+          "candidateCommit": "<40-character-commit-sha>",\n          "evidenceRef": "<unique-protected-review-reference>",\n          "evidenceSha256": "<review-sha256>"
         },
         {
           "role": "privacy",
           "accepted": false,
           "reviewerRef": "",
-          "evidenceSha256": "<review-sha256>"
+          "candidateCommit": "<40-character-commit-sha>",\n          "evidenceRef": "<unique-protected-review-reference>",\n          "evidenceSha256": "<review-sha256>"
         },
         {
           "role": "legal",
           "accepted": false,
           "reviewerRef": "",
-          "evidenceSha256": "<review-sha256>"
+          "candidateCommit": "<40-character-commit-sha>",\n          "evidenceRef": "<unique-protected-review-reference>",\n          "evidenceSha256": "<review-sha256>"
         },
         {
           "role": "contract",
           "accepted": false,
           "reviewerRef": "",
-          "evidenceSha256": "<review-sha256>"
+          "candidateCommit": "<40-character-commit-sha>",\n          "evidenceRef": "<unique-protected-review-reference>",\n          "evidenceSha256": "<review-sha256>"
         },
         {
           "role": "operations",
           "accepted": false,
           "reviewerRef": "",
-          "evidenceSha256": "<review-sha256>"
+          "candidateCommit": "<40-character-commit-sha>",\n          "evidenceRef": "<unique-protected-review-reference>",\n          "evidenceSha256": "<review-sha256>"
         }
       ],
       "unacceptedP0": 1
