@@ -264,6 +264,54 @@ test("public verifier ignores caller-supplied time overrides", async () => {
   }
 });
 
+test("public attestation verification accepts current signatures, rejects revoked ones, and is read-only", async () => {
+  const now = new Date("2026-10-18T00:00:00.000Z");
+  const runtime = createSyntheticRuntime({ clock: () => now });
+  const subject = { assetId: "asset-public-verifier", chainId: "test-chain", contract: "test-contract", tokenId: "7", purpose: "transfer" };
+  const attestation = runtime.attestations.issue({
+    subject,
+    factType: "STATUS",
+    factValue: "VALID",
+    sourceAuthority: "synthetic-registry",
+    sourceRecordHash: "a".repeat(64),
+    validForSeconds: 300,
+    nonce: "public-verifier-read-only",
+  });
+  const server = createApp({ config: loadConfig({}), sourceRegistry: runtime.sourceRegistry, runtime });
+  await new Promise((resolve) => server.listen(0, "localhost", resolve));
+  try {
+    const url = `http://localhost:${server.address().port}/v1/rwa/attestations/verify`;
+    const verify = async () => fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ attestation, expectedSubject: subject }),
+    });
+    const attestationStateBefore = JSON.stringify(runtime.attestations.exportState());
+    const revocationStateBefore = JSON.stringify(runtime.revocations.exportState());
+
+    const validResponse = await verify();
+    assert.equal(validResponse.status, 200);
+    assert.deepEqual(await validResponse.json(), { valid: true, errorCode: null });
+    assert.equal(JSON.stringify(runtime.attestations.exportState()), attestationStateBefore);
+    assert.equal(JSON.stringify(runtime.revocations.exportState()), revocationStateBefore);
+
+    runtime.revocations.revoke({
+      attestationId: attestation.envelope.attestationId,
+      reasonHash: "b".repeat(64),
+      revokedAt: now.toISOString(),
+      authorityId: "synthetic-test-authority",
+    });
+    const revocationStateBeforeVerify = JSON.stringify(runtime.revocations.exportState());
+    const revokedResponse = await verify();
+    assert.equal(revokedResponse.status, 200);
+    assert.deepEqual(await revokedResponse.json(), { valid: false, errorCode: "REVOKED" });
+    assert.equal(JSON.stringify(runtime.attestations.exportState()), attestationStateBefore);
+    assert.equal(JSON.stringify(runtime.revocations.exportState()), revocationStateBeforeVerify);
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
 test("public verification endpoint enforces the HTTP rate limit", async () => {
   const runtime = createSyntheticRuntime();
   const server = createApp({ config: loadConfig({}), sourceRegistry: runtime.sourceRegistry, runtime, verificationRateLimiter: new FixedWindowRateLimiter({ limit: 1, windowMs: 60000 }) });
