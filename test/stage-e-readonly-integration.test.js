@@ -6,7 +6,7 @@ import { createSyntheticRuntime } from "../src/oracle-runtime.js";
 const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
 const HASH_C = "c".repeat(64);
-const FORBIDDEN_PUBLIC_KEYS = /(?:^|_)(?:kyc|aml|sanctions?|suitability|jurisdictioneligibility|licenseeligibility|valuation|marketprice|collateralratio|investmentadvice|privatekey|identitymapping)(?:$|_)/i;
+const FORBIDDEN_PUBLIC_KEYS = /(?:^|_)(?:kyc|aml|sanctions?|suitability|jurisdictioneligibility|licenseeligibility|valuation|marketprice|collateralratio|investmentadvice|privatekey|identitymapping|currentownercommitment|holdercommitment|warehouseid|sellerwallet|buyerwallet)(?:$|_)/i;
 
 test("Stage E third-party asset reads are factual and cannot query prohibited conclusions or write", async () => {
   const runtime = createSyntheticRuntime();
