@@ -26,11 +26,15 @@ test("I12 stability enforces 99.9 percent availability and derives it for the fr
   assert.throws(() => validateI12Evidence("72h-stability", { ...base, availabilityPercent: 99.8 }), /I12_AVAILABILITY_INSUFFICIENT/);
 });
 test("I12 evidence validator requires five independent production-candidate reviews", () => {
-  const reviews = ["security", "privacy", "legal", "contract", "operations"].map((role) => ({ role, accepted: true, reviewerRef: `${role}-reviewer`, evidenceSha256: HASH }));
+  const reviews = I12_INDEPENDENT_REVIEW_ROLES.map((role) => ({ role, accepted: true, reviewerRef: `${role}-reviewer`, candidateCommit: COMMIT, evidenceRef: `evidence/stage-f/${role}-review.json`, evidenceSha256: HASH }));
   const base = { schemaVersion: 1, type: "independent-reviews", status: "PASS", artifactSha256: HASH, candidateCommit: COMMIT, reviews, unacceptedP0: 0 };
   assert.equal(validateI12Evidence("independent-reviews", base), true);
   assert.throws(() => validateI12Evidence("independent-reviews", { ...base, reviews: reviews.slice(0, 2) }), /I12_REVIEW_INSUFFICIENT:legal/);
   assert.throws(() => validateI12Evidence("independent-reviews", { ...base, reviews: reviews.map((review) => ({ ...review, reviewerRef: "same-reviewer" })) }), /I12_REVIEWS_NOT_INDEPENDENT/);
+  assert.throws(() => validateI12Evidence("independent-reviews", { ...base, reviews: reviews.map((review, index) => index === 0 ? { ...review, candidateCommit: "c".repeat(40) } : review) }), /I12_REVIEW_INSUFFICIENT:security/);
+  assert.throws(() => validateI12Evidence("independent-reviews", { ...base, reviews: reviews.map((review, index) => index === 0 ? { ...review, evidenceRef: "" } : review) }), /I12_REVIEW_INSUFFICIENT:security/);
+  assert.throws(() => validateI12Evidence("independent-reviews", { ...base, reviews: reviews.map((review, index) => index === 0 ? { ...review, evidenceRef: reviews[1].evidenceRef } : review) }), /I12_REVIEW_EVIDENCE_NOT_INDEPENDENT/);
+  assert.throws(() => validateI12Evidence("independent-reviews", { ...base, reviews: [...reviews, reviews[0]] }), /I12_REVIEW_MATRIX_INSUFFICIENT/);
 });
 test("I12 evidence validator requires every security gate and reproducible builds", () => {
   const gates = Object.fromEntries(["sast", "dependency", "secret", "container", "iac", "api", "penetration"].map((gate) => [gate, "PASS"]));
