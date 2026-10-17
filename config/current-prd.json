@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "product": "Oracle",
+  "version": "v0.4",
+  "path": "docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md",
+  "sha256": "1d285d23ddbc0c36e57cb1d3b34467f5f57985a3a8e7f953808d3011c9f58631",
+  "sourceCommit": "27217e65a6e71baaeff5d7c53a2c8de126e5b69d",
+  "sourceBlob": "77fdb78685f4d6404609b7b546918384e8b339c3",
+  "acceptanceConfig": "config/prd-v0.4-acceptance.json",
+  "requirements": 24,
+  "execution": "Complete applicable PRD in bounded stages; proceed after stage PR without waiting for CI; established review/CI/merge requirements remain",
+  "retiredVersions": [
+    "v0.2",
+    "v0.3",
+    "L2/L3 combined PRD"
+  ],
+  "retiredPolicy": [
+    "Treating a local v0.3 copy as current",
+    "Stopping the entire authorized product at one fixed stage"
+  ],
+  "noScopeExpansion": true
+}
