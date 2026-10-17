@@ -581,6 +581,70 @@ test("Stage D reconciliation mismatch refuses a verification snapshot without mu
   assert.equal(assembly.runtime.auditJournal.verify(), true);
 });
 
+test("Stage D certificate conflict leaves pending settlement and original certificate unchanged", async () => {
+  const { assembly, persisted, setSourceRecord } = await productionFixture();
+  await assembly.controlPlane.verifyAsset({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-conflict-verify",
+    evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" },
+    evidenceVersion: 1,
+  });
+  await assembly.controlPlane.bindToken({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-conflict-bind",
+    binding: { assetId: "asset-production", chainId: "560048", contract: "test-only", tokenId: "1" },
+  });
+  const pending = await assembly.controlPlane.beginSettlement({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-conflict-begin",
+    request: {
+      settlementId: "stage-d-conflict-settlement",
+      assetId: "asset-production",
+      token: { chainId: "560048", contract: "test-only", tokenId: "1" },
+      sellerWallet: "seller-test",
+      buyerWallet: "buyer-test",
+      externalExecutionRef: "synthetic-certificate-conflict-001",
+      oldCertificateHash: HASH_B,
+      warehouseReceiptHash: HASH_C,
+      evidenceVersion: 2,
+    },
+  });
+  const next = records("asset-production");
+  next.asset.currentCertificateHash = HASH_A;
+  next.asset.currentCertificateVersion = 2;
+  next.asset.currentOwnerCommitment = HASH_B;
+  const buyerCommitment = evidenceHash({
+    schemaVersion: "giraffe-settlement-buyer-commitment.v1",
+    settlementId: pending.result.settlementId,
+    buyerWallet: pending.result.buyerWallet,
+  });
+  const scope = { settlementId: pending.result.settlementId, settlementSnapshotHash: pending.result.snapshotHash, settlementBuyerCommitment: buyerCommitment };
+  Object.assign(next.asset, scope);
+  Object.assign(next.certificate, scope, { certificateVersion: 2, certificateHash: HASH_A, previousCertificateHash: HASH_B, wenbaoChangeRef: "synthetic-registry-change-conflict" });
+  Object.assign(next.warehouse, scope, { holderCommitment: HASH_B });
+  next.asset.currentCertificateHash = HASH_C;
+  setSourceRecord("authoritative-registry", next.asset);
+  setSourceRecord("authoritative-certificate", next.certificate);
+  setSourceRecord("authoritative-warehouse", next.warehouse);
+
+  await assert.rejects(
+    () => assembly.controlPlane.finalizeSettlement({
+      actorId: "production-operator",
+      idempotencyKey: "stage-d-conflict-finalize",
+      request: { settlementId: pending.result.settlementId, snapshotHash: pending.result.snapshotHash, evidenceVersion: 3, assetReference: "record:conflict-asset", certificateReference: "record:conflict-certificate", warehouseReference: "record:conflict-warehouse" },
+    }),
+    /ASSET_EVIDENCE_BUNDLE_MISMATCH/,
+  );
+
+  assert.equal(assembly.runtime.settlements.get("stage-d-conflict-settlement").status, "PENDING");
+  assert.equal(assembly.runtime.stateEngine.current("asset-production"), "TRANSFER_PENDING");
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production").certificateHash, HASH_B);
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production").certificateVersion, 1);
+  assert.equal(persisted.filter(({ method }) => method === "finalizeSettlement").length, 0);
+  assert.equal(assembly.runtime.auditJournal.list().filter(({ type }) => type === "settlement.finalized").length, 0);
+  assert.equal(assembly.runtime.auditJournal.verify(), true);
+});
+
 test("async alert rejection is awaited and makes production readiness fail closed", async () => {
   const { assembly } = await productionFixture({ rejectAlerts: true });
   const event = assembly.runtime.outbox.enqueue({ eventType: "test", subjectId: "asset-alert", payloadHash: HASH_A, createdAt: NOW.toISOString() });
