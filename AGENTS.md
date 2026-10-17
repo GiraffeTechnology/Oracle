@@ -2,6 +2,16 @@
 
 Read this file before changing the repository.
 
+## Current complete-product execution (2026-10-17)
+
+Read [config/current-prd.json](config/current-prd.json), then the complete pinned v0.4 [PRD](docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md) and its v0.4 acceptance configuration on every start, resume, intake and handoff. The current public PRD is already English despite its stable historical filename. Do not replace it with a local v0.3 translation or revive an obsolete combined L2/L3 draft. The source blob is `77fdb78685f4d6404609b7b546918384e8b339c3`; full UTF-8 SHA256 is `1d285d23ddbc0c36e57cb1d3b34467f5f57985a3a8e7f953808d3011c9f58631`.
+
+Original Oracle implements the complete applicable PRD and integration in bounded stages. After opening a stage PR, continue the next independent authorized stage without waiting for its CI. Existing independent review, required CI and merge controls still apply. A future-stage dependency blocks only actions that actually depend on it; do not add documentation-first, whole-project-ready or repeated authorization gates. Keep completed unchanged evidence and do not rerun it without a changed input or a concrete concern.
+
+Control2 retains overall coordination, dependency removal, integrated full delivery and owner reporting. Independent review/established CI and merge remain with the existing reviewer; this does not transfer Oracle implementation to the coordinator or reviewer. Preserve all still-valid historical authorizations and original environment, source-authority and secret-custody boundaries. Record exact refused actions and raw errors; never bypass a tool/system refusal or expand a local failure into a global stop.
+
+Full delivery requires every applicable requirement and stage, interface integration, actual runtime and acceptance evidence bound to exact source commit, artifact hash, served identity and real scenario results. Where applicable, include transaction/receipt, authoritative state and application readback. Source, a package, synthetic tests or CI alone are not complete delivery. Retain audit history after delivery. ERC-8415 remains the normative protocol authority; this execution update does not create protocol semantics or production permission.
+
 ## 1. Normative authority
 
 This repository is an implementation of **ERC-8415: Asynchronous Register Projection for NFTs**.
@@ -261,7 +271,7 @@ The objective is convergence: implement ERC-8415 faithfully, realize the necessa
 
 ## Stage-Based Delivery Rule
 
-Agents must work on the current bounded stage only.
+Implement the complete authorized PRD through bounded stages; a stage is an execution unit, not a permanent stop after its PR.
 
 ### Completed slice
 
@@ -298,7 +308,7 @@ Agents MUST:
 
 - preserve existing code and completed projection behavior;
 - preserve historical evidence;
-- implement only the separately authorized bounded stage;
+- implement each applicable stage within the complete authorized PRD, then continue the next independent stage;
 - test and provide commit-bound evidence;
 - freeze completed stages.
 
