@@ -51,6 +51,23 @@ export function validateStageFDecision(value) {
   if (value.operationsHandoffAccepted !== true || (value.unacceptedP0 ?? 1) !== 0) {
     throw new Error("STAGE_F_DECISION_INSUFFICIENT:references");
   }
+  const requiredEvidence = [
+    "scope-decision", "commercial-contract", "data-protection-contract", "mainnet-go-no-go",
+    "real-assets-go-no-go", "real-funds-go-no-go", "jurisdiction-go-no-go",
+    "release-blockers", "operations-handoff",
+  ];
+  if (!Array.isArray(value.decisionEvidence) || value.decisionEvidence.length !== requiredEvidence.length) throw new Error("STAGE_F_DECISION_EVIDENCE_INSUFFICIENT");
+  const evidence = new Map(value.decisionEvidence.map((item) => [item?.id, item]));
+  if (evidence.size !== requiredEvidence.length || [...evidence.keys()].some((id) => !requiredEvidence.includes(id))) throw new Error("STAGE_F_DECISION_EVIDENCE_INSUFFICIENT");
+  const references = new Set();
+  for (const id of requiredEvidence) {
+    const item = evidence.get(id);
+    const evidenceRef = typeof item?.evidenceRef === "string" ? item.evidenceRef.trim() : "";
+    if (!item || item.status !== "PASS" || item.candidateCommit !== value.candidateCommit
+      || !evidenceRef || !HASH.test(item.evidenceSha256 ?? "")) throw new Error(`STAGE_F_DECISION_EVIDENCE_INSUFFICIENT:${id}`);
+    references.add(evidenceRef);
+  }
+  if (references.size !== requiredEvidence.length) throw new Error("STAGE_F_DECISION_EVIDENCE_NOT_UNIQUE");
   return true;
 }
 
