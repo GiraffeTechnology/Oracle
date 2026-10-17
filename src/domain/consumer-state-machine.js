@@ -59,6 +59,7 @@ const LIVE_STATUSES = new Set([
 export class SyntheticConsumerStateMachine {
   #state = new Map();
   #history = [];
+  #consumedAttestationIds = new Set();
   /** tokenRef -> { openedAt } while a registry change is in flight, absent once closed. */
   #gaps = new Map();
   /** tokenRef -> [{ effectiveAt, holder }], append-only, effectiveAt strictly increasing. */
@@ -178,15 +179,28 @@ export class SyntheticConsumerStateMachine {
 
   transition({ tokenRef, to, attestation, verify }) {
     if (!tokenRef || !Object.hasOwn(ConsumerStatus, to)) throw new Error("CONSUMER_STATE_INVALID");
-    if (!attestation || typeof verify !== "function" || verify(attestation) !== true) {
+    if (!attestation || typeof attestation.attestationId !== "string" || attestation.attestationId.length === 0 || typeof verify !== "function") {
       throw new Error("CONSUMER_ATTESTATION_REQUIRED");
     }
+    let verified = false;
+    try {
+      verified = verify(attestation) === true;
+    } catch {
+      // Dependency errors are a deterministic refusal; never leak an exception into
+      // optimistic consumer logic or mutate state when verification is unavailable.
+      throw new Error("CONSUMER_ATTESTATION_REQUIRED");
+    }
+    if (!verified) throw new Error("CONSUMER_ATTESTATION_REQUIRED");
     const from = this.current(tokenRef);
     if (!TRANSITIONS[from]?.has(to)) throw new Error(`CONSUMER_TRANSITION_REJECTED:${from}:${to}`);
     if (from === ConsumerStatus.REDEEMED) throw new Error("REDEEMED_TERMINAL");
+    if (this.#consumedAttestationIds.has(attestation.attestationId)) {
+      throw new Error("CONSUMER_ATTESTATION_REPLAYED");
+    }
     const entry = Object.freeze({ tokenRef, from, to, attestationId: attestation.attestationId });
     this.#state.set(tokenRef, to);
     this.#history.push(entry);
+    this.#consumedAttestationIds.add(attestation.attestationId);
     return entry;
   }
 

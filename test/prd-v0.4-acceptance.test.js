@@ -159,7 +159,9 @@ test("CONSUMER-003 covers all nine lifecycle states and rejects illegal transiti
 test("CONSUMER-004 and CONSUMER-009 fail closed without a verified attestation", () => {
   const machine = new SyntheticConsumerStateMachine();
   assert.throws(() => machine.transition({ tokenRef: "token", to: "VERIFIED", attestation: consumerAttestation(), verify: () => false }), /CONSUMER_ATTESTATION_REQUIRED/);
+  assert.throws(() => machine.transition({ tokenRef: "token", to: "VERIFIED", attestation: consumerAttestation("unavailable"), verify: () => { throw new Error("verifier dependency unavailable"); } }), /CONSUMER_ATTESTATION_REQUIRED/);
   assert.equal(machine.current("token"), ConsumerStatus.DRAFT);
+  assert.deepEqual(machine.history("token"), [], "a verifier outage must not create a partial state transition");
   assert.throws(() => machine.transition({ tokenRef: "token", to: "TRANSFER_PENDING", attestation: consumerAttestation(), verify: accept }), /CONSUMER_TRANSITION_REJECTED/);
   machine.transition({ tokenRef: "token", to: "VERIFIED", attestation: consumerAttestation("verified"), verify: accept });
   machine.transition({ tokenRef: "token", to: "ACTIVE", attestation: consumerAttestation("active"), verify: accept });
@@ -174,6 +176,18 @@ test("CONSUMER-004 and CONSUMER-009 fail closed without a verified attestation",
       new RegExp(`CONSUMER_PERISHABLE_GAP_OPEN:${operation}`),
     );
   }
+});
+
+test("CONSUMER-009 rejects replayed attestation IDs without mutating the consumer", () => {
+  const machine = new SyntheticConsumerStateMachine();
+  machine.transition({ tokenRef: "replay", to: "VERIFIED", attestation: consumerAttestation("single-use"), verify: accept });
+  const history = machine.history("replay");
+  assert.throws(
+    () => machine.transition({ tokenRef: "replay", to: "ACTIVE", attestation: consumerAttestation("single-use"), verify: accept }),
+    /CONSUMER_ATTESTATION_REPLAYED/,
+  );
+  assert.equal(machine.current("replay"), ConsumerStatus.VERIFIED);
+  assert.deepEqual(machine.history("replay"), history);
 });
 
 /**
@@ -276,6 +290,32 @@ test("CONSUMER-007 redemption requires a final instant with no open gap", () => 
     /CONSUMER_PERISHABLE_GAP_OPEN:redeem/,
   );
   assert.equal(machine.assertOperationAllowed("t7", "transfer"), true, "refusing the exercise never restricts transfer");
+});
+
+test("CONSUMER-007 stale input cannot reopen a redeemed token or restore its redemption right", () => {
+  const machine = new SyntheticConsumerStateMachine();
+  machine.transition({ tokenRef: "t7-terminal", to: "VERIFIED", attestation: consumerAttestation("terminal-verified"), verify: accept });
+  machine.transition({ tokenRef: "t7-terminal", to: "ACTIVE", attestation: consumerAttestation("terminal-active"), verify: accept });
+  machine.closeGap("t7-terminal", { effectiveAt: 10, holder: "wallet-a" });
+  machine.closeGap("t7-terminal", { effectiveAt: 20, holder: "wallet-b" });
+  assert.equal(machine.assertOperationAllowed("t7-terminal", "redeem", { instant: 10, exerciser: "wallet-a" }), true);
+  machine.transition({ tokenRef: "t7-terminal", to: "REDEEMED", attestation: consumerAttestation("delivered"), verify: accept });
+
+  const terminalHistory = machine.history("t7-terminal");
+  assert.throws(
+    () => machine.transition({ tokenRef: "t7-terminal", to: "ACTIVE", attestation: consumerAttestation("stale-active"), verify: accept }),
+    /CONSUMER_TRANSITION_REJECTED:REDEEMED:ACTIVE/,
+  );
+  assert.equal(machine.current("t7-terminal"), ConsumerStatus.REDEEMED);
+  assert.deepEqual(machine.history("t7-terminal"), terminalHistory);
+  assert.throws(
+    () => machine.assertOperationAllowed("t7-terminal", "redeem", { instant: 10, exerciser: "wallet-a" }),
+    /CONSUMER_OPERATION_BLOCKED:REDEEMED:redeem/,
+  );
+  assert.throws(
+    () => machine.assertOperationAllowed("t7-terminal", "transfer"),
+    /CONSUMER_OPERATION_BLOCKED:REDEEMED:transfer/,
+  );
 });
 
 test("ORACLE-011 renders all four settlement presentation states without implying completed title", () => {
