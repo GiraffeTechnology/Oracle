@@ -32,7 +32,7 @@ function records(assetId) {
   };
 }
 
-async function productionFixture({ failPersistence = false, initialSnapshot = null, persistenceGate = null, omitSignerPolicy = false, rejectAlerts = false, rejectAlertCodes = [], rejectDeadLetterSubjects = [], externalWritesEnabled = true } = {}) {
+async function productionFixture({ failPersistence = false, initialSnapshot = null, persistenceGate = null, omitSignerPolicy = false, rejectAlerts = false, rejectAlertCodes = [], rejectDeadLetterSubjects = [], externalWritesEnabled = true, clock = () => NOW } = {}) {
   const [l2Profile, l3Profile] = await Promise.all([loadL2DeploymentProfile("config/l2.production.json"), loadProtocolProfile("config/l3.protocol.wd-0.1.1.json")]);
   const evidence = records("asset-production");
   const sourceById = new Map(l2Profile.sources.map((source) => [source.sourceId, source]));
@@ -93,7 +93,7 @@ async function productionFixture({ failPersistence = false, initialSnapshot = nu
   const assembly = await assembleProductionApplication({
     config: { environment: "production", externalWritesEnabled }, l2Profile, l3Profile, resolver,
     settlementConfiguration: { profileId: "giraffe-settlement/production-v1", businessCalendarRef: "wenbao-production-v1", targetBusinessDays: 3, timeZone: "Asia/Shanghai", holidays: [] },
-    clock: () => NOW,
+    clock,
   });
   await assembly.authenticateAdmin({ headers: {} });
   return { assembly, persisted, published, deadLetters, deliveryUpdates, alerts, persistStarted, getSourceFetches: () => sourceFetches, setSourceRecord(sourceId, record) { recordBySource[sourceId] = record; }, setSourceUnavailable(sourceId, unavailable = true) { if (unavailable) unavailableSources.add(sourceId); else unavailableSources.delete(sourceId); }, setRejectAlerts(value) { alertState.reject = value === true; }, setRejectAlertCodes(codes) { alertState.rejectCodes = new Set(codes); }, setAdminIdentity(value) { adminIdentity = value; }, failAuthentication() { authenticationFails = true; }, getCommandReads: () => commandReads, setCommand(key, value) { commands.set(key, value); }, failCommandRead() { commandReadFails = true; } };
@@ -452,6 +452,61 @@ test("Stage D source interruption fails settlement closed and recovers with the 
   assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production").certificateVersion, 2);
   assert.equal(assembly.runtime.stateEngine.current("asset-production"), "VALID");
   assert.equal(persisted.filter(({ method }) => method === "finalizeSettlement").length, 1);
+  assert.equal(assembly.runtime.auditJournal.verify(), true);
+});
+
+test("Stage D timeout stays non-final and timeout replay cannot reissue a certificate", async () => {
+  let now = NOW;
+  const { assembly, persisted } = await productionFixture({ clock: () => now });
+  await assembly.controlPlane.verifyAsset({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-timeout-verify",
+    evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" },
+    evidenceVersion: 1,
+  });
+  await assembly.controlPlane.bindToken({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-timeout-bind",
+    binding: { assetId: "asset-production", chainId: "560048", contract: "test-only", tokenId: "1" },
+  });
+
+  const begin = {
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-timeout-begin",
+    request: {
+      settlementId: "stage-d-timeout-settlement",
+      assetId: "asset-production",
+      token: { chainId: "560048", contract: "test-only", tokenId: "1" },
+      sellerWallet: "seller-test",
+      buyerWallet: "buyer-test",
+      externalExecutionRef: "synthetic-timeout-trigger-001",
+      oldCertificateHash: HASH_B,
+      warehouseReceiptHash: HASH_C,
+      evidenceVersion: 2,
+    },
+  };
+  const pending = await assembly.controlPlane.beginSettlement(begin);
+  assert.equal(pending.result.status, "PENDING");
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production").certificateVersion, 1);
+
+  now = new Date(new Date(pending.result.deadlineAt).getTime() + 1);
+  const timeout = {
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-timeout-command",
+    request: { settlementId: pending.result.settlementId, reasonHash: HASH_A, evidenceVersion: 3 },
+  };
+  const timedOut = await assembly.controlPlane.timeoutSettlement(timeout);
+  const replay = await assembly.controlPlane.timeoutSettlement(timeout);
+
+  assert.equal(timedOut.result.status, "TIMED_OUT");
+  assert.equal(replay.replayed, true);
+  assert.equal(replay.result.status, "TIMED_OUT");
+  assert.equal(assembly.runtime.settlements.get("stage-d-timeout-settlement").status, "TIMED_OUT");
+  assert.equal(assembly.runtime.stateEngine.current("asset-production"), "REVIEW_REQUIRED");
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production").certificateHash, HASH_B);
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production").certificateVersion, 1);
+  assert.equal(persisted.filter(({ method }) => method === "timeoutSettlement").length, 1);
+  assert.equal(assembly.runtime.auditJournal.list().filter(({ type }) => type === "settlement.timed-out").length, 1);
   assert.equal(assembly.runtime.auditJournal.verify(), true);
 });
 
