@@ -67,6 +67,12 @@ if (requestsCompleted !== profile.measuredRequests || requestsExpected !== profi
   || observation.unexpectedFailureRatePercent !== (requestsCompleted === 0 ? null : unexpectedFailures / requestsCompleted * 100)
   || observation.application5xx !== application5xx) fail("NFR004_AGGREGATE_OBSERVATION_MISMATCH");
 
+const expectedMemoryBytes = profile.resources.memoryMiB * 1024 * 1024;
+if (observation.resources?.cpuQuota !== profile.resources.cpuCount || observation.resources?.memoryLimitBytes !== expectedMemoryBytes
+  || observation.resources?.pidsMaximum !== profile.resources.pidsMaximum) fail("NFR004_RESOURCE_BINDING_INVALID");
+if (!Number.isFinite(observation.cpuFiveMinuteAveragePercent) || !Number.isInteger(observation.cpuFiveMinuteWindowCount)
+  || observation.cpuFiveMinuteWindowCount < 1 || !Number.isFinite(observation.memoryPeakPercent)) fail("NFR004_RESOURCE_OBSERVATION_MISSING");
+
 const observationSha256 = createHash("sha256").update(raw).digest("hex");
 if (!HASH.test(observationSha256)) fail("NFR004_OBSERVATION_DIGEST_INVALID");
 const verification = {
@@ -75,7 +81,7 @@ const verification = {
   status: "STRUCTURALLY_VERIFIED_NOT_ACCEPTANCE",
   candidateCommit,
   profileId: profile.profileId,
-  observationFile: path.relative(process.cwd(), observationPath).replaceAll("\\\\", "/"),
+  observationFile: path.relative(process.cwd(), observationPath).replaceAll("\\", "/"),
   observationSha256,
   requestsExpected,
   requestsCompleted,
@@ -87,5 +93,5 @@ const verification = {
 };
 const outputPath = path.resolve("evidence", "raw", `nfr004-capacity-observation-verification-${candidateCommit}.json`);
 await mkdir(path.dirname(outputPath), { recursive: true });
-await writeFile(outputPath, `${JSON.stringify(verification, null, 2)}\\n`, { flag: "wx", mode: 0o600 });
-process.stdout.write(`Structural observation verification recorded (not acceptance): ${outputPath}\\nSHA-256: ${observationSha256}\\n`);
+await writeFile(outputPath, `${JSON.stringify(verification, null, 2)}\n`, { flag: "wx", mode: 0o600 });
+process.stdout.write(`Structural observation verification recorded (not acceptance): ${outputPath}\nSHA-256: ${observationSha256}\n`);
