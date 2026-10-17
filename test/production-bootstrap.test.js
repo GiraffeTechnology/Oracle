@@ -362,8 +362,9 @@ test("Stage D synthetic market event survives one Oracle certificate-reissue rec
   assert.equal(settlementEvents.filter((type) => type === "settlement.finalized").length, 1);
 
   await assembly.outboxDispatcher.drain();
-  assert.equal(published.filter(({ subjectId }) => subjectId === "asset-production" && ["settlement.started", "certificate.superseded", "settlement.finalized"].includes(subjectId)).length, 0,
-    "outbox publication is exercised below by delivery-state evidence, not money movement");
+  assert.equal(published.filter(({ subjectId, eventType }) =>
+    subjectId === "asset-production" && ["settlement.started", "certificate.superseded", "settlement.finalized"].includes(eventType),
+  ).length, 3, "each lifecycle event is published exactly once");
   assert.equal(assembly.runtime.auditJournal.verify(), true);
 });
 
