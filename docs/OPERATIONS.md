@@ -2,6 +2,19 @@
 
 The normative synthetic NFR-004 load and fault profile is `config/nfr-004-load-profile.json`. An acceptance report must cover exactly 240,000 measured requests, all twelve fault cases, the declared latency/backlog/resource limits, and zero application 5xx or process restarts. A shorter loopback smoke test is preflight evidence only.
 
+### Synthetic observation runner
+
+`scripts/run-nfr004-capacity.mjs` is a loopback-only source tool. It requires the exact profile's Linux cgroup v2 limits and records a 5-minute warmup, 30-minute steady phase, and 5-minute burst phase against an in-process synthetic Oracle runtime. Supply the exact 40-character candidate commit explicitly:
+
+```sh
+I12_CANDIDATE_COMMIT=<candidate-commit> node scripts/run-nfr004-capacity.mjs
+node scripts/verify-nfr004-capacity-observation.mjs --candidate-commit <candidate-commit>
+```
+
+The second command verifies the raw observation's declared profile/resource/phase structure and computes its SHA-256. Both outputs are raw traceability records and are explicitly **not acceptance**. The runner does not execute the twelve fault cases or establish target-service uptime/restart behavior.
+
+Execute validation only on an existing approved remote Linux server after verifying its CTYun/Aliyun provider binding and passing the per-action `Execution-Boundaries.py --action-file <private-action.json>` check. Never substitute this loopback runner for production-shaped deployment, real dependency failures, independent review, a signed `performance-capacity` evidence record, or the PRD's NFR-004 gate.
+
 ## Environments
 
 - `development`: local, loopback only, no external writes.
