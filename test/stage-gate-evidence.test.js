@@ -17,9 +17,14 @@ test("premise evidence requires P1-P8 with dated review ownership", () => {
 });
 
 test("Stage F decision requires every written contract and go-no-go", () => {
-  const decision = { ...base, type: "stage-f-contract-and-go-no-go", scopeDecisionAccepted: true, scopeDecisionRef: "controlled/scope-decision", commercialContractSigned: true, dataContractSigned: true, contractPackageRef: "controlled/contract-package", mainnetGoNoGoWritten: true, realAssetGoNoGoWritten: true, realFundsGoNoGoWritten: true, jurisdictionGoNoGoWritten: true, releaseBlockersCleared: true, releaseManifestRef: "controlled/release", signerSetRef: "controlled/signers", rollbackPlanRef: "controlled/rollback", incidentResponseRef: "controlled/incident", operationsHandoffAccepted: true, unacceptedP0: 0 };
+  const decisionEvidence = ["scope-decision", "commercial-contract", "data-protection-contract", "mainnet-go-no-go", "real-assets-go-no-go", "real-funds-go-no-go", "jurisdiction-go-no-go", "release-blockers", "operations-handoff"].map((id) => ({ id, status: "PASS", candidateCommit: COMMIT, evidenceRef: `controlled/stage-f/${id}.json`, evidenceSha256: HASH }));
+  const decision = { ...base, type: "stage-f-contract-and-go-no-go", scopeDecisionAccepted: true, scopeDecisionRef: "controlled/scope-decision", commercialContractSigned: true, dataContractSigned: true, contractPackageRef: "controlled/contract-package", mainnetGoNoGoWritten: true, realAssetGoNoGoWritten: true, realFundsGoNoGoWritten: true, jurisdictionGoNoGoWritten: true, releaseBlockersCleared: true, releaseManifestRef: "controlled/release", signerSetRef: "controlled/signers", rollbackPlanRef: "controlled/rollback", incidentResponseRef: "controlled/incident", operationsHandoffAccepted: true, unacceptedP0: 0, decisionEvidence };
   assert.equal(validateStageFDecision(decision), true);
   assert.throws(() => validateStageFDecision({ ...decision, legalGoNoGoWritten: false, jurisdictionGoNoGoWritten: false }), /STAGE_F_DECISION_INSUFFICIENT:jurisdictionGoNoGoWritten/);
+  assert.throws(() => validateStageFDecision({ ...decision, decisionEvidence: decisionEvidence.slice(1) }), /STAGE_F_DECISION_EVIDENCE_INSUFFICIENT/);
+  assert.throws(() => validateStageFDecision({ ...decision, decisionEvidence: decisionEvidence.map((item, index) => index === 0 ? { ...item, candidateCommit: "c".repeat(40) } : item) }), /STAGE_F_DECISION_EVIDENCE_INSUFFICIENT:scope-decision/);
+  assert.throws(() => validateStageFDecision({ ...decision, decisionEvidence: decisionEvidence.map((item, index) => index === 0 ? { ...item, evidenceRef: decisionEvidence[1].evidenceRef } : item) }), /STAGE_F_DECISION_EVIDENCE_NOT_UNIQUE/);
+
 });
 
 test("integrated CI requires one approved merged run with every mandated job", () => {
