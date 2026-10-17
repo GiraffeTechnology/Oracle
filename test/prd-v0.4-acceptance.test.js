@@ -280,6 +280,32 @@ test("CONSUMER-007 redemption requires a final instant with no open gap", () => 
   assert.equal(machine.assertOperationAllowed("t7", "transfer"), true, "refusing the exercise never restricts transfer");
 });
 
+test("CONSUMER-007 stale input cannot reopen a redeemed token or restore its redemption right", () => {
+  const machine = new SyntheticConsumerStateMachine();
+  machine.transition({ tokenRef: "t7-terminal", to: "VERIFIED", attestation: consumerAttestation("terminal-verified"), verify: accept });
+  machine.transition({ tokenRef: "t7-terminal", to: "ACTIVE", attestation: consumerAttestation("terminal-active"), verify: accept });
+  machine.closeGap("t7-terminal", { effectiveAt: 10, holder: "wallet-a" });
+  machine.closeGap("t7-terminal", { effectiveAt: 20, holder: "wallet-b" });
+  assert.equal(machine.assertOperationAllowed("t7-terminal", "redeem", { instant: 10, exerciser: "wallet-a" }), true);
+  machine.transition({ tokenRef: "t7-terminal", to: "REDEEMED", attestation: consumerAttestation("delivered"), verify: accept });
+
+  const terminalHistory = machine.history("t7-terminal");
+  assert.throws(
+    () => machine.transition({ tokenRef: "t7-terminal", to: "ACTIVE", attestation: consumerAttestation("stale-active"), verify: accept }),
+    /CONSUMER_TRANSITION_REJECTED:REDEEMED:ACTIVE/,
+  );
+  assert.equal(machine.current("t7-terminal"), ConsumerStatus.REDEEMED);
+  assert.deepEqual(machine.history("t7-terminal"), terminalHistory);
+  assert.throws(
+    () => machine.assertOperationAllowed("t7-terminal", "redeem", { instant: 10, exerciser: "wallet-a" }),
+    /CONSUMER_OPERATION_BLOCKED:REDEEMED:redeem/,
+  );
+  assert.throws(
+    () => machine.assertOperationAllowed("t7-terminal", "transfer"),
+    /CONSUMER_OPERATION_BLOCKED:REDEEMED:transfer/,
+  );
+});
+
 test("ORACLE-011 renders all four settlement presentation states without implying completed title", () => {
   const common = { asset: { assetId: "asset-ui", wenbaoRegistryRef: "registry" }, certificate: { certificateHash: HASH_A, certificateVersion: 1 }, warehouse: { warehouseReceiptHash: HASH_B }, status: "TRANSFER_PENDING" };
   assert.match(renderAssetDetailHtml({ ...common, settlement: null }), /Snapshot fixed/);
