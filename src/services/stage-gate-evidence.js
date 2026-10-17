@@ -74,8 +74,15 @@ export function validateStageFDecision(value) {
 export function validateIntegratedCiEvidence(value) {
   base(value, "integrated-ci");
   const required = ["locked-install", "format-lint-typecheck", "unit-negative", "production-build", "contract", "consumer-integration", "mysql-migrate-backup-restore", "financial-boundary", "subject-compliance-boundary", "personal-information-boundary", "secret-credential-boundary"];
-  const jobs = new Map((value.jobs ?? []).map((item) => [item.id, item.status]));
-  for (const id of required) if (jobs.get(id) !== "PASS") throw new Error(`INTEGRATED_CI_INSUFFICIENT:${id}`);
+  if (!Array.isArray(value.jobs) || value.jobs.length !== required.length
+    || typeof value.runId !== "string" || !value.runId.trim()
+    || typeof value.runRef !== "string" || !value.runRef.trim()) throw new Error("INTEGRATED_CI_JOB_MATRIX_INSUFFICIENT");
+  const jobs = new Map(value.jobs.map((item) => [item?.id, item]));
+  if (jobs.size !== required.length || [...jobs.keys()].some((id) => !required.includes(id))) throw new Error("INTEGRATED_CI_JOB_MATRIX_INSUFFICIENT");
+  for (const id of required) {
+    const job = jobs.get(id);
+    if (!job || job.status !== "PASS" || job.runId !== value.runId || job.candidateCommit !== value.candidateCommit) throw new Error(`INTEGRATED_CI_INSUFFICIENT:${id}`);
+  }
   if (value.singleRun !== true || value.prApproved !== true || value.prMerged !== true || value.mergedHeadCommit !== value.candidateCommit) throw new Error("INTEGRATED_CI_INSUFFICIENT:merge");
   return true;
 }
