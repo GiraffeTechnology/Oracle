@@ -97,13 +97,13 @@ test("CONSUMER-007 still refuses a perishable exercise while a gap is open", () 
   machine.transition({ tokenRef: "t", to: "ACTIVE", attestation: { attestationId: "b" }, verify: accept });
   entries(machine, "t", [10, "wallet-a"], [20, "wallet-b"]);
 
-  assert.equal(machine.assertOperationAllowed("t", "redeem", { instant: 10 }), true);
+  assert.equal(machine.assertOperationAllowed("t", "redeem", { instant: 10, exerciser: "wallet-a" }), true);
 
   machine.openGap("t", { openedAt: 5 });
   // The instant is final by the standard's rule, and the exercise is still refused.
   assert.equal(machine.isFinalAsOf("t", 10), true);
   assert.throws(
-    () => machine.assertOperationAllowed("t", "redeem", { instant: 10 }),
+    () => machine.assertOperationAllowed("t", "redeem", { instant: 10, exerciser: "wallet-a" }),
     /CONSUMER_PERISHABLE_GAP_OPEN:redeem/,
   );
   assert.equal(machine.assertOperationAllowed("t", "transfer"), true, "and transfer is never refused");
