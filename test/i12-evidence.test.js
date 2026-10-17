@@ -1,9 +1,16 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { I12_INDEPENDENT_REVIEW_ROLES, I12_PERFORMANCE_FIELDS, validateI12Evidence } from "../src/services/i12-evidence.js";
+import { I12_INDEPENDENT_REVIEW_ROLES, I12_NFR004_FAULT_CASES, I12_PERFORMANCE_FIELDS, validateI12Evidence } from "../src/services/i12-evidence.js";
 const HASH = "a".repeat(64);
 const COMMIT = "b".repeat(40);
+const faultMatrix = (candidateCommit = COMMIT) => I12_NFR004_FAULT_CASES.map((caseId, index) => ({
+  caseId,
+  status: "PASS",
+  candidateCommit,
+  evidenceRef: `evidence/raw/fault-${index + 1}.json`,
+  evidenceSha256: HASH,
+}));
 test("I12 evidence validator rejects shortened stability claims", () => {
   const base = { schemaVersion: 1, type: "72h-stability", status: "PASS", artifactSha256: HASH, candidateCommit: COMMIT, durationSeconds: 259200, continuous: true, sampleCount: 4320, maxSampleIntervalSeconds: 60, secretScanPassed: true, unexplainedFailures: 0 };
   assert.equal(validateI12Evidence("72h-stability", base), true);
@@ -35,8 +42,16 @@ test("I12 evidence validator rejects omitted and non-finite capacity or recovery
   const evidence = { schemaVersion: 1, status: "PASS", artifactSha256: HASH, candidateCommit: COMMIT };
   assert.throws(() => validateI12Evidence("performance-capacity", { ...evidence, type: "performance-capacity", loadProfileRef: "controlled/load-profile", faultInjectionPassed: true }), /I12_PERFORMANCE_INSUFFICIENT/);
   assert.throws(() => validateI12Evidence("performance-capacity", { ...evidence, type: "performance-capacity", loadProfileRef: "controlled/load-profile", requestsCompleted: 1, p95Milliseconds: Infinity, queueBacklogMaximum: 0, faultInjectionPassed: true }), /I12_PERFORMANCE_INSUFFICIENT/);
-  const performance = { ...evidence, type: "performance-capacity", loadProfileRef: "oracle-nfr004-mixed-synthetic-v1", requestsCompleted: 240000, unexpectedFailureRatePercent: 0, application5xx: 0, processRestarts: 0, steadyP95Milliseconds: 100, burstP95Milliseconds: 200, steadyBacklogMaximum: 10, burstBacklogMaximum: 20, backlogDrainSeconds: 10, cpuFiveMinuteAveragePercent: 40, memoryPeakPercent: 50, faultInjectionPassed: true, faultMatrixPassed: 12 };
+  const performance = { ...evidence, type: "performance-capacity", loadProfileRef: "oracle-nfr004-mixed-synthetic-v1", requestsCompleted: 240000, unexpectedFailureRatePercent: 0, application5xx: 0, processRestarts: 0, steadyP95Milliseconds: 100, burstP95Milliseconds: 200, steadyBacklogMaximum: 10, burstBacklogMaximum: 20, backlogDrainSeconds: 10, cpuFiveMinuteAveragePercent: 40, memoryPeakPercent: 50, faultInjectionPassed: true, faultMatrixPassed: 12, faultMatrix: faultMatrix() };
   assert.equal(validateI12Evidence("performance-capacity", performance), true);
+  assert.throws(() => validateI12Evidence("performance-capacity", { ...performance, faultMatrix: faultMatrix(COMMIT.toUpperCase()) }), /I12_PERFORMANCE_FAULT_MATRIX_INSUFFICIENT/);
+  assert.throws(() => validateI12Evidence("performance-capacity", { ...performance, faultMatrix: faultMatrix().slice(1) }), /I12_PERFORMANCE_FAULT_MATRIX_INSUFFICIENT/);
+  const duplicatedCase = faultMatrix();
+  duplicatedCase[1] = { ...duplicatedCase[1], caseId: duplicatedCase[0].caseId };
+  assert.throws(() => validateI12Evidence("performance-capacity", { ...performance, faultMatrix: duplicatedCase }), /I12_PERFORMANCE_FAULT_MATRIX_INSUFFICIENT/);
+  const missingDigest = faultMatrix();
+  missingDigest[0] = { ...missingDigest[0], evidenceSha256: "not-a-sha256" };
+  assert.throws(() => validateI12Evidence("performance-capacity", { ...performance, faultMatrix: missingDigest }), /I12_PERFORMANCE_FAULT_MATRIX_INSUFFICIENT/);
   assert.throws(() => validateI12Evidence("performance-capacity", { ...performance, faultMatrixPassed: 11 }), /I12_PERFORMANCE_INSUFFICIENT/);
   assert.throws(() => validateI12Evidence("restore-drill", { ...evidence, type: "restore-drill", databaseIntegrityVerified: true, auditHeadVerified: true }), /I12_RESTORE_DRILL_INSUFFICIENT/);
   assert.equal(validateI12Evidence("restore-drill", { ...evidence, type: "restore-drill", databaseIntegrityVerified: true, auditHeadVerified: true, rpoSecondsTarget: 300, rpoSecondsActual: 120, rtoSecondsTarget: 900, rtoSecondsActual: 600 }), true);
@@ -50,6 +65,8 @@ test("I12 signer rotation evidence requires finite timing controls", () => {
 });
 test("blocked I12 template stays synchronized with the authoritative validator contract", () => {
   const template = JSON.parse(readFileSync(new URL("../evidence/templates/i12-evidence.blocked.example.json", import.meta.url), "utf8"));
+  const loadProfile = JSON.parse(readFileSync(new URL("../config/nfr-004-load-profile.json", import.meta.url), "utf8"));
+  assert.deepEqual(I12_NFR004_FAULT_CASES, loadProfile.faultMatrix);
   assert.equal(template.status, "BLOCKED");
   const performance = template.records["performance-capacity"];
   assert.deepEqual(
@@ -81,6 +98,7 @@ test("blocked I12 template stays synchronized with the authoritative validator c
     memoryPeakPercent: 50,
     faultInjectionPassed: true,
     faultMatrixPassed: 12,
+    faultMatrix: faultMatrix(),
   };
   const validPerformance = {
     ...evidence,
