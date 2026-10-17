@@ -190,6 +190,78 @@ test("CONSUMER-009 rejects replayed attestation IDs without mutating the consume
   assert.deepEqual(machine.history("replay"), history);
 });
 
+test("CONSUMER-009 rejects invalid, expired, and revoked proofs without mutation and preserves order", () => {
+  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+  const revocations = new RevocationRegistry();
+  const service = new AttestationService({ signerSetId: "consumer-009-signers", privateKey, publicKey, revocations, clock: () => NOW });
+  const subject = { assetId: "asset-consumer-009", chainId: "test-chain", contract: "test-contract", tokenId: "9", purpose: "transfer" };
+  const issue = (nonce) => service.issue({
+    subject,
+    factType: "TRANSFER_STATUS",
+    factValue: "VALID",
+    sourceAuthority: "synthetic-authority",
+    sourceRecordHash: HASH_A,
+    validForSeconds: 60,
+    nonce,
+  });
+  const invalid = issue("consumer-009-invalid");
+  const expired = issue("consumer-009-expired");
+  const revoked = issue("consumer-009-revoked");
+  const valid = issue("consumer-009-valid");
+
+  revocations.revoke({
+    attestationId: revoked.envelope.attestationId,
+    reasonHash: HASH_B,
+    revokedAt: NOW.toISOString(),
+    authorityId: "synthetic-revoker",
+  });
+
+  const machine = new SyntheticConsumerStateMachine();
+  const cases = [
+    ["invalid", { ...invalid, envelopeHash: HASH_C }, NOW],
+    ["expired", expired, new Date(NOW.getTime() + 60_000)],
+    ["revoked", revoked, NOW],
+  ];
+
+  for (const [label, proof, now] of cases) {
+    const result = service.verify(proof, { expectedSubject: subject, now });
+    assert.equal(result.valid, false, `${label} proof rejected by authoritative verifier`);
+    assert.throws(
+      () => machine.transition({
+        tokenRef: "consumer-009",
+        to: "VERIFIED",
+        attestation: { attestationId: proof.envelope.attestationId },
+        verify: () => service.verify(proof, { expectedSubject: subject, now }).valid,
+      }),
+      /CONSUMER_ATTESTATION_REQUIRED/,
+    );
+    assert.equal(machine.current("consumer-009"), ConsumerStatus.DRAFT);
+    assert.deepEqual(machine.history("consumer-009"), []);
+  }
+
+  assert.throws(
+    () => machine.transition({
+      tokenRef: "consumer-009",
+      to: "ACTIVE",
+      attestation: { attestationId: valid.envelope.attestationId },
+      verify: () => service.verify(valid, { expectedSubject: subject, now: NOW }).valid,
+    }),
+    /CONSUMER_TRANSITION_REJECTED:DRAFT:ACTIVE/,
+  );
+  assert.equal(machine.current("consumer-009"), ConsumerStatus.DRAFT);
+  assert.deepEqual(machine.history("consumer-009"), []);
+
+  // The out-of-order attempt did not consume the proof: the same valid proof can be
+  // consumed once the legal predecessor state is established.
+  assert.equal(machine.transition({
+    tokenRef: "consumer-009",
+    to: "VERIFIED",
+    attestation: { attestationId: valid.envelope.attestationId },
+    verify: () => service.verify(valid, { expectedSubject: subject, now: NOW }).valid,
+  }).to, ConsumerStatus.VERIFIED);
+  assert.equal(machine.history("consumer-009").length, 1);
+});
+
 /**
  * CONSUMER-004 under D-008. The ERC this project is submitting says ordinary ERC-721 transfers
  * MUST NOT be blocked while a projection gap is open, so an open gap must not make transfer
