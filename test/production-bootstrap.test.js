@@ -510,6 +510,54 @@ test("Stage D timeout stays non-final and timeout replay cannot reissue a certif
   assert.equal(assembly.runtime.auditJournal.verify(), true);
 });
 
+test("Stage D dispute remains non-final and replay cannot reissue a certificate", async () => {
+  const { assembly, persisted } = await productionFixture();
+  await assembly.controlPlane.verifyAsset({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-dispute-verify",
+    evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" },
+    evidenceVersion: 1,
+  });
+  await assembly.controlPlane.bindToken({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-dispute-bind",
+    binding: { assetId: "asset-production", chainId: "560048", contract: "test-only", tokenId: "1" },
+  });
+  const pending = await assembly.controlPlane.beginSettlement({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-dispute-begin",
+    request: {
+      settlementId: "stage-d-dispute-settlement",
+      assetId: "asset-production",
+      token: { chainId: "560048", contract: "test-only", tokenId: "1" },
+      sellerWallet: "seller-test",
+      buyerWallet: "buyer-test",
+      externalExecutionRef: "synthetic-dispute-trigger-001",
+      oldCertificateHash: HASH_B,
+      warehouseReceiptHash: HASH_C,
+      evidenceVersion: 2,
+    },
+  });
+  const dispute = {
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-dispute-command",
+    request: { settlementId: pending.result.settlementId, reasonHash: HASH_A, evidenceVersion: 3 },
+  };
+  const result = await assembly.controlPlane.disputeSettlement(dispute);
+  const replay = await assembly.controlPlane.disputeSettlement(dispute);
+
+  assert.equal(result.result.status, "DISPUTED");
+  assert.equal(replay.replayed, true);
+  assert.equal(replay.result.status, "DISPUTED");
+  assert.equal(assembly.runtime.settlements.get("stage-d-dispute-settlement").status, "DISPUTED");
+  assert.equal(assembly.runtime.stateEngine.current("asset-production"), "REVIEW_REQUIRED");
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production").certificateHash, HASH_B);
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production").certificateVersion, 1);
+  assert.equal(persisted.filter(({ method }) => method === "disputeSettlement").length, 1);
+  assert.equal(assembly.runtime.auditJournal.list().filter(({ type }) => type === "settlement.disputed").length, 1);
+  assert.equal(assembly.runtime.auditJournal.verify(), true);
+});
+
 test("async alert rejection is awaited and makes production readiness fail closed", async () => {
   const { assembly } = await productionFixture({ rejectAlerts: true });
   const event = assembly.runtime.outbox.enqueue({ eventType: "test", subjectId: "asset-alert", payloadHash: HASH_A, createdAt: NOW.toISOString() });
