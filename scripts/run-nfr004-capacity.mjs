@@ -31,7 +31,7 @@ async function assertCgroupResources(profile) {
     readFile("/sys/fs/cgroup/memory.max", "utf8"),
     readFile("/sys/fs/cgroup/pids.max", "utf8"),
   ]);
-  const [quotaText, periodText] = cpuText.trim().split(/\\s+/);
+  const [quotaText, periodText] = cpuText.trim().split(/\s+/);
   const cpuQuota = quotaText === "max" ? Number.POSITIVE_INFINITY : Number(quotaText) / Number(periodText);
   const memoryBytes = memoryText.trim() === "max" ? Number.POSITIVE_INFINITY : Number(memoryText.trim());
   const pidsMaximum = pidsText.trim() === "max" ? Number.POSITIVE_INFINITY : Number(pidsText.trim());
@@ -116,8 +116,8 @@ async function runPhase({ phase, baseUrl, concurrencyMaximum, collectLatency }) 
       const startedAt = performance.now();
       void (async () => {
         const response = await fetch(new URL(requestPath, baseUrl));
-        const body = await response.json();
         if (response.status >= 500) application5xx += 1;
+        const body = await response.json();
         if (response.status !== 200) throw new Error(`HTTP_STATUS_${response.status}`);
         if (requestPath === "/readyz" && body.ok !== true) throw new Error("READINESS_BODY_INVALID");
         if (requestPath === "/v1/oracle/statuses" && !Array.isArray(body.statuses)) throw new Error("STATUSES_BODY_INVALID");
@@ -230,7 +230,7 @@ await new Promise((resolve, reject) => {
 const baseUrl = `http://127.0.0.1:${server.address().port}`;
 const sampler = await collectResources({ memoryLimitBytes: resources.memoryBytes, cpuCount: resources.cpuQuota });
 const phaseResults = [];
-let serverInstances = 1;
+const runStartedAt = new Date().toISOString();
 let interrupted = false;
 try {
   for (const phase of profile.phases) phaseResults.push(await runPhase({ phase, baseUrl, concurrencyMaximum: profile.concurrencyMaximum, collectLatency: phase.measured }));
@@ -238,9 +238,18 @@ try {
   interrupted = true;
   throw error;
 } finally {
-  const resourceResults = await sampler.stop();
-  await new Promise((resolve) => server.close((error) => error ? resolve() : resolve()));
-  serverInstances = 1;
+  let resourceResults = null;
+  let cleanupFailure = null;
+  try {
+    resourceResults = await sampler.stop();
+  } catch (error) {
+    cleanupFailure = error instanceof Error ? error.message : String(error);
+  }
+  try {
+    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  } catch (error) {
+    cleanupFailure ??= error instanceof Error ? error.message : String(error);
+  }
   const measured = phaseResults.filter(({ phase }) => phase !== "warmup");
   const steady = measured.find(({ phase }) => phase === "steady");
   const burst = measured.find(({ phase }) => phase === "burst");
@@ -255,9 +264,10 @@ try {
     profileId: profile.profileId,
     network: "loopback-only",
     syntheticOnly: true,
-    startedAt: new Date(Date.now() - profile.phases.reduce((sum, phase) => sum + phase.durationSeconds, 0) * 1000).toISOString(),
+    startedAt: runStartedAt,
     finishedAt: new Date().toISOString(),
-    runtime: { platform: process.platform, nodeVersion: process.version, pid: process.pid, serverInstances, interrupted },
+    runtime: { platform: process.platform, nodeVersion: process.version, pid: process.pid, runnerInstances: 1, interrupted },
+    cleanupFailure,
     resources: { cpuQuota: resources.cpuQuota, memoryLimitBytes: resources.memoryBytes, pidsMaximum: resources.pidsMaximum },
     requestsCompleted,
     requestsExpected: profile.measuredRequests,
@@ -268,14 +278,14 @@ try {
     steadyBacklogMaximum: steady?.maximumQueuedBacklog ?? null,
     burstBacklogMaximum: burst?.maximumQueuedBacklog ?? null,
     backlogDrainSecondsMaximum: Math.max(...measured.map(({ backlogDrainSeconds }) => backlogDrainSeconds), 0),
-    ...resourceResults,
+    ...(resourceResults ?? { cpuFiveMinuteAveragePercent: null, cpuFiveMinuteWindowCount: 0, memoryPeakPercent: null }),
     faultMatrix: { status: "NOT_RUN_BY_CAPACITY_RUNNER", passed: 0, required: profile.faultMatrix },
     phases: phaseResults,
   };
   await mkdir(OUTPUT_DIRECTORY, { recursive: true });
-  const bytes = Buffer.from(`${JSON.stringify(report, null, 2)}\\n`, "utf8");
+  const bytes = Buffer.from(`${JSON.stringify(report, null, 2)}\n`, "utf8");
   const digest = createHash("sha256").update(bytes).digest("hex");
   const outputPath = path.join(OUTPUT_DIRECTORY, `nfr004-capacity-observation-${candidateCommit}.json`);
   await writeFile(outputPath, bytes, { flag: "wx", mode: 0o600 });
-  process.stdout.write(`NFR-004 capacity observation written: ${outputPath}\\nSHA-256: ${digest}\\nStatus: MEASURED_NOT_ACCEPTANCE (fault matrix and independent evidence remain separate)\\n`);
+  process.stdout.write(`NFR-004 capacity observation written: ${outputPath}\nSHA-256: ${digest}\nStatus: MEASURED_NOT_ACCEPTANCE (fault matrix and independent evidence remain separate)\n`);
 }
