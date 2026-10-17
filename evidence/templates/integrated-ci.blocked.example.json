@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "type": "integrated-ci",
+  "status": "BLOCKED",
+  "artifactSha256": "<sha256-of-controlled-integrated-ci-record>",
+  "candidateCommit": "<40-character-commit-sha>",
+  "runId": "",
+  "runRef": "",
+  "singleRun": false,
+  "prApproved": false,
+  "prMerged": false,
+  "mergedHeadCommit": "",
+  "jobs": [
+    {
+      "id": "locked-install",
+      "status": "BLOCKED",
+      "runId": "",
+      "candidateCommit": "<40-character-commit-sha>"
+    },
+    {
+      "id": "format-lint-typecheck",
+      "status": "BLOCKED",
+      "runId": "",
+      "candidateCommit": "<40-character-commit-sha>"
+    },
+    {
+      "id": "unit-negative",
+      "status": "BLOCKED",
+      "runId": "",
+      "candidateCommit": "<40-character-commit-sha>"
+    },
+    {
+      "id": "production-build",
+      "status": "BLOCKED",
+      "runId": "",
+      "candidateCommit": "<40-character-commit-sha>"
+    },
+    {
+      "id": "contract",
+      "status": "BLOCKED",
+      "runId": "",
+      "candidateCommit": "<40-character-commit-sha>"
+    },
+    {
+      "id": "consumer-integration",
+      "status": "BLOCKED",
+      "runId": "",
+      "candidateCommit": "<40-character-commit-sha>"
+    },
+    {
+      "id": "mysql-migrate-backup-restore",
+      "status": "BLOCKED",
+      "runId": "",
+      "candidateCommit": "<40-character-commit-sha>"
+    },
+    {
+      "id": "financial-boundary",
+      "status": "BLOCKED",
+      "runId": "",
+      "candidateCommit": "<40-character-commit-sha>"
+    },
+    {
+      "id": "subject-compliance-boundary",
+      "status": "BLOCKED",
+      "runId": "",
+      "candidateCommit": "<40-character-commit-sha>"
+    },
+    {
+      "id": "personal-information-boundary",
+      "status": "BLOCKED",
+      "runId": "",
+      "candidateCommit": "<40-character-commit-sha>"
+    },
+    {
+      "id": "secret-credential-boundary",
+      "status": "BLOCKED",
+      "runId": "",
+      "candidateCommit": "<40-character-commit-sha>"
+    }
+  ]
+}
