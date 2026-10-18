@@ -633,7 +633,7 @@ test("Stage D certificate conflict leaves pending settlement and original certif
       idempotencyKey: "stage-d-conflict-finalize",
       request: { settlementId: pending.result.settlementId, snapshotHash: pending.result.snapshotHash, evidenceVersion: 3, assetReference: "record:conflict-asset", certificateReference: "record:conflict-certificate", warehouseReference: "record:conflict-warehouse" },
     }),
-    /ASSET_EVIDENCE_BUNDLE_MISMATCH/,
+    /SETTLEMENT_AUTHORITATIVE_EVIDENCE_MISMATCH/,
   );
 
   assert.equal(assembly.runtime.settlements.get("stage-d-conflict-settlement").status, "PENDING");

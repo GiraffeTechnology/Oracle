@@ -20,9 +20,13 @@ function base(value, type) {
 export function validatePremiseEvidence(value) {
   base(value, "premise-evidence");
   const expectedIds = Object.keys(PREMISE_OWNERS);
-  if (!Array.isArray(value.premises) || value.premises.length !== expectedIds.length) throw new Error("PREMISE_EVIDENCE_MATRIX_INSUFFICIENT");
-  const premises = new Map(value.premises.map((item) => [item?.id, item]));
-  if (premises.size !== expectedIds.length || [...premises.keys()].some((id) => !expectedIds.includes(id))) throw new Error("PREMISE_EVIDENCE_MATRIX_INSUFFICIENT");
+  if (!Array.isArray(value.premises)) throw new Error("PREMISE_EVIDENCE_MATRIX_INSUFFICIENT");
+  const premises = new Map();
+  for (const item of value.premises) {
+    const id = item?.id;
+    if (!expectedIds.includes(id) || premises.has(id)) throw new Error("PREMISE_EVIDENCE_MATRIX_INSUFFICIENT");
+    premises.set(id, item);
+  }
   const evidenceRefs = new Set();
   for (const id of expectedIds) {
     const item = premises.get(id);
@@ -74,11 +78,15 @@ export function validateStageFDecision(value) {
 export function validateIntegratedCiEvidence(value) {
   base(value, "integrated-ci");
   const required = ["locked-install", "format-lint-typecheck", "unit-negative", "production-build", "contract", "consumer-integration", "mysql-migrate-backup-restore", "financial-boundary", "subject-compliance-boundary", "personal-information-boundary", "secret-credential-boundary"];
-  if (!Array.isArray(value.jobs) || value.jobs.length !== required.length
+  if (!Array.isArray(value.jobs)
     || typeof value.runId !== "string" || !value.runId.trim()
     || typeof value.runRef !== "string" || !value.runRef.trim()) throw new Error("INTEGRATED_CI_JOB_MATRIX_INSUFFICIENT");
-  const jobs = new Map(value.jobs.map((item) => [item?.id, item]));
-  if (jobs.size !== required.length || [...jobs.keys()].some((id) => !required.includes(id))) throw new Error("INTEGRATED_CI_JOB_MATRIX_INSUFFICIENT");
+  const jobs = new Map();
+  for (const item of value.jobs) {
+    const id = item?.id;
+    if (!required.includes(id) || jobs.has(id)) throw new Error("INTEGRATED_CI_JOB_MATRIX_INSUFFICIENT");
+    jobs.set(id, item);
+  }
   for (const id of required) {
     const job = jobs.get(id);
     if (!job || job.status !== "PASS" || job.runId !== value.runId || job.candidateCommit !== value.candidateCommit) throw new Error(`INTEGRATED_CI_INSUFFICIENT:${id}`);
