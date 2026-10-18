@@ -104,31 +104,41 @@
           "role": "security",
           "accepted": false,
           "reviewerRef": "",
-          "candidateCommit": "<40-character-commit-sha>",\n          "evidenceRef": "<unique-protected-review-reference>",\n          "evidenceSha256": "<review-sha256>"
+          "candidateCommit": "<40-character-commit-sha>",
+          "evidenceRef": "<unique-protected-review-reference>",
+          "evidenceSha256": "<review-sha256>"
         },
         {
           "role": "privacy",
           "accepted": false,
           "reviewerRef": "",
-          "candidateCommit": "<40-character-commit-sha>",\n          "evidenceRef": "<unique-protected-review-reference>",\n          "evidenceSha256": "<review-sha256>"
+          "candidateCommit": "<40-character-commit-sha>",
+          "evidenceRef": "<unique-protected-review-reference>",
+          "evidenceSha256": "<review-sha256>"
         },
         {
           "role": "legal",
           "accepted": false,
           "reviewerRef": "",
-          "candidateCommit": "<40-character-commit-sha>",\n          "evidenceRef": "<unique-protected-review-reference>",\n          "evidenceSha256": "<review-sha256>"
+          "candidateCommit": "<40-character-commit-sha>",
+          "evidenceRef": "<unique-protected-review-reference>",
+          "evidenceSha256": "<review-sha256>"
         },
         {
           "role": "contract",
           "accepted": false,
           "reviewerRef": "",
-          "candidateCommit": "<40-character-commit-sha>",\n          "evidenceRef": "<unique-protected-review-reference>",\n          "evidenceSha256": "<review-sha256>"
+          "candidateCommit": "<40-character-commit-sha>",
+          "evidenceRef": "<unique-protected-review-reference>",
+          "evidenceSha256": "<review-sha256>"
         },
         {
           "role": "operations",
           "accepted": false,
           "reviewerRef": "",
-          "candidateCommit": "<40-character-commit-sha>",\n          "evidenceRef": "<unique-protected-review-reference>",\n          "evidenceSha256": "<review-sha256>"
+          "candidateCommit": "<40-character-commit-sha>",
+          "evidenceRef": "<unique-protected-review-reference>",
+          "evidenceSha256": "<review-sha256>"
         }
       ],
       "unacceptedP0": 1
