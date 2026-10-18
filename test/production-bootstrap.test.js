@@ -1,3 +1,586 @@
+import assert from "node:assert/strict";
+import { createHash, generateKeyPairSync, sign, verify } from "node:crypto";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { assembleProductionApplication } from "../src/config/production-assembly.js";
+import { loadPinnedDeploymentModule } from "../src/config/production-bootstrap.js";
+import { loadL2DeploymentProfile } from "../src/config/deployment-profile.js";
+import { loadProtocolProfile } from "../src/protocol/protocol-profile.js";
+import { evidenceHash } from "../src/domain/canonical-json.js";
+import { SignerSetPolicy } from "../src/domain/signer-set-policy.js";
+import { RevocationRegistry } from "../src/domain/revocation-registry.js";
+import { AttestationService } from "../src/domain/attestation-service.js";
+import { DurableOracleControlPlane } from "../src/services/durable-control-plane.js";
+import { captureProductionState, restoreProductionState } from "../src/services/production-state.js";
+import { createSyntheticRuntime } from "../src/oracle-runtime.js";
+import { DualControlQueue } from "../src/services/dual-control.js";
+import { createApp } from "../src/app.js";
+import { SourceRegistry } from "../src/domain/source-registry.js";
+
+const NOW = new Date("2026-08-27T00:00:00.000Z");
+const HASH_A = "a".repeat(64);
+const HASH_B = "b".repeat(64);
+const HASH_C = "c".repeat(64);
+
+function records(assetId) {
+  return {
+    asset: { assetId, assetFingerprintHash: HASH_A, wenbaoRegistryRef: "registry-001", transferEligibility: "VALID", warehouseId: "warehouse-001", warehouseReceiptHash: HASH_C, currentCertificateHash: HASH_B, currentCertificateVersion: 1, currentOwnerCommitment: HASH_C, encumbranceStatus: "CLEAR", oracleStatus: "VALID", updatedAt: NOW.toISOString() },
+    certificate: { assetId, tokenId: "1", certificateVersion: 1, certificateHash: HASH_B, previousCertificateHash: null, wenbaoChangeRef: "initial-001", warehouseReceiptHash: HASH_C, effectiveAt: NOW.toISOString(), status: "CURRENT" },
+    warehouse: { assetId, warehouseId: "warehouse-001", warehouseReceiptHash: HASH_C, warehouseStatus: "IN_CUSTODY", encumbranceStatus: "CLEAR", observedAt: NOW.toISOString() },
+  };
+}
+
+async function productionFixture({ failPersistence = false, initialSnapshot = null, persistenceGate = null, omitSignerPolicy = false, rejectAlerts = false, rejectAlertCodes = [], rejectDeadLetterSubjects = [], externalWritesEnabled = true, clock = () => NOW } = {}) {
+  const [l2Profile, l3Profile] = await Promise.all([loadL2DeploymentProfile("config/l2.production.json"), loadProtocolProfile("config/l3.protocol.wd-0.1.1.json")]);
+  const evidence = records("asset-production");
+  const sourceById = new Map(l2Profile.sources.map((source) => [source.sourceId, source]));
+  const recordBySource = { "authoritative-registry": evidence.asset, "authoritative-certificate": evidence.certificate, "authoritative-warehouse": evidence.warehouse };
+  const unavailableSources = new Set();
+  const persisted = [];
+  const published = [];
+  const deadLetters = [];
+  const deliveryUpdates = [];
+  const alerts = [];
+  const alertState = { reject: rejectAlerts === true, rejectCodes: new Set(rejectAlertCodes) };
+  let adminIdentity = { actorId: "production-operator", roles: ["ORACLE_OPERATOR"] };
+  let authenticationFails = false;
+  let commandReads = 0;
+  let commandReadFails = false;
+  let sourceFetches = 0;
+  let markPersistStarted;
+  const persistStarted = new Promise((resolve) => { markPersistStarted = resolve; });
+  const commands = new Map();
+  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+  const repository = {
+    async loadStateSnapshot() { return initialSnapshot; },
+    async getCommand(key) { commandReads += 1; if (commandReadFails) throw new Error("synthetic-private-read-detail"); return commands.get(key) ?? null; },
+    async recordOutboxAttempt(eventId, attempts) { deliveryUpdates.push({ type: "attempt", eventId, attempts }); },
+    async recordOutboxDeliveryStateAttempt(eventId, attempts) { deliveryUpdates.push({ type: "delivery-state-attempt", eventId, attempts }); },
+    async recordOutboxDeadLetterAttempt(eventId, attempts) { deliveryUpdates.push({ type: "dead-letter-attempt", eventId, attempts }); },
+    async recordOutboxDeadLetterStateAttempt(eventId, attempts) { deliveryUpdates.push({ type: "dead-letter-state-attempt", eventId, attempts }); },
+    async markOutboxPublished(eventId, publishedAt) { deliveryUpdates.push({ type: "published", eventId, publishedAt }); },
+    async markOutboxDeadLettered(eventId, deadLetteredAt) { deliveryUpdates.push({ type: "dead-lettered", eventId, deadLetteredAt }); },
+    async persistMutation(value) {
+      markPersistStarted();
+      if (persistenceGate) await persistenceGate;
+      if (failPersistence) throw new Error("db unavailable");
+      persisted.push(value);
+      commands.set(value.idempotencyKey, { commandHash: value.commandHash, status: "COMPLETED", result: value.result });
+    },
+    async persistRecoveryState(value) {
+      if (failPersistence) throw new Error("db unavailable");
+      persisted.push(value);
+      commands.set(value.idempotencyKey, { commandHash: value.commandHash, status: "PENDING", result: null });
+    },
+  };
+  const resolver = {
+    async resolve(reference, kind) {
+      if (kind === "repository") return repository;
+      if (kind === "signer") return { signerSetId: "production-test-signers", ...(omitSignerPolicy ? {} : { signerPolicy: new SignerSetPolicy({ signerSetId: "production-test-signers", threshold: 1, signers: ["production-test-signer"], environment: "production" }) }), signBytes: (bytes) => sign(null, bytes, privateKey), verifyBytes: (bytes, signature) => verify(null, bytes, publicKey, signature), verifyHistoricalBytes: (signerSetId, bytes, signature) => signerSetId === "production-test-signers" && verify(null, bytes, publicKey, signature), async rotate() { throw new Error("NOT_USED"); }, async reconcile() { throw new Error("NOT_USED"); }, async activateRuntime() { throw new Error("NOT_USED"); } };
+      if (kind === "source") {
+        const source = l2Profile.sources.find(({ transportRef }) => transportRef === reference);
+        return { async fetchByFixedReference() { sourceFetches += 1; if (unavailableSources.has(source.sourceId)) throw new Error("SOURCE_UNAVAILABLE"); const record = recordBySource[source.sourceId]; return { authenticated: true, sourceId: source.sourceId, schemaVersion: source.schemaVersions[0], record, recordHash: evidenceHash(record) }; } };
+      }
+      if (kind === "admin-authenticator") return { async authenticate(request) { if (authenticationFails) throw new Error("synthetic-private-auth-detail"); return typeof adminIdentity === "function" ? adminIdentity(request) : adminIdentity; } };
+      if (kind === "event-publisher") return { async publish(event) { published.push(event); }, async publishDeadLetter(event) { if (rejectDeadLetterSubjects.includes(event.subjectId)) throw new Error("dead-letter unavailable"); deadLetters.push(event); } };
+      if (kind === "monitoring") return { async checkReadiness() { return { ok: true }; } };
+      if (kind === "alerting") return { async reportFailure(code) { alerts.push({ type: "failure", code }); if (alertState.reject || alertState.rejectCodes.has(code)) throw new Error("alert unavailable"); }, async reportEvent(code) { alerts.push({ type: "event", code }); if (alertState.reject || alertState.rejectCodes.has(code)) throw new Error("alert unavailable"); } };
+      return { kind, sourceById };
+    },
+  };
+  const assembly = await assembleProductionApplication({
+    config: { environment: "production", externalWritesEnabled }, l2Profile, l3Profile, resolver,
+    settlementConfiguration: { profileId: "giraffe-settlement/production-v1", businessCalendarRef: "wenbao-production-v1", targetBusinessDays: 3, timeZone: "Asia/Shanghai", holidays: [] },
+    clock,
+  });
+  await assembly.authenticateAdmin({ headers: {} });
+  return { assembly, persisted, published, deadLetters, deliveryUpdates, alerts, persistStarted, getSourceFetches: () => sourceFetches, setSourceRecord(sourceId, record) { recordBySource[sourceId] = record; }, setSourceUnavailable(sourceId, unavailable = true) { if (unavailable) unavailableSources.add(sourceId); else unavailableSources.delete(sourceId); }, setRejectAlerts(value) { alertState.reject = value === true; }, setRejectAlertCodes(codes) { alertState.rejectCodes = new Set(codes); }, setAdminIdentity(value) { adminIdentity = value; }, failAuthentication() { authenticationFails = true; }, getCommandReads: () => commandReads, setCommand(key, value) { commands.set(key, value); }, failCommandRead() { commandReadFails = true; } };
+}
+
+test("production operator recovery uses public assembly authentication and never resumes a compromised runtime", async () => {
+  const f = await productionFixture({ failPersistence: true, externalWritesEnabled: false });
+  const input = { idempotencyKey: "recovery-production", evidenceReferences: { warehouse: "record:warehouse-001", asset: "record:asset-001", certificate: "record:certificate-001" }, evidenceVersion: 1 };
+  await assert.rejects(() => f.assembly.controlPlane.verifyAsset({ ...input, actorId: "production-operator" }), /MYSQL_DURABILITY_FAILURE/);
+  assert.equal(f.assembly.runtime.operationalState.compromised, true);
+  const read = (value = input, method = "verifyAsset") => f.assembly.inspectCommandRecovery({ headers: {} }, method, value);
+  assert.deepEqual(await read(), { status: "UNRESOLVED", writeResumptionAllowed: false });
+  const hash = evidenceHash({ method: "verifyAsset", input: { actorId: "production-operator", ...input } });
+  f.setCommand(input.idempotencyKey, { commandHash: hash, status: "COMPLETED", result: { detail: "synthetic-private-result" } });
+  assert.deepEqual(await read({ ...input, ignoredByVerifyWrapper: true }), { status: "COMPLETED_OBSERVED", writeResumptionAllowed: false });
+  assert.equal((await read({ ...input, evidenceVersion: 2 })).status, "CONFLICT");
+  f.setCommand(input.idempotencyKey, { commandHash: hash, status: "PENDING" });
+  assert.equal((await read()).status, "UNRESOLVED");
+  await assert.rejects(() => read(input, "unlisted"), /COMMAND_METHOD_INVALID/);
+  await assert.rejects(() => read({ ...input, actorId: "production-operator" }), /RECOVERY_INPUT_INVALID/);
+  await assert.rejects(() => read({ ...input, actorId: "forged-operator" }), /RECOVERY_INPUT_INVALID/);
+  const reads = f.getCommandReads();
+  f.setAdminIdentity(null);
+  await assert.rejects(read, /ADMIN_AUTHENTICATION_REQUIRED/);
+  f.setAdminIdentity({ actorId: "production-operator", roles: ["READER"] });
+  await assert.rejects(read, /PERMISSION_DENIED/);
+  assert.equal(f.getCommandReads(), reads);
+  f.setAdminIdentity({ actorId: "production-operator", roles: ["ORACLE_OPERATOR"] });
+  assert.equal((await read()).status, "UNRESOLVED");
+  f.failCommandRead();
+  await assert.rejects(read, { message: "MYSQL_RECOVERY_READ_FAILED" });
+  f.failAuthentication();
+  await assert.rejects(read, { message: "ADMIN_AUTHENTICATION_REQUIRED" });
+  assert.equal(f.getSourceFetches(), 3);
+  assert.equal(f.persisted.length, 0);
+  assert.equal(f.assembly.runtime.operationalState.compromised, true);
+  await assert.rejects(() => f.assembly.controlPlane.verifyAsset({ ...input, actorId: "production-operator" }), /DURABLE_STATE_COMPROMISED/);
+});
+
+test("production recovery delegates both arguments and preserves finalized-command canonical identity", async (t) => {
+  const f = await productionFixture({ externalWritesEnabled: false });
+  const input = { idempotencyKey: "recovery-finalization", request: { evidenceVersion: 3, warehouseReference: "record:warehouse-final", settlementId: "settlement-recovery", snapshotHash: HASH_A, certificateReference: "record:certificate-final", assetReference: "record:asset-final" } };
+  f.setCommand(input.idempotencyKey, { commandHash: evidenceHash({ method: "finalizeSettlement", input: { actorId: "production-operator", ...input } }), status: "COMPLETED", result: { detail: "synthetic-private-result" } });
+  assert.deepEqual(await f.assembly.inspectCommandRecovery({ headers: {} }, "finalizeSettlement", { ...input, ignoredByFinalizeWrapper: true }), { status: "COMPLETED_OBSERVED", writeResumptionAllowed: false });
+  await assert.rejects(() => f.assembly.inspectCommandRecovery({ headers: {} }, "finalizeSettlement", { ...input, request: { ...input.request, warehouseConfirmed: true } }), /AUTHORITATIVE_FINALIZATION_INPUT_INVALID/);
+  assert.equal(f.getSourceFetches(), 0);
+  assert.equal(f.persisted.length, 0);
+  const app = createApp({ config: { environment: "production", externalWritesEnabled: false }, ...f.assembly });
+  await new Promise((resolve) => app.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise((resolve) => app.close(resolve)));
+  const response = await fetch(`http://127.0.0.1:${app.address().port}/v1/rwa/admin/assets/verify`, { method: "POST" });
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).errorCode, "ADMIN_WRITES_DISABLED");
+});
+
+test("production recovery isolates same-actor concurrent role snapshots", async () => {
+  const f = await productionFixture({ externalWritesEnabled: false });
+  f.assembly.runtime.operationalState.compromised = true;
+  const input = { idempotencyKey: "concurrent-recovery", evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" }, evidenceVersion: 1 };
+  for (const roles of [["READER", "ORACLE_OPERATOR"], ["ORACLE_OPERATOR", "READER"]]) {
+    // Both server authentications complete before their continuations. The old
+    // shared actor table allowed the last identity to govern both observations.
+    f.setAdminIdentity((request) => ({ actorId: "production-operator", roles: [request.serverAuthenticatedRole] }));
+    const reads = f.getCommandReads();
+    const results = await Promise.allSettled(roles.map((role) => f.assembly.inspectCommandRecovery({ serverAuthenticatedRole: role }, "verifyAsset", input)));
+    for (const [index, role] of roles.entries()) {
+      if (role === "READER") {
+        assert.equal(results[index].status, "rejected");
+        assert.equal(results[index].reason.message, "PERMISSION_DENIED:asset:verify");
+      } else {
+        assert.equal(results[index].status, "fulfilled");
+        assert.deepEqual(results[index].value, { status: "UNRESOLVED", writeResumptionAllowed: false });
+      }
+    }
+    assert.equal(f.getCommandReads(), reads + 1);
+  }
+  assert.equal(f.assembly.runtime.operationalState.compromised, true);
+  assert.equal(f.getSourceFetches(), 0);
+  assert.equal(f.persisted.length, 0);
+});
+
+test("production audit recovery rejects injected capabilities and uses request-local server authorization", async () => {
+  const f = await productionFixture({ externalWritesEnabled: false });
+  f.assembly.runtime.auditJournal.append({ type: "synthetic.recovery", subjectId: "synthetic", payloadHash: HASH_A, actorId: "production-operator", occurredAt: NOW.toISOString() });
+  f.assembly.runtime.operationalState.compromised = true;
+  const input = { idempotencyKey: "audit-recovery", purpose: "internal-reconciliation" };
+  const commandHash = evidenceHash({ method: "exportAudit", input: { ...input, actorId: "production-operator" } });
+  f.setCommand(input.idempotencyKey, { commandHash, status: "COMPLETED", result: { privateResult: "must-not-return" } });
+  let injectedCalls = 0;
+  const injected = { authorizeExport() { injectedCalls += 1; return true; } };
+  const read = (value = input) => f.assembly.inspectCommandRecovery({ headers: {} }, "exportAudit", value);
+  f.setAdminIdentity({ actorId: "production-operator", roles: ["READER"] });
+  await assert.rejects(() => read({ ...input, adminOperations: injected }), { message: "RECOVERY_INPUT_INVALID" });
+  await assert.rejects(() => read(Object.assign(Object.create({ adminOperations: injected }), input)), { message: "RECOVERY_INPUT_INVALID" });
+  await assert.rejects(read, { message: "PERMISSION_DENIED:audit:export" });
+  assert.equal(f.getCommandReads(), 0);
+  assert.equal(injectedCalls, 0);
+  f.setAdminIdentity({ actorId: "production-operator", roles: ["AUDITOR"] });
+  await assert.rejects(() => read({ ...input, adminOperations: injected }), { message: "RECOVERY_INPUT_INVALID" });
+  await assert.rejects(() => read({ ...input, purpose: "unapproved" }), { message: "EXPORT_PURPOSE_INVALID" });
+  assert.equal(f.getCommandReads(), 0);
+  assert.deepEqual(await read(), { status: "COMPLETED_OBSERVED", writeResumptionAllowed: false });
+  f.setAdminIdentity((request) => ({ actorId: "production-operator", roles: [request.serverAuthenticatedRole] }));
+  const results = await Promise.allSettled(["READER", "AUDITOR"].map((role) => f.assembly.inspectCommandRecovery({ serverAuthenticatedRole: role }, "exportAudit", input)));
+  assert.equal(results[0].status, "rejected");
+  assert.equal(results[0].reason.message, "PERMISSION_DENIED:audit:export");
+  assert.deepEqual(results[1], { status: "fulfilled", value: { status: "COMPLETED_OBSERVED", writeResumptionAllowed: false } });
+  assert.equal(f.getCommandReads(), 2);
+  assert.equal(f.assembly.runtime.auditJournal.list().length, 1);
+  assert.equal(f.assembly.runtime.operationalState.compromised, true);
+  assert.equal(f.getSourceFetches(), 0);
+  assert.equal(f.persisted.length, 0);
+});
+
+test("production assembly fetches three authenticated sources and persists the authoritative mutation", async () => {
+  const { assembly, persisted, published, deliveryUpdates, getSourceFetches } = await productionFixture();
+  const command = { actorId: "production-operator", idempotencyKey: "production-verify-001", evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" }, evidenceVersion: 1 };
+  const result = await assembly.controlPlane.verifyAsset(command);
+  assert.equal(result.result.status, "VALID");
+  assert.equal(persisted.length, 1);
+  assert.equal(persisted[0].method, "verifyAsset");
+  assert.equal(persisted[0].auditEvents.length, 1);
+  assert.equal(persisted[0].outboxEvents.length, 1);
+  assert.match(persisted[0].stateSnapshot.stateHash, /^[a-f0-9]{64}$/);
+  assert.equal((await assembly.controlPlane.verifyAsset(command)).replayed, true);
+  assert.equal(getSourceFetches(), 3);
+  assert.deepEqual(await assembly.outboxDispatcher.drain(), [{ eventId: assembly.runtime.outbox.list()[0].eventId, status: "PUBLISHED" }]);
+  assert.equal(published.length, 1);
+  assert.deepEqual(deliveryUpdates.map(({ type }) => type), ["published"]);
+  assert.deepEqual(await assembly.readinessCheck(), { ok: true });
+});
+
+test("production finalization derives confirmations from all authenticated sources and emits certificate supersession", async () => {
+  const { assembly, setSourceRecord, getSourceFetches } = await productionFixture();
+  await assembly.controlPlane.verifyAsset({ actorId: "production-operator", idempotencyKey: "production-finalize-verify", evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" }, evidenceVersion: 1 });
+  await assembly.controlPlane.bindToken({ actorId: "production-operator", idempotencyKey: "production-finalize-bind", binding: { assetId: "asset-production", chainId: "560048", contract: "test-only", tokenId: "1" } });
+  const pending = (await assembly.controlPlane.beginSettlement({ actorId: "production-operator", idempotencyKey: "production-finalize-begin", request: { settlementId: "production-settlement", assetId: "asset-production", token: { chainId: "560048", contract: "test-only", tokenId: "1" }, sellerWallet: "seller", buyerWallet: "buyer", externalExecutionRef: "external-production", oldCertificateHash: HASH_B, warehouseReceiptHash: HASH_C, evidenceVersion: 2 } })).result;
+  const next = records("asset-production");
+  next.asset.currentCertificateHash = HASH_A;
+  next.asset.currentCertificateVersion = 2;
+  next.asset.currentOwnerCommitment = HASH_B;
+  const buyerCommitment = evidenceHash({ schemaVersion: "giraffe-settlement-buyer-commitment.v1", settlementId: pending.settlementId, buyerWallet: pending.buyerWallet });
+  const settlementScope = { settlementId: pending.settlementId, settlementSnapshotHash: pending.snapshotHash, settlementBuyerCommitment: buyerCommitment };
+  Object.assign(next.asset, settlementScope);
+  Object.assign(next.certificate, settlementScope);
+  Object.assign(next.warehouse, settlementScope, { holderCommitment: HASH_B });
+  next.certificate = { ...next.certificate, certificateVersion: 2, certificateHash: HASH_A, previousCertificateHash: HASH_B, wenbaoChangeRef: "change-production" };
+  setSourceRecord("authoritative-registry", next.asset);
+  setSourceRecord("authoritative-certificate", next.certificate);
+  setSourceRecord("authoritative-warehouse", next.warehouse);
+  const references = { assetReference: "record:asset-final", certificateReference: "record:certificate-final", warehouseReference: "record:warehouse-final" };
+  await assert.rejects(() => assembly.controlPlane.finalizeSettlement({ actorId: "production-operator", idempotencyKey: "production-finalize-injected", request: { settlementId: pending.settlementId, snapshotHash: pending.snapshotHash, evidenceVersion: 3, ...references, warehouseConfirmed: true } }), /AUTHORITATIVE_FINALIZATION_INPUT_INVALID/);
+  setSourceRecord("authoritative-warehouse", { ...next.warehouse, holderCommitment: HASH_A });
+  await assert.rejects(() => assembly.controlPlane.finalizeSettlement({ actorId: "production-operator", idempotencyKey: "production-finalize-holder-mismatch", request: { settlementId: pending.settlementId, snapshotHash: pending.snapshotHash, evidenceVersion: 3, ...references } }), /SETTLEMENT_HOLDER_CONFIRMATION_MISMATCH/);
+  setSourceRecord("authoritative-warehouse", next.warehouse);
+  setSourceRecord("authoritative-certificate", { ...next.certificate, settlementId: "different-settlement" });
+  await assert.rejects(() => assembly.controlPlane.finalizeSettlement({ actorId: "production-operator", idempotencyKey: "production-finalize-scope-mismatch", request: { settlementId: pending.settlementId, snapshotHash: pending.snapshotHash, evidenceVersion: 3, ...references } }), /SETTLEMENT_SCOPE_EVIDENCE_MISMATCH/);
+  setSourceRecord("authoritative-certificate", next.certificate);
+  setSourceRecord("authoritative-registry", { ...next.asset, warehouseId: "warehouse-replaced" });
+  setSourceRecord("authoritative-warehouse", { ...next.warehouse, warehouseId: "warehouse-replaced" });
+  await assert.rejects(() => assembly.controlPlane.finalizeSettlement({ actorId: "production-operator", idempotencyKey: "production-finalize-warehouse-replaced", request: { settlementId: pending.settlementId, snapshotHash: pending.snapshotHash, evidenceVersion: 3, ...references } }), /SETTLEMENT_WAREHOUSE_EVIDENCE_MISMATCH/);
+  setSourceRecord("authoritative-registry", next.asset);
+  setSourceRecord("authoritative-warehouse", next.warehouse);
+  const finalized = await assembly.controlPlane.finalizeSettlement({ actorId: "production-operator", idempotencyKey: "production-finalize-complete", request: { settlementId: pending.settlementId, snapshotHash: pending.snapshotHash, evidenceVersion: 3, ...references } });
+  assert.equal(finalized.result.status, "FINALIZED");
+  assert.equal(assembly.runtime.recordStore.getAsset("asset-production").currentOwnerCommitment, HASH_B);
+  assert.equal(assembly.runtime.recordStore.getWarehouse("asset-production").holderCommitment, HASH_B);
+  assert.equal(assembly.runtime.recordStore.provenance("WAREHOUSE", "asset-production").sourceId, "authoritative-warehouse");
+  assert.equal(getSourceFetches(), 15);
+  const events = assembly.runtime.outbox.list().filter(({ subjectId }) => subjectId === "asset-production").map(({ eventType }) => eventType);
+  assert.ok(events.includes("certificate.superseded"));
+  assert.ok(events.includes("settlement.finalized"));
+});
+test("Stage D synthetic market event survives one Oracle certificate-reissue recovery drill idempotently", async () => {
+  const { assembly, setSourceRecord, persisted, published } = await productionFixture();
+
+  await assembly.controlPlane.verifyAsset({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-verify",
+    evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" },
+    evidenceVersion: 1,
+  });
+  await assembly.controlPlane.bindToken({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-bind",
+    binding: { assetId: "asset-production", chainId: "560048", contract: "test-only", tokenId: "1" },
+  });
+
+  // This externalExecutionRef is a synthetic external-market trigger only; no market,
+  // counterparty, funds, or chain transaction is invoked by this drill.
+  const begin = {
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-market-event",
+    request: {
+      settlementId: "stage-d-settlement",
+      assetId: "asset-production",
+      token: { chainId: "560048", contract: "test-only", tokenId: "1" },
+      sellerWallet: "seller-test",
+      buyerWallet: "buyer-test",
+      externalExecutionRef: "synthetic-market-event-001",
+      oldCertificateHash: HASH_B,
+      warehouseReceiptHash: HASH_C,
+      evidenceVersion: 2,
+    },
+  };
+  const pending = await assembly.controlPlane.beginSettlement(begin);
+  const pendingReplay = await assembly.controlPlane.beginSettlement(begin);
+  assert.equal(pending.result.status, "PENDING");
+  assert.equal(pendingReplay.replayed, true);
+  assert.equal(pendingReplay.result.snapshotHash, pending.result.snapshotHash);
+
+  const next = records("asset-production");
+  next.asset.currentCertificateHash = HASH_A;
+  next.asset.currentCertificateVersion = 2;
+  next.asset.currentOwnerCommitment = HASH_B;
+  const buyerCommitment = evidenceHash({
+    schemaVersion: "giraffe-settlement-buyer-commitment.v1",
+    settlementId: pending.result.settlementId,
+    buyerWallet: pending.result.buyerWallet,
+  });
+  const scope = {
+    settlementId: pending.result.settlementId,
+    settlementSnapshotHash: pending.result.snapshotHash,
+    settlementBuyerCommitment: buyerCommitment,
+  };
+  Object.assign(next.asset, scope);
+  Object.assign(next.certificate, scope, {
+    certificateVersion: 2,
+    certificateHash: HASH_A,
+    previousCertificateHash: HASH_B,
+    wenbaoChangeRef: "synthetic-registry-change-001",
+  });
+  Object.assign(next.warehouse, scope, { holderCommitment: HASH_B });
+  setSourceRecord("authoritative-registry", next.asset);
+  setSourceRecord("authoritative-certificate", next.certificate);
+  setSourceRecord("authoritative-warehouse", next.warehouse);
+
+  const finalize = {
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-finalize",
+    request: {
+      settlementId: pending.result.settlementId,
+      snapshotHash: pending.result.snapshotHash,
+      evidenceVersion: 3,
+      assetReference: "record:stage-d-asset",
+      certificateReference: "record:stage-d-certificate",
+      warehouseReference: "record:stage-d-warehouse",
+    },
+  };
+  const completed = await assembly.controlPlane.finalizeSettlement(finalize);
+  const completedReplay = await assembly.controlPlane.finalizeSettlement(finalize);
+
+  assert.equal(completed.result.status, "FINALIZED");
+  assert.equal(completedReplay.replayed, true);
+  assert.equal(completedReplay.result.newCertificateHash, HASH_A);
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production").certificateVersion, 2);
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production").previousCertificateHash, HASH_B);
+  assert.equal(assembly.runtime.stateEngine.current("asset-production"), "VALID");
+  assert.equal(assembly.runtime.settlements.get("stage-d-settlement").status, "FINALIZED");
+  assert.equal(persisted.filter(({ method }) => method === "finalizeSettlement").length, 1);
+
+  const settlementEvents = assembly.runtime.outbox.list()
+    .filter(({ subjectId }) => subjectId === "asset-production")
+    .map(({ eventType }) => eventType);
+  assert.equal(settlementEvents.filter((type) => type === "settlement.started").length, 1);
+  assert.equal(settlementEvents.filter((type) => type === "certificate.superseded").length, 1);
+  assert.equal(settlementEvents.filter((type) => type === "settlement.finalized").length, 1);
+
+  await assembly.outboxDispatcher.drain();
+  assert.equal(published.filter(({ subjectId, eventType }) =>
+    subjectId === "asset-production" && ["settlement.started", "certificate.superseded", "settlement.finalized"].includes(eventType),
+  ).length, 3, "each lifecycle event is published exactly once");
+  assert.equal(assembly.runtime.auditJournal.verify(), true);
+});
+
+test("Stage D source interruption fails settlement closed and recovers with the same command identity", async () => {
+  const { assembly, setSourceRecord, setSourceUnavailable, persisted } = await productionFixture();
+
+  await assembly.controlPlane.verifyAsset({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-outage-verify",
+    evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" },
+    evidenceVersion: 1,
+  });
+  await assembly.controlPlane.bindToken({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-outage-bind",
+    binding: { assetId: "asset-production", chainId: "560048", contract: "test-only", tokenId: "1" },
+  });
+  const pending = await assembly.controlPlane.beginSettlement({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-outage-begin",
+    request: {
+      settlementId: "stage-d-outage-settlement",
+      assetId: "asset-production",
+      token: { chainId: "560048", contract: "test-only", tokenId: "1" },
+      sellerWallet: "seller-test",
+      buyerWallet: "buyer-test",
+      externalExecutionRef: "synthetic-market-event-outage",
+      oldCertificateHash: HASH_B,
+      warehouseReceiptHash: HASH_C,
+      evidenceVersion: 2,
+    },
+  });
+
+  const next = records("asset-production");
+  next.asset.currentCertificateHash = HASH_A;
+  next.asset.currentCertificateVersion = 2;
+  next.asset.currentOwnerCommitment = HASH_B;
+  const buyerCommitment = evidenceHash({
+    schemaVersion: "giraffe-settlement-buyer-commitment.v1",
+    settlementId: pending.result.settlementId,
+    buyerWallet: pending.result.buyerWallet,
+  });
+  const scope = {
+    settlementId: pending.result.settlementId,
+    settlementSnapshotHash: pending.result.snapshotHash,
+    settlementBuyerCommitment: buyerCommitment,
+  };
+  Object.assign(next.asset, scope);
+  Object.assign(next.certificate, scope, {
+    certificateVersion: 2,
+    certificateHash: HASH_A,
+    previousCertificateHash: HASH_B,
+    wenbaoChangeRef: "synthetic-registry-change-after-outage",
+  });
+  Object.assign(next.warehouse, scope, { holderCommitment: HASH_B });
+  setSourceRecord("authoritative-registry", next.asset);
+  setSourceRecord("authoritative-certificate", next.certificate);
+  setSourceRecord("authoritative-warehouse", next.warehouse);
+
+  const finalize = {
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-outage-finalize",
+    request: {
+      settlementId: pending.result.settlementId,
+      snapshotHash: pending.result.snapshotHash,
+      evidenceVersion: 3,
+      assetReference: "record:stage-d-outage-asset",
+      certificateReference: "record:stage-d-outage-certificate",
+      warehouseReference: "record:stage-d-outage-warehouse",
+    },
+  };
+  setSourceUnavailable("authoritative-certificate");
+  await assert.rejects(() => assembly.controlPlane.finalizeSettlement(finalize), /SOURCE_UNAVAILABLE/);
+  assert.equal(assembly.runtime.settlements.get(pending.result.settlementId).status, "PENDING");
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production").certificateVersion, 1);
+  assert.equal(assembly.runtime.stateEngine.current("asset-production"), "TRANSFER_PENDING");
+  assert.equal(persisted.filter(({ method }) => method === "finalizeSettlement").length, 0);
+  assert.equal(assembly.runtime.auditJournal.list().some(({ type }) => type === "settlement.finalized"), false);
+
+  setSourceUnavailable("authoritative-certificate", false);
+  const recovered = await assembly.controlPlane.finalizeSettlement(finalize);
+  assert.equal(recovered.result.status, "FINALIZED");
+  assert.equal(recovered.replayed, false);
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production").certificateVersion, 2);
+  assert.equal(assembly.runtime.stateEngine.current("asset-production"), "VALID");
+  assert.equal(persisted.filter(({ method }) => method === "finalizeSettlement").length, 1);
+  assert.equal(assembly.runtime.auditJournal.verify(), true);
+});
+
+test("Stage D timeout stays non-final and timeout replay cannot reissue a certificate", async () => {
+  let now = NOW;
+  const { assembly, persisted } = await productionFixture({ clock: () => now });
+  await assembly.controlPlane.verifyAsset({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-timeout-verify",
+    evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" },
+    evidenceVersion: 1,
+  });
+  await assembly.controlPlane.bindToken({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-timeout-bind",
+    binding: { assetId: "asset-production", chainId: "560048", contract: "test-only", tokenId: "1" },
+  });
+
+  const begin = {
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-timeout-begin",
+    request: {
+      settlementId: "stage-d-timeout-settlement",
+      assetId: "asset-production",
+      token: { chainId: "560048", contract: "test-only", tokenId: "1" },
+      sellerWallet: "seller-test",
+      buyerWallet: "buyer-test",
+      externalExecutionRef: "synthetic-timeout-trigger-001",
+      oldCertificateHash: HASH_B,
+      warehouseReceiptHash: HASH_C,
+      evidenceVersion: 2,
+    },
+  };
+  const pending = await assembly.controlPlane.beginSettlement(begin);
+  assert.equal(pending.result.status, "PENDING");
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production").certificateVersion, 1);
+
+  now = new Date(new Date(pending.result.deadlineAt).getTime() + 1);
+  const timeout = {
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-timeout-command",
+    request: { settlementId: pending.result.settlementId, reasonHash: HASH_A, evidenceVersion: 3 },
+  };
+  const timedOut = await assembly.controlPlane.timeoutSettlement(timeout);
+  const replay = await assembly.controlPlane.timeoutSettlement(timeout);
+
+  assert.equal(timedOut.result.status, "TIMED_OUT");
+  assert.equal(replay.replayed, true);
+  assert.equal(replay.result.status, "TIMED_OUT");
+  assert.equal(assembly.runtime.settlements.get("stage-d-timeout-settlement").status, "TIMED_OUT");
+  assert.equal(assembly.runtime.stateEngine.current("asset-production"), "REVIEW_REQUIRED");
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production").certificateHash, HASH_B);
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production").certificateVersion, 1);
+  assert.equal(persisted.filter(({ method }) => method === "timeoutSettlement").length, 1);
+  assert.equal(assembly.runtime.auditJournal.list().filter(({ type }) => type === "settlement.timed-out").length, 1);
+  assert.equal(assembly.runtime.auditJournal.verify(), true);
+});
+
+test("Stage D dispute remains non-final and replay cannot reissue a certificate", async () => {
+  const { assembly, persisted } = await productionFixture();
+  await assembly.controlPlane.verifyAsset({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-dispute-verify",
+    evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" },
+    evidenceVersion: 1,
+  });
+  await assembly.controlPlane.bindToken({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-dispute-bind",
+    binding: { assetId: "asset-production", chainId: "560048", contract: "test-only", tokenId: "1" },
+  });
+  const pending = await assembly.controlPlane.beginSettlement({
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-dispute-begin",
+    request: {
+      settlementId: "stage-d-dispute-settlement",
+      assetId: "asset-production",
+      token: { chainId: "560048", contract: "test-only", tokenId: "1" },
+      sellerWallet: "seller-test",
+      buyerWallet: "buyer-test",
+      externalExecutionRef: "synthetic-dispute-trigger-001",
+      oldCertificateHash: HASH_B,
+      warehouseReceiptHash: HASH_C,
+      evidenceVersion: 2,
+    },
+  });
+  const dispute = {
+    actorId: "production-operator",
+    idempotencyKey: "stage-d-dispute-command",
+    request: { settlementId: pending.result.settlementId, reasonHash: HASH_A, evidenceVersion: 3 },
+  };
+  const result = await assembly.controlPlane.disputeSettlement(dispute);
+  const replay = await assembly.controlPlane.disputeSettlement(dispute);
+
+  assert.equal(result.result.status, "DISPUTED");
+  assert.equal(replay.replayed, true);
+  assert.equal(replay.result.status, "DISPUTED");
+  assert.equal(assembly.runtime.settlements.get("stage-d-dispute-settlement").status, "DISPUTED");
+  assert.equal(assembly.runtime.stateEngine.current("asset-production"), "REVIEW_REQUIRED");
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production").certificateHash, HASH_B);
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production").certificateVersion, 1);
+  assert.equal(persisted.filter(({ method }) => method === "disputeSettlement").length, 1);
+  assert.equal(assembly.runtime.auditJournal.list().filter(({ type }) => type === "settlement.disputed").length, 1);
+  assert.equal(assembly.runtime.auditJournal.verify(), true);
+});
+
+test("Stage D reconciliation mismatch refuses a verification snapshot without mutation", async () => {
+  const { assembly, persisted, setSourceRecord } = await productionFixture();
+  const conflictingCertificate = { ...records("asset-production").certificate, certificateHash: HASH_A };
+  setSourceRecord("authoritative-certificate", conflictingCertificate);
+
+  await assert.rejects(
+    () => assembly.controlPlane.verifyAsset({
+      actorId: "production-operator",
+      idempotencyKey: "stage-d-reconciliation-conflict",
+      evidenceReferences: { asset: "record:asset-001", certificate: "record:certificate-001", warehouse: "record:warehouse-001" },
+      evidenceVersion: 1,
+    }),
+    /ASSET_EVIDENCE_BUNDLE_MISMATCH/,
+  );
+
+  assert.equal(persisted.filter(({ method }) => method === "verifyAsset").length, 0);
+  assert.equal(assembly.runtime.stateEngine.current("asset-production"), "NOT_VERIFIED");
+  assert.equal(assembly.runtime.recordStore.getAsset("asset-production"), null);
+  assert.equal(assembly.runtime.recordStore.currentCertificate("asset-production"), null);
+  assert.equal(assembly.runtime.auditJournal.list().length, 0);
+  assert.equal(assembly.runtime.auditJournal.verify(), true);
+});
+
 test("Stage D certificate conflict leaves pending settlement and original certificate unchanged", async () => {
   const { assembly, persisted, setSourceRecord } = await productionFixture();
   await assembly.controlPlane.verifyAsset({
