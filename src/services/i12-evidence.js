@@ -75,9 +75,13 @@ export function validateI12Evidence(type, value) {
   } else if (type === "reproducible-build") {
     if (!HASH.test(value.buildOneSha256 ?? "") || value.buildOneSha256 !== value.buildTwoSha256 || value.sbomVerified !== true || value.artifactSignatureVerified !== true) throw new Error("I12_REPRODUCIBLE_BUILD_INSUFFICIENT");
   } else if (type === "independent-reviews") {
-    if (!Array.isArray(value.reviews) || value.reviews.length !== I12_INDEPENDENT_REVIEW_ROLES.length) throw new Error("I12_REVIEW_MATRIX_INSUFFICIENT");
-    const reviews = new Map(value.reviews.map((review) => [review?.role, review]));
-    if (reviews.size !== I12_INDEPENDENT_REVIEW_ROLES.length || [...reviews.keys()].some((role) => !I12_INDEPENDENT_REVIEW_ROLES.includes(role))) throw new Error("I12_REVIEW_MATRIX_INSUFFICIENT");
+    if (!Array.isArray(value.reviews)) throw new Error("I12_REVIEW_MATRIX_INSUFFICIENT");
+    const reviews = new Map();
+    for (const review of value.reviews) {
+      const role = review?.role;
+      if (!I12_INDEPENDENT_REVIEW_ROLES.includes(role) || reviews.has(role)) throw new Error("I12_REVIEW_MATRIX_INSUFFICIENT");
+      reviews.set(role, review);
+    }
     const reviewerRefs = new Set();
     const evidenceRefs = new Set();
     for (const role of I12_INDEPENDENT_REVIEW_ROLES) {
