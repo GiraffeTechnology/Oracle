@@ -16,6 +16,10 @@ const base = {
 };
 const fixedNow = Date.parse("2026-08-24T00:00:00Z");
 
+// Synthetic addresses for isolated policy-construction tests only.
+process.env.ERC_TEST_WALLET_1_ADDRESS = "0x1111111111111111111111111111111111111111";
+process.env.ERC_TEST_WALLET_2_ADDRESS = "0x2222222222222222222222222222222222222222";
+
 const deployment = buildExactHoodiArtifacts({
   wallet: "ArtFi1",
   address: WALLET_ADDRESSES.ArtFi1,

@@ -7,17 +7,40 @@ const { spawnSync } = require("node:child_process");
 const { ethers } = require("ethers");
 
 const HOODI_CHAIN_ID = 560048;
+function requiredConfiguration(name) {
+  const value = (process.env[name] || "").trim();
+  if (!value) throw new Error(`missing controlled-test configuration: ${name}`);
+  return value;
+}
+
+function configuredWalletAddresses() {
+  const first = ethers.getAddress(requiredConfiguration("ERC_TEST_WALLET_1_ADDRESS"));
+  const second = ethers.getAddress(requiredConfiguration("ERC_TEST_WALLET_2_ADDRESS"));
+  if (first === ethers.ZeroAddress || second === ethers.ZeroAddress || first === second) {
+    throw new Error("controlled test wallets must be distinct nonzero addresses");
+  }
+  return { ArtFi1: first, ArtFi2: second };
+}
+
+// Compatibility aliases; actual addresses are supplied by test configuration.
 const WALLET_ADDRESSES = Object.freeze({
-  ArtFi1: "0x75F6e1BAc9bF07a54FECc416ef76327BbD2c3089",
-  ArtFi2: "0xDE3c1D455c2CCe1bAcf1e70aAC7fA3B8cCb1ec2B"
+  get ArtFi1() { return configuredWalletAddresses().ArtFi1; },
+  get ArtFi2() { return configuredWalletAddresses().ArtFi2; }
 });
-const DEFAULT_WRAPPER = path.resolve(
-  "C:/Users/Administrator/Documents/Giraffe ArtFi/artfi/scripts/local/Invoke-ArtFiOfflineSignerV1.ps1"
-);
-const DEFAULT_BRIDGE = path.resolve(
-  "C:/Users/Administrator/Documents/服务器配置/bin/Invoke-ArtFiChainBridgeV1.ps1"
-);
-const ERC_THREAD_ID = "01a02f67-002b-7491-8fd2-6a111c45ae14";
+
+function configuredExecutablePath(name) {
+  const value = requiredConfiguration(name);
+  if (!path.isAbsolute(value)) throw new Error(`controlled-test path must be absolute: ${name}`);
+  return value;
+}
+
+function configuredBridgeAuthorization() {
+  const value = requiredConfiguration("ERC_CHAIN_BRIDGE_AUTHORIZATION_ID");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
+    throw new Error("invalid controlled bridge authorization identifier");
+  }
+  return value;
+}
 
 function sha256Utf8(value) {
   return crypto.createHash("sha256").update(value, "utf8").digest("hex");
@@ -40,7 +63,7 @@ function parseWrapperResult(stdout) {
 }
 
 function invokeWrapper({ wallet, requestPath, policyPath, policyHash, outputPath }) {
-  const wrapperPath = process.env.ERC_SIGNER_WRAPPER_PATH || DEFAULT_WRAPPER;
+  const wrapperPath = configuredExecutablePath("ERC_SIGNER_WRAPPER_PATH");
   const powershell = process.env.ERC_SIGNER_POWERSHELL || "powershell.exe";
   const result = spawnSync(
     powershell,
@@ -68,7 +91,7 @@ function invokeWrapper({ wallet, requestPath, policyPath, policyHash, outputPath
 }
 
 function invokeBridge(action, params = {}, sensitiveStdinFile) {
-  const bridgePath = process.env.ERC_CHAIN_BRIDGE_PATH || DEFAULT_BRIDGE;
+  const bridgePath = configuredExecutablePath("ERC_CHAIN_BRIDGE_PATH");
   const powershell = process.env.ERC_SIGNER_POWERSHELL || "powershell.exe";
   const arguments = [
     "-NoLogo",
@@ -76,7 +99,7 @@ function invokeBridge(action, params = {}, sensitiveStdinFile) {
     "-NonInteractive",
     "-ExecutionPolicy", "Bypass",
     "-File", bridgePath,
-    "-AuthorizedThreadId", ERC_THREAD_ID,
+    "-AuthorizedThreadId", configuredBridgeAuthorization(),
     "-Network", "hoodi",
     "-Action", action,
     "-ParamsJson", JSON.stringify(params),
@@ -344,7 +367,7 @@ class ControlledOfflineSigner extends ethers.AbstractSigner {
       transactionHash,
       blockNumber: Number(BigInt(bridgeReceipt.blockNumber)),
       chainIdentityAttested: true,
-      transport: "ArtFiChainBridge/sin/v1"
+      transport: "controlled-hoodi-bridge"
     }));
     return response;
   }
@@ -355,5 +378,8 @@ module.exports = {
   buildExactHoodiArtifacts,
   ControlledOfflineSigner,
   HOODI_CHAIN_ID,
-  WALLET_ADDRESSES
+  WALLET_ADDRESSES,
+  configuredWalletAddresses,
+  configuredExecutablePath,
+  configuredBridgeAuthorization
 };
