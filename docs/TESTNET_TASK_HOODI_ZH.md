@@ -1,4 +1,4 @@
-# Codex Task Brief: Run Giraffe ERC Reference-Implementation Tests on a Public Testnet
+# Giraffe ERC Reference-Implementation Public-Testnet Test Plan
 
 | Item | Content |
 | --- | --- |

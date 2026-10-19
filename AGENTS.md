@@ -117,7 +117,7 @@ A proof establishes what the verification profile proves. It must not silently b
 
 ## 6. No autonomous protocol governance
 
-Codex, Claude Code, automated reviewers, CI agents, and other tools may implement, test, audit, and report evidence. They do not have authority to create or modify protocol semantics.
+Implementation and review tools may implement, test, audit, and report evidence. They do not have authority to create or modify protocol semantics.
 
 They MUST NOT independently:
 

@@ -17,7 +17,7 @@ The current candidate includes: ORACLE-011 asset detail and four settlement-disp
 2. Fixed the iteration test command to use Node's spec reporter, eliminating false negatives for named tests caused by default TAP output.
 3. Added a traceability regression test that mechanically proves exactly 13 iterations cover every ORACLE/CONSUMER/NFR ID.
 4. Included the CI structure proposed by the candidate branch and rewrote it for the 11 mandatory v0.3 job IDs; a workflow, PR, or CI run alone is not acceptance evidence.
-5. The Hoodi script continues to use real block-time polling, dynamic chainId validation, ArtFi1/ArtFi2 roles, and exclusive evidence logs; on-chain execution remains subject to wallet, SIN, nonce, and broadcast gates.
+5. The Hoodi script continues to use real block-time polling, dynamic chainId validation, ArtFi1/ArtFi2 roles, and exclusive evidence logs; on-chain execution remains subject to wallet, chain-identity, nonce, and broadcast gates.
 
 ## Still blocking
 
