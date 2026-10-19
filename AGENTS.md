@@ -280,7 +280,7 @@ The next implementation direction is the Oracle-owned application integration bo
 
 The current verified ERC8415-Kit handoff covers the v2.0 temporal projection surface only. Optional gap behavior and the legacy `settle()` surface MUST NOT be represented as a v2.1 or v2.2 settlement product.
 
-Implementation constraints:
+Implementation constraints — implementations MUST NOT:
 
 - make ArtFi integrate ERC8415-Kit directly;
 - place an ERC-8415 adapter or projection or settlement infrastructure in ArtFi;

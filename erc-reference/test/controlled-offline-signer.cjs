@@ -5,14 +5,13 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { ethers } = require("ethers");
+const {
+  requiredConfiguration,
+  configuredExecutablePath,
+  configuredBridgeAuthorization
+} = require("./controlled-test-configuration.cjs");
 
 const HOODI_CHAIN_ID = 560048;
-function requiredConfiguration(name) {
-  const value = (process.env[name] || "").trim();
-  if (!value) throw new Error(`missing controlled-test configuration: ${name}`);
-  return value;
-}
-
 function configuredWalletAddresses() {
   const first = ethers.getAddress(requiredConfiguration("ERC_TEST_WALLET_1_ADDRESS"));
   const second = ethers.getAddress(requiredConfiguration("ERC_TEST_WALLET_2_ADDRESS"));
@@ -27,20 +26,6 @@ const WALLET_ADDRESSES = Object.freeze({
   get ArtFi1() { return configuredWalletAddresses().ArtFi1; },
   get ArtFi2() { return configuredWalletAddresses().ArtFi2; }
 });
-
-function configuredExecutablePath(name) {
-  const value = requiredConfiguration(name);
-  if (!path.isAbsolute(value)) throw new Error(`controlled-test path must be absolute: ${name}`);
-  return value;
-}
-
-function configuredBridgeAuthorization() {
-  const value = requiredConfiguration("ERC_CHAIN_BRIDGE_AUTHORIZATION_ID");
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
-    throw new Error("invalid controlled bridge authorization identifier");
-  }
-  return value;
-}
 
 function sha256Utf8(value) {
   return crypto.createHash("sha256").update(value, "utf8").digest("hex");
