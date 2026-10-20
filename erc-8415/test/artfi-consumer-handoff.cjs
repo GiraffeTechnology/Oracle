@@ -12,6 +12,7 @@ const hardhatRequire = createRequire(require.resolve("hardhat/package.json"));
 const solc = hardhatRequire("solc");
 const sourcePath = path.resolve(__dirname, "../contracts/OracleRegisterProjection.sol");
 const fixturePath = path.resolve(__dirname, "../artfi-consumer.v1.json");
+const vectorPath = path.resolve(__dirname, "../conformance/projection-vectors.json");
 const hashLabel = (label) => ethers.keccak256(ethers.toUtf8Bytes(label));
 
 function compileProjection() {
@@ -99,5 +100,89 @@ describe("ArtFi read-only projection handoff", function () {
     assert.equal(beforeInitialization.holderAsOf, null);
     assert.equal(beforeInitialization.finalAsOf, false);
     assert.equal(beforeInitialization.entryCount, "2");
+  });
+
+  it("reproduces every non-empty shared holder/finality vector through the public consumer", async () => {
+    const vectors = JSON.parse(fs.readFileSync(vectorPath, "utf8"));
+    assert.equal(vectors.schemaVersion, 1);
+
+    // The empty vector describes no token projection and is outside this
+    // token-ID reader contract. Gap vectors are exercised by the model suite;
+    // OracleRegisterProjection has no gap API and must not invent one here.
+    const cases = vectors.cases.filter((testCase) => testCase.entries.length > 0);
+    assert.deepEqual(
+      cases.map((testCase) => testCase.id),
+      ["single-entry", "two-entries", "confirming-entry", "three-entries"]
+    );
+
+    const [, sourceAuthority, positionOwner, holderA, holderB, holderC] =
+      await ethers.getSigners();
+    const holders = {
+      A: holderA.address,
+      B: holderB.address,
+      C: holderC.address
+    };
+    const artifact = compileProjection();
+
+    for (const [caseIndex, testCase] of cases.entries()) {
+      const registerId = hashLabel(`shared-vector-register:${testCase.id}`);
+      const projection = await new ethers.ContractFactory(
+        artifact.abi,
+        `0x${artifact.evm.bytecode.object}`,
+        sourceAuthority
+      ).deploy(registerId, sourceAuthority.address);
+      await projection.waitForDeployment();
+
+      const tokenId = BigInt(1000 + caseIndex);
+      for (const [entryIndex, entry] of testCase.entries.entries()) {
+        const recordCommitment = hashLabel(
+          `shared-vector:${testCase.id}:entry:${entryIndex}:record`
+        );
+        const registryReference = hashLabel(
+          `shared-vector:${testCase.id}:entry:${entryIndex}:registry`
+        );
+        const holder = holders[entry.holder];
+        assert.ok(holder, `unknown vector holder label: ${entry.holder}`);
+
+        if (entryIndex === 0) {
+          await projection.mintFromSource(
+            positionOwner.address,
+            tokenId,
+            recordCommitment,
+            registryReference,
+            holder,
+            entry.effectiveAt
+          );
+        } else {
+          await projection.appendFromSource(
+            tokenId,
+            recordCommitment,
+            registryReference,
+            holder,
+            entry.effectiveAt
+          );
+        }
+      }
+
+      for (const expectation of testCase.expect) {
+        const snapshot = await readProjection({
+          runner: ethers.provider,
+          address: await projection.getAddress(),
+          tokenId,
+          instant: BigInt(expectation.instant)
+        });
+        const expectedHolder =
+          expectation.holder === null ? null : holders[expectation.holder];
+
+        assert.equal(snapshot.entryCount, String(testCase.entries.length), testCase.id);
+        assert.equal(snapshot.holderAsOf, expectedHolder, `${testCase.id} @ ${expectation.instant}`);
+        assert.equal(snapshot.finalAsOf, expectation.final, `${testCase.id} @ ${expectation.instant}`);
+        if (expectedHolder === null) {
+          assert.equal(snapshot.asOf, null, `${testCase.id} @ ${expectation.instant}`);
+        } else {
+          assert.equal(snapshot.asOf.holder, expectedHolder, `${testCase.id} @ ${expectation.instant}`);
+        }
+      }
+    }
   });
 });
