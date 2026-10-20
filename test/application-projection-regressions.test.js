@@ -32,7 +32,27 @@ test('latest entry uses count then exact version beyond the first 100 entries', 
   });
   assert.equal(await kit.registerId('42'), REGISTER);
   assert.equal((await kit.currentEntry('42')).version, '101');
-  assert.deepEqual(paths, ['/projection/42', '/projection/42', '/projection/42/entry/version/101']);
+  assert.deepEqual(paths, ['/projection/42', '/projection/42', '/projection/42/entry/version/101', '/projection/42']);
+});
+
+test('current entry retries a concurrent append and fails closed if latest version never stabilizes', async () => {
+  const makeKit = (counts, requestedVersions) => fake((url) => {
+    if (url.pathname === '/projection/42') return { tokenId: '42', registerId: REGISTER, entryCount: counts.shift() };
+    const match = url.pathname.match(/\/entry\/version\/(\d+)$/);
+    assert.ok(match, `Unexpected path ${url.pathname}`);
+    requestedVersions.push(match[1]);
+    return { tokenId: '42', entry: entry(match[1]) };
+  });
+
+  const retryVersions = [];
+  const retried = await makeKit(['101', '102', '102', '102'], retryVersions).currentEntry('42');
+  assert.equal(retried.version, '102');
+  assert.deepEqual(retryVersions, ['101', '102']);
+
+  const changingVersions = [];
+  const changing = makeKit(['101', '102', '102', '103'], changingVersions);
+  await assert.rejects(() => changing.currentEntry('42'), { errorCode: 'PROJECTION_SOURCE_UNAVAILABLE', status: 503 });
+  assert.deepEqual(changingVersions, ['101', '102']);
 });
 
 test('uint256 tokens survive adapter and HTTP API without number conversion', async () => {
