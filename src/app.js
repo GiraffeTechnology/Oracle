@@ -109,7 +109,7 @@ export function createApp(options) {
 
 export function createRequestHandler({ config, sourceRegistry, runtime = null, controlPlane = null, adminOperations = null, authenticateAdmin = null, readinessCheck = null, projectionSource = null, projectionBinding = null, receiptProjectionSource = null, receiptProjectionBinding = null, positionSource = null, l2Profile = null, protocolProfile = null, verificationRateLimiter = new FixedWindowRateLimiter({ limit: 60, windowMs: 60000 }) }) {
   if (!config || !sourceRegistry) throw new Error("APP_DEPENDENCY_MISSING");
-  const projectionApi = createApplicationProjectionApi({ projectionSource, projectionBinding, receiptProjectionSource, receiptProjectionBinding, positionSource });
+  const projectionApi = createApplicationProjectionApi({ projectionSource, projectionBinding, positionSource, receiptProjectionSource, receiptProjectionBinding });
 
   return async (request, response) => {
     const requestUrl = new URL(request.url, "http://localhost");
@@ -386,4 +386,3 @@ export function createRequestHandler({ config, sourceRegistry, runtime = null, c
     sendJson(response, 404, { ok: false, errorCode: "NOT_FOUND" });
   };
 }
-

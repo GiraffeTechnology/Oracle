@@ -6,7 +6,7 @@ const ROUTE = new RegExp(`^${APPLICATION_PROJECTION_PREFIX}/([^/]+)(?:/(entry/cu
 const refusal = (status, errorCode) => ({ status, body: { ok: false, errorCode } });
 
 /** Read-only application boundary. Holder, finality and position never substitute for each other. */
-export function createApplicationProjectionApi({ projectionSource, projectionBinding, receiptProjectionSource, receiptProjectionBinding, positionSource } = {}) {
+export function createApplicationProjectionApi({ projectionSource, projectionBinding, positionSource, receiptProjectionSource, receiptProjectionBinding } = {}) {
   // Snapshot server configuration rather than retaining a mutable caller object.
   const binding = projectionBinding ? Object.freeze({ ...projectionBinding }) : null;
   const receiptBinding = receiptProjectionBinding ? Object.freeze({ ...receiptProjectionBinding }) : null;
@@ -19,9 +19,14 @@ export function createApplicationProjectionApi({ projectionSource, projectionBin
       const tokenId = assertUint256(match[1], 'TOKEN_ID_INVALID');
       const tail = match[2];
       if (tail?.startsWith('receipt/')) {
-        const version = tail.startsWith('receipt/version/') ? assertUint64(tail.slice('receipt/version/'.length), 'VERSION_INVALID') : undefined;
+        const version = tail.startsWith('receipt/version/') ? assertUint64(tail.slice('receipt/version/'.length), 'VERSION_INVALID') : 'latest';
         if (version === '0') return refusal(400, 'VERSION_INVALID');
-        return { status: 200, body: await readReceiptProjection({ source: receiptProjectionSource, binding: receiptBinding, tokenId, version }) };
+        if (typeof receiptProjectionSource?.receiptSnapshot !== 'function') return refusal(503, 'RECEIPT_SOURCE_NOT_CONFIGURED');
+        if (receiptBinding) return { status: 200, body: await readReceiptProjection({
+          source: receiptProjectionSource, binding: receiptBinding, tokenId,
+          version: version === 'latest' ? undefined : version,
+        }) };
+        return { status: 200, body: await receiptProjectionSource.receiptSnapshot(tokenId, version) };
       }
       const version = tail?.startsWith('entry/version/') ? assertUint64(tail.slice('entry/version/'.length), 'VERSION_INVALID') : undefined;
       const instant = tail?.includes('/as-of/') ? assertUint64(tail.split('/as-of/')[1], 'INSTANT_INVALID') : undefined;
@@ -62,4 +67,3 @@ export function createApplicationProjectionApi({ projectionSource, projectionBin
   }
   return { handle, prefix: APPLICATION_PROJECTION_PREFIX };
 }
-
