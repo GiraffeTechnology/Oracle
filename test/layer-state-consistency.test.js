@@ -149,7 +149,7 @@ test("D-007 layer state mapping declares the ERC revision it maps to", async () 
   const mapping = await loadLayerStateMapping(MAPPING_FILE);
   const ref = mapping.ercRevisionRef;
   assert.equal(ref.mappedProposalStatus, "SUPERSEDED");
-  assert.match(ref.supersededBy.commit, /^[0-9a-f]{40}$/);
+  assert.equal(ref.supersededBy.commit, "5657661614dd1c9b03f65c5e6585bfd00ecbcc6e");
   assert.equal(ref.divergenceUnresolved, true);
   assert.ok(
     ref.supersededBy.settlementStatusEnum.includes("ADMITTED"),
@@ -164,14 +164,23 @@ test("D-007 an undeclared or unpinned ERC revision is rejected", async () => {
   delete withoutRef.ercRevisionRef;
   assert.throws(() => validateLayerStateMapping(withoutRef), /LAYER_STATE_MAPPING/);
 
-  const unpinned = {
-    ...mapping,
-    ercRevisionRef: {
-      ...mapping.ercRevisionRef,
-      supersededBy: { ...mapping.ercRevisionRef.supersededBy, commit: "386d6d4" },
-    },
-  };
-  assert.throws(() => validateLayerStateMapping(unpinned), /LAYER_ERC_SUPERSEDED_COMMIT_INVALID/);
+  for (const invalidCommit of [
+    "386d6d4",
+    "0000000000000000000000000000000000000000",
+    "1111111111111111111111111111111111111111",
+  ]) {
+    const unpinned = {
+      ...mapping,
+      ercRevisionRef: {
+        ...mapping.ercRevisionRef,
+        supersededBy: { ...mapping.ercRevisionRef.supersededBy, commit: invalidCommit },
+      },
+    };
+    assert.throws(
+      () => validateLayerStateMapping(unpinned),
+      /LAYER_ERC_SUPERSEDED_COMMIT_INVALID/,
+    );
+  }
 
   const divergenceHidden = {
     ...mapping,

@@ -11,6 +11,7 @@ const EXPECTED_MAPPINGS = Object.freeze({
   DISPUTED: Object.freeze({ oracleStatus: "REVIEW_REQUIRED", l3SettlementStatus: "CANCELLED" }),
   TIMED_OUT: Object.freeze({ oracleStatus: "REVIEW_REQUIRED", l3SettlementStatus: "CANCELLED" }),
 });
+const PR13_EXACT_COMMIT = "5657661614dd1c9b03f65c5e6585bfd00ecbcc6e";
 const BLOCKED_OPERATIONS = Object.freeze(["transfer", "redeem", "pledge", "relist"]);
 const FINALIZATION_EVENTS = Object.freeze([
   "CertificateSuperseded",
@@ -72,7 +73,7 @@ function validateErcRevisionRef(ref) {
   if (ref.mappedProposalStatus === "SUPERSEDED") {
     const by = ref.supersededBy;
     if (by === null || typeof by !== "object") throw new Error("LAYER_ERC_SUPERSEDED_BY_MISSING");
-    if (!/^[0-9a-f]{40}$/.test(by.commit ?? "")) {
+    if (by.commit !== PR13_EXACT_COMMIT) {
       throw new Error("LAYER_ERC_SUPERSEDED_COMMIT_INVALID");
     }
     if (!Array.isArray(by.settlementStatusEnum) || by.settlementStatusEnum.length === 0) {
