@@ -209,7 +209,10 @@ test('receipt HTTP deadline returns while the real repository scope retains stal
   const blocked = new Promise((resolve) => { release = resolve; });
   const started = new Promise((resolve) => { entered = resolve; });
   let calls = 0;
-  const repository = new MySqlOracleRepository({ pool: { getConnection() { throw new Error('no database work expected'); } } });
+  const repository = new MySqlOracleRepository({ pool: {
+    getConnection() { throw new Error('no database work expected'); },
+    execute() { throw new Error('no database query expected'); },
+  } });
   const scope = createRepositoryExecutionScope({ repository, isCompromised: () => false });
   const assembled = await assembleReceiptRead({
     receiptReadConfiguration: { profileId: 'oracle-receipt-read.v1', rpcRef: 'deployment://oracle/receipt-read',
