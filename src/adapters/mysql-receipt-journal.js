@@ -381,6 +381,8 @@ export class MySqlReceiptJournal {
         ],
       );
       const existing = rows.map(decode);
+      const exact = existing.find((record) => record.intentHash === intentHash);
+      if (exact) return exact;
       for (const record of existing) {
         if (record.intentHash === intentHash) continue;
         if (
@@ -393,9 +395,11 @@ export class MySqlReceiptJournal {
           hashHex(record.intent.nonceHash) === hashHex(intent.nonceHash)
         )
           throw conflict('NONCE_CONFLICT');
+        // Only a never-claimed obsolete preparation releases its reservation.
+        // The immutable old intent, idempotency key and nonce remain historical.
+        if (record.state === 'OBSOLETE' && record.transactionHash === null) continue;
         throw conflict('SEGMENT_CONFLICT');
       }
-      if (existing.length !== 0) return existing[0];
       await this.#assertLaneAvailable(connection, scope.laneHash, intentHash);
       const executionReference = `oracle-receipt:${intentHash}`;
       await connection.execute(

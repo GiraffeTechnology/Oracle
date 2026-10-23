@@ -515,6 +515,9 @@ test('fresh-install and additive upgrade migrations have identical receipt DDL w
   ])
     assert.ok(upgrade.includes(`UNIQUE KEY ${key}`));
   assert.match(upgrade, /INDEX idx_source_receipt_lane \(lane_hash, state\)/);
+  assert.match(upgrade, /active_segment_digest BINARY\(32\) GENERATED ALWAYS AS/);
+  assert.match(upgrade, /CASE WHEN state = 'OBSOLETE' AND transaction_hash IS NULL THEN NULL ELSE segment_digest END/);
+  assert.match(upgrade, /UNIQUE KEY uq_source_receipt_segment \(chain_id, contract_address, active_segment_digest\)/);
   assert.ok(!/DROP TABLE|DELETE FROM|TRUNCATE/i.test(upgrade));
 });
 
@@ -601,4 +604,57 @@ test('SQL-capture plus real lifecycle coordinator: lane/idempotency refusals sta
     () => scope.run(() => journal.get(first.intentHash)),
     /REPOSITORY_ADMISSION_CLOSED/,
   );
+});
+
+
+test('SQL-capture only: obsolete never-submitted intent releases only its segment reservation and keeps history', async () => {
+  const f = sqlFixture();
+  const original = intent();
+  const prepared = await f.journal().prepare(original);
+  const obsolete = await f.journal().invalidatePrepared(prepared.intentHash, { expectedRevision: 0 });
+  const corrected = nextIntent(original, { binding: { ...original.binding } });
+  const replacement = await f.journal().prepare(corrected);
+  assert.equal(replacement.state, 'PREPARED');
+  assert.notEqual(replacement.intentHash, prepared.intentHash);
+  assert.equal(f.database.rows.size, 2);
+  assert.deepEqual(await f.journal().get(prepared.intentHash), obsolete);
+  assert.deepEqual(await f.journal().prepare(original), obsolete);
+  assert.equal((await f.journal().claim(prepared.intentHash)).claimed, false);
+  assert.deepEqual(obsolete.intent, original);
+  await assert.rejects(() => f.journal().prepare({ ...corrected, idempotencyKey: original.idempotencyKey }),
+    domainFailure('SOURCE_RECEIPT_IDEMPOTENCY_CONFLICT'));
+  await assert.rejects(() => f.journal().prepare({ ...corrected, nonceHash: original.nonceHash }),
+    domainFailure('SOURCE_RECEIPT_NONCE_CONFLICT'));
+});
+
+test('SQL-capture only: concurrent corrections after obsolete preparation retain one segment reservation', async () => {
+  const f = sqlFixture();
+  const original = intent();
+  const prepared = await f.journal().prepare(original);
+  await f.journal().invalidatePrepared(prepared.intentHash, { expectedRevision: 0 });
+  const corrected = nextIntent(original, { binding: { ...original.binding } });
+  const competing = { ...corrected, idempotencyKey: 'competing-correction',
+    nonceHash: hash('a').slice(2), recordReference: 'different-correction' };
+  const results = await Promise.allSettled([f.journal().prepare(corrected), f.journal().prepare(competing)]);
+  assert.equal(results.filter((row) => row.status === 'fulfilled').length, 1);
+  domainFailure('SOURCE_RECEIPT_SEGMENT_CONFLICT')(results.find((row) => row.status === 'rejected').reason);
+  assert.equal(f.database.rows.size, 2);
+});
+
+test('SQL-capture only: claimed and unknown intents never release their segment to a correction', async () => {
+  for (const state of ['SUBMITTING', 'UNKNOWN']) {
+    const f = sqlFixture();
+    const original = intent();
+    const prepared = await f.journal().prepare(original);
+    const claimed = await f.journal().claim(prepared.intentHash);
+    if (state === 'UNKNOWN') await observeCurrent(f.journal(), prepared.intentHash,
+      { state: 'UNKNOWN', reason: 'SUBMISSION_OUTCOME_UNKNOWN' });
+    const current = await f.journal().get(prepared.intentHash);
+    await assert.rejects(() => f.journal().invalidatePrepared(prepared.intentHash,
+      { expectedRevision: current.revision }), domainFailure('SOURCE_RECEIPT_PREPARED_STATE_CHANGED'));
+    await assert.rejects(() => f.journal().prepare(nextIntent(original,
+      { binding: { ...original.binding } })), domainFailure('SOURCE_RECEIPT_SEGMENT_CONFLICT'));
+    assert.deepEqual(await f.journal().get(prepared.intentHash), current);
+    assert.equal(claimed.claimed, true);
+  }
 });

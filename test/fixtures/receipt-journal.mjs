@@ -133,7 +133,8 @@ export function sqlFixture() {
                     same(prior.nonce_hash, row.nonce_hash))) ||
                 (same(prior.chain_id, row.chain_id) &&
                   same(prior.contract_address, row.contract_address) &&
-                  same(prior.segment_digest, row.segment_digest)),
+                  same(prior.segment_digest, row.segment_digest) &&
+                  !(prior.state === 'OBSOLETE' && prior.transaction_hash === null)),
             );
             if (duplicate)
               throw Object.assign(new Error('synthetic-duplicate-key'), { code: 'ER_DUP_ENTRY' });

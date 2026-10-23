@@ -213,10 +213,13 @@ CREATE TABLE IF NOT EXISTS source_receipt_journal (
   revision BIGINT UNSIGNED NOT NULL DEFAULT 0,
   created_at TIMESTAMP(6) NOT NULL,
   updated_at TIMESTAMP(6) NOT NULL,
+  active_segment_digest BINARY(32) GENERATED ALWAYS AS (
+    CASE WHEN state = 'OBSOLETE' AND transaction_hash IS NULL THEN NULL ELSE segment_digest END
+  ) STORED,
   UNIQUE KEY uq_source_receipt_execution (execution_reference),
   UNIQUE KEY uq_source_receipt_idempotency (source_id, idempotency_key),
   UNIQUE KEY uq_source_receipt_nonce (source_id, nonce_hash),
-  UNIQUE KEY uq_source_receipt_segment (chain_id, contract_address, segment_digest),
+  UNIQUE KEY uq_source_receipt_segment (chain_id, contract_address, active_segment_digest),
   INDEX idx_source_receipt_lane (lane_hash, state),
   CONSTRAINT chk_source_receipt_confirmation CHECK (
     (state = 'CONFIRMED' AND transaction_hash IS NOT NULL AND block_hash IS NOT NULL AND block_number IS NOT NULL AND projection_version IS NOT NULL)
