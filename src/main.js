@@ -162,6 +162,7 @@ export function startApplication({
         config,
         ...assembleApplicationProjection(config.applicationProjection),
         positionSource: assembly?.positionSource,
+        receiptProjectionSource: assembly?.receiptProjectionSource,
         sourceRegistry: assembly?.sourceRegistry ?? new SourceRegistry(),
         runtime: assembly?.runtime ?? null,
         controlPlane: assembly?.controlPlane,
