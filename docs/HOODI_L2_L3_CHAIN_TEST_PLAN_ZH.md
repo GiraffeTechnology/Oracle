@@ -10,7 +10,6 @@
 | L2 配置 | `giraffe-oracle-l2/production-v1`（以合成/隔离依赖执行） |
 | L3 Profile | `giraffe-rwa-certificate-settlement/wd-0.1.1` |
 | 测试资产 | `UNIT-A39`，仅测试、无价值、无法律效力、不转移现实权利 |
-| 协作任务 | Oracle、ERC、钱包+DAO |
 
 本方案验证 Oracle L2 事实、证明、撤销和状态映射能否被 L3 Working Draft 合约正确消费。
 它不构成主网授权、ERC 正式编号、真实资产登记、NFT 正式发行、销售、金融化或法律权属确认。
@@ -18,20 +17,11 @@
 ### 当前阻断记录（2026-08-25）
 
 - blocker：`CONTROLLED_BROKER_AND_PROTOCOL_GATES_PENDING`；
-- ArtFi1/ArtFi2 ownership self-test：`NOT_VERIFIED`；
-- ArtFi1/ArtFi2 ACL gate：`NOT_VERIFIED`；
-- 待完成：以“钱包+DAO”和 ERC 任务的最新权威结果重新执行第 5 节门禁；不得沿用旧 R2 阶段推断；
+- W1/W2 ownership self-test: `NOT_VERIFIED`;
+- W1/W2 ACL gate: `NOT_VERIFIED`;
+- Pending: verify section 5 against current wallet and protocol evidence; do not reuse expired results;
 - 尚未执行 Hoodi preflight、主网访问、业务签名、广播、转账或 nonce 占用；
 - 本状态既不是测试失败，也不是验收通过；门禁完成后从第 5 节重新开始，不继承任何推测结果。
-
-### ERC 任务隔离门禁
-
-ERC 任务完成自身提交前准备之前，Oracle 和钱包+DAO不得向 ERC 插入任务、催办测试、要求改码或
-占用其执行窗口。本方案目前只能使用 ERC 已经主动交付的冻结候选快照进行文档和只读预检。
-
-只有 ERC 任务自行确认“提交前准备完成”并提供冻结 ABI、bytecode、interfaceId、EIP-712 type、
-测试向量及产物哈希后，Oracle 才可一次性请求其提供链上测试协助。在此之前，钱包+DAO只执行
-第 5 节中不依赖交易内容的 chain/wallet/余额/nonce/通道只读 preflight，不得生成业务签名或广播。
 
 ## 1. 测试目标
 
@@ -43,7 +33,7 @@ ERC 任务完成自身提交前准备之前，Oracle 和钱包+DAO不得向 ERC 
 4. 验证 Pending 期间持有人仍为 `from`，全部 ERC-721 转移和批准路径均被阻断。
 5. 验证 Finalize 在同一交易内完成证书版本 `+1`、追加历史、持有人转移、nonce 消耗和状态终结。
 6. 验证过期、撤销、冲突、错误用途、错误主体、错误链、错误合约、错误 nonce 及错误签名全部失败关闭。
-7. 形成可由 Oracle、ERC 与钱包+DAO三方复核的、无秘密信息的链上证据包。
+7. Produce an independently reviewable on-chain evidence package without secrets.
 
 ## 2. 冻结输入与变更门禁
 
@@ -61,56 +51,53 @@ ABI、interfaceId、EIP-712 type string、`authorityData` 编码或参考实现�
 新版本 Profile 并重新完成本方案，不得直接替换哈希继续执行。Working Draft 的 custom error selector
 和事件顺序不是稳定协议接口，测试不得依赖 revert string、错误 selector 或日志顺序判断合规。
 
-## 3. 职责与控制边界
+## 3. Component and control boundaries
 
-### 3.1 Oracle 任务
+### 3.1 Oracle
 
 - 提供锁定的 L2/L3 Profile、合成 Oracle 证明、撤销/到期/冲突负向向量和预期结果；
 - 在广播前验证资产、证书、仓储、前序证书、用途、主体和状态的一致性；
 - 对 receipt、事件、合约查询结果和 Oracle 审计事件进行对账；
 - 不读取钱包秘密，不签 EVM 交易，不管理钱包 nonce，不广播交易。
 
-### 3.2 ERC 任务
+### 3.2 Protocol reference implementation
 
 - 从冻结参考实现生成 ABI、bytecode、init-code hash、selector、calldata hash 和 EIP-712 digest；
 - 维护 17 项协议测试及 Hoodi runner；
 - 不替 Oracle 判断链下事实，不替钱包任务读取或使用私钥。
-- 在自身提交前准备完成前不接收本测试插入；完成后仅按一次性冻结交付提供协助。
 
-### 3.3 钱包+DAO任务
+### 3.3 Controlled wallet signer
 
-- 独占 ArtFi1/ArtFi2 钱包 ownership self-test、余额、pending nonce 和精确离线交易签名；
+- Exclusively manage W1/W2 ownership self-tests, balances, pending nonces and exact offline transaction signing;
 - 只接受 chainId、from、nonce、value、init-code/target、selector、完整 calldata 及 policy hash
   全部钉死的单笔请求；
-- 通过既定非沙盒、SIN 出口、Hoodi-only 受控通道完成 estimate、simulate、广播、receipt 和 finality；
+- Use the configured Hoodi-only controlled route for estimate, simulate, broadcast, receipt and finality;
 - 每个钱包严格串行管理 nonce；receipt/finality 未完成前不得签署其下一笔交易；
 - 返回公开地址、交易哈希、区块、gas、状态和摘要，不返回私钥、助记词、密钥引用、raw signed tx、
   RPC、服务器地址或凭据；
 - 任意请求与批准 manifest 不一致时拒绝，不自行修改 calldata、gas 语义、recipient 或网络；
-- DAO 治理不属于本轮用例，钱包+DAO任务不得借本测试触发 DAO 提案、投票或资产治理。
+- DAO governance is outside these test cases; do not trigger proposals, voting or asset governance.
 
 ## 4. 钱包和测试角色
 
 | 逻辑角色 | 公开地址 | 用途 |
 | --- | --- | --- |
-| ArtFi1 / W1 | `0x75F6e1BAc9bF07a54FECc416ef76327BbD2c3089` | 测试管理员、operator、部署与目标持有人 |
-| ArtFi2 / W2 | `0xDE3c1D455c2CCe1bAcf1e70aAC7fA3B8cCb1ec2B` | 初始测试持有人、settlement `from` |
+| W1 | `<TEST_WALLET_1_ADDRESS>` | Test administrator, operator, deployment and destination holder |
+| W2 | `<TEST_WALLET_2_ADDRESS>` | Initial test holder and settlement `from` |
 | Test Authority | 每轮临时生成并仅公开地址 | 只签锁定的 EIP-712 测试授权；不持币、不签交易 |
 
-ArtFi1–ArtFi9 均为纯测试钱包，禁止接收或操作任何具有真实价值的资产。W1/W2 本轮仅使用无价值的
-Hoodi 测试币支付测试 gas，所有调用 `value=0`；不得领取、移动或使用主网资产。ArtFi3–ArtFi9
-不属于本轮 EVM 角色，不得把其测试链资产计入 W1/W2 余额或 nonce。
+Configured wallets are test-only and must not receive or operate real-value assets. W1/W2 use only valueless Hoodi test currency for gas; every call has `value=0`. Do not claim, move or use mainnet assets. Other test wallets are outside these EVM roles and must not contribute to W1/W2 balance or nonce calculations.
 
 ## 5. P0 执行前门禁
 
 下列门禁必须一次性全部通过：
 
 1. 固定通道证明网络为 Hoodi、chainId=`560048`，并以注册表中的完整 genesis 值通过身份门禁；
-2. Oracle 本地 63 项测试通过；ERC 任务已自行确认提交前准备完成并交付其测试通过证据；
+2. The 63 local Oracle tests pass, and the pinned protocol reference implementation has corresponding passing test evidence;
 3. 第 2 节五项原始字节哈希全部匹配；
 4. `UNIT-A39` manifest 与资产字节哈希匹配，标签包含
    `TEST ONLY / NO VALUE / NO LEGAL EFFECT / NO RIGHTS TRANSFER`；
-5. ArtFi1/ArtFi2 ownership self-test、ACL、地址匹配均通过；
+5. W1/W2 ownership self-tests, ACL checks and address matching pass;
 6. 两钱包余额足以覆盖审计后的 gas upper bound，并保留失败重试缓冲；
 7. pending nonce 已读取并建立单任务、单钱包排他锁；
 8. 每项部署 init-code hash 与调用 target/selector/calldata hash 已形成只读 manifest；
@@ -188,9 +175,9 @@ Hoodi 测试币支付测试 gas，所有调用 `value=0`；不得领取、移动
 1. 读取 chain identity、pending nonce、fee，并对精确 unsigned transaction estimate/simulate；
 2. 生成最长一小时有效的单笔 policy，钉死 chainId、wallet、from、nonce、value、gas、fee、
    init-code hash 或 target/selector/calldata hash；
-3. 钱包+DAO在宿主机非沙盒边界内调用受控离线 signer，输出 repo 外 exclusive-new 文件；
+3. The controlled wallet component invokes the configured offline signer and writes an exclusive-new file outside the repository;
 4. 调用方离线解码并复核 chainId/from/nonce/to/value/data 与 policy 完全一致；
-5. raw signed transaction 只通过受控敏感 stdin 交给 SIN Hoodi bridge；
+5. Pass the raw signed transaction only through sensitive stdin to the configured Hoodi bridge;
 6. bridge 必须返回 chain identity attested 和与 raw transaction 本地摘要一致的 tx hash；
 7. 读取 receipt，确认 status=success、contract/log/state 与预期一致；
 8. 等待受控通道报告 finalized；若 finality 能力不可用，返回 `FINALITY_UNAVAILABLE` 并停止，
@@ -224,8 +211,7 @@ receipt 失败、非预期事件、状态部分更新、finality 不可用、秘
 测试合约和 Token 均保留 test-only 标识，不尝试删除链上历史。所谓回滚只包括停止后续广播、撤销
 本地临时授权、清理 repo 外敏感临时文件、冻结证据包并登记事件；不得以补发交易掩盖失败。
 
-全套通过须满足：P0 全绿、Stage A–E 所有必须用例通过、链上状态与 Oracle 对账一致、没有未解释
-nonce/gas/事件差异、没有秘密或个人资料暴露，并由 Oracle、ERC、钱包+DAO三方分别确认各自证据。
+A complete pass requires all P0 checks and required Stage A–E cases to pass, on-chain state to reconcile with Oracle, no unexplained nonce/gas/event differences, no exposed secrets or personal data, and independently reviewable evidence for each component.
 通过结论只能表述为“Pinned Working Draft 在 Hoodi 测试网的技术互操作测试通过”，不得表述为
 ERC 正式标准、主网可用、监管批准或现实权利已转移。
 

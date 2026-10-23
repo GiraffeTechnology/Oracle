@@ -1,13 +1,15 @@
 import { ADDRESS, BYTES32, ProjectionSourceError, assertUint64, assertUint256 } from '../ports/projection-source.js';
+import { readReceiptProjection } from './receipt-projection-response.js';
 
 export const APPLICATION_PROJECTION_PREFIX = '/v1/oracle/projection';
-const ROUTE = new RegExp(`^${APPLICATION_PROJECTION_PREFIX}/([^/]+)(?:/(entry/current|entry/version/[^/]+|entry/as-of/[^/]+|holder/as-of/[^/]+|finality/as-of/[^/]+|position))?$`);
+const ROUTE = new RegExp(`^${APPLICATION_PROJECTION_PREFIX}/([^/]+)(?:/(entry/current|entry/version/[^/]+|entry/as-of/[^/]+|holder/as-of/[^/]+|finality/as-of/[^/]+|position|receipt/current|receipt/version/[^/]+))?$`);
 const refusal = (status, errorCode) => ({ status, body: { ok: false, errorCode } });
 
 /** Read-only application boundary. Holder, finality and position never substitute for each other. */
-export function createApplicationProjectionApi({ projectionSource, projectionBinding, positionSource } = {}) {
+export function createApplicationProjectionApi({ projectionSource, projectionBinding, positionSource, receiptProjectionSource, receiptProjectionBinding } = {}) {
   // Snapshot server configuration rather than retaining a mutable caller object.
   const binding = projectionBinding ? Object.freeze({ ...projectionBinding }) : null;
+  const receiptBinding = receiptProjectionBinding ? Object.freeze({ ...receiptProjectionBinding }) : null;
   async function handle(method, pathname) {
     if (pathname !== APPLICATION_PROJECTION_PREFIX && !pathname.startsWith(`${APPLICATION_PROJECTION_PREFIX}/`)) return null;
     if (method !== 'GET') return refusal(405, 'PROJECTION_READ_ONLY');
@@ -16,6 +18,16 @@ export function createApplicationProjectionApi({ projectionSource, projectionBin
     try {
       const tokenId = assertUint256(match[1], 'TOKEN_ID_INVALID');
       const tail = match[2];
+      if (tail?.startsWith('receipt/')) {
+        const version = tail.startsWith('receipt/version/') ? assertUint64(tail.slice('receipt/version/'.length), 'VERSION_INVALID') : 'latest';
+        if (version === '0') return refusal(400, 'VERSION_INVALID');
+        if (typeof receiptProjectionSource?.receiptSnapshot !== 'function') return refusal(503, 'RECEIPT_SOURCE_NOT_CONFIGURED');
+        if (receiptBinding) return { status: 200, body: await readReceiptProjection({
+          source: receiptProjectionSource, binding: receiptBinding, tokenId,
+          version: version === 'latest' ? undefined : version,
+        }) };
+        return { status: 200, body: await receiptProjectionSource.receiptSnapshot(tokenId, version) };
+      }
       const version = tail?.startsWith('entry/version/') ? assertUint64(tail.slice('entry/version/'.length), 'VERSION_INVALID') : undefined;
       const instant = tail?.includes('/as-of/') ? assertUint64(tail.split('/as-of/')[1], 'INSTANT_INVALID') : undefined;
       if (!projectionSource || !binding) return refusal(503, 'PROJECTION_SOURCE_NOT_CONFIGURED');

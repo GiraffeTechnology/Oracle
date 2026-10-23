@@ -128,6 +128,60 @@ describe('Optional source-authenticated receipt binding', function () {
     await rejectsCustom(projection, projection.receiptBinding(tokenId, 2n), 'InvalidEntry');
   }
 
+  it('checked append atomically rejects stale version or commitment without consuming the receipt', async () => {
+    await mint();
+    const checked = (
+      version,
+      previous,
+      receipt = binding(),
+      commitment = hash('record-2'),
+      effectiveAt = 2000n,
+    ) =>
+      projection.appendReceiptFromSourceChecked(
+        tokenId,
+        commitment,
+        hash('ref'),
+        buyer.address,
+        effectiveAt,
+        version,
+        previous,
+        receipt,
+      );
+    await rejectsCustom(projection, checked(0n, hash('initial-1')), 'PreviousEntryMismatch');
+    await rejectsCustom(projection, checked(1n, hash('wrong')), 'PreviousEntryMismatch');
+    await rejectsCustom(
+      projection,
+      projection
+        .connect(outsider)
+        .appendReceiptFromSourceChecked(
+          tokenId,
+          hash('record-2'),
+          hash('ref'),
+          buyer.address,
+          2000n,
+          1n,
+          hash('initial-1'),
+          binding(),
+        ),
+      'Unauthorized',
+    );
+    await unchanged();
+    await checked(1n, hash('initial-1'));
+    const other = binding({ segmentDigest: hash('segment-raced') });
+    await rejectsCustom(
+      projection,
+      checked(1n, hash('initial-1'), other, hash('record-3'), 3000n),
+      'PreviousEntryMismatch',
+    );
+    assert.equal((await projection.currentEntry(tokenId)).version, 2n);
+    assert.equal((await projection.currentEntry(tokenId)).holder, buyer.address);
+    assert.equal((await projection.entryAt(tokenId, 2n)).supersededAt, 0n);
+    await rejectsCustom(projection, projection.receiptBinding(tokenId, 3n), 'InvalidEntry');
+    // The failed compare did not consume either commitment or segment.
+    await checked(2n, hash('record-2'), other, hash('record-3'), 3000n);
+    assert.equal((await projection.currentEntry(tokenId)).version, 3n);
+  });
+
   it('commits an immutable opaque policy with the actual NFT mint and initial entry', async () => {
     const tx = await mint();
     const receipt = await tx.wait();
