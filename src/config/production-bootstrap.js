@@ -18,11 +18,11 @@ export async function loadPinnedDeploymentModule({ modulePath, expectedSha256 })
   if (actual !== expectedSha256.toLowerCase()) throw new Error("PRODUCTION_DEPLOYMENT_MODULE_HASH_MISMATCH");
   const deployment = await import(`${pathToFileURL(resolved).href}?sha256=${actual}`);
   if (typeof deployment.createDeploymentResolver !== "function" || !deployment.settlementConfiguration) throw new Error("PRODUCTION_DEPLOYMENT_MODULE_CONTRACT_INVALID");
-  return Object.freeze({ resolver: await deployment.createDeploymentResolver(), settlementConfiguration: deployment.settlementConfiguration, moduleSha256: actual });
+  return Object.freeze({ resolver: await deployment.createDeploymentResolver(), settlementConfiguration: deployment.settlementConfiguration, receiptReadConfiguration: deployment.receiptReadConfiguration, moduleSha256: actual });
 }
 
 export async function bootstrapProductionApplication({ config, env = process.env, clock = () => new Date() }) {
   const deployment = await loadPinnedDeploymentModule({ modulePath: env.GIRAFFE_ORACLE_DEPLOYMENT_MODULE, expectedSha256: env.GIRAFFE_ORACLE_DEPLOYMENT_MODULE_SHA256 });
   const [l2Profile, l3Profile] = await Promise.all([loadL2DeploymentProfile(config.l2ProfileRef), loadProtocolProfile(config.l3ProfileRef)]);
-  return assembleProductionApplication({ config, l2Profile, l3Profile, resolver: deployment.resolver, settlementConfiguration: deployment.settlementConfiguration, clock, repositoryDrainEnabled: config.processLifecycleEnabled === true });
+  return assembleProductionApplication({ config, l2Profile, l3Profile, resolver: deployment.resolver, settlementConfiguration: deployment.settlementConfiguration, receiptReadConfiguration: deployment.receiptReadConfiguration, clock, repositoryDrainEnabled: config.processLifecycleEnabled === true });
 }
