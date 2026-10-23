@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Interface, id } from 'ethers';
+import { createRepositoryExecutionScope } from '../src/services/repository-execution-scope.js';
+import { MySqlOracleRepository } from '../src/adapters/mysql-repository.js';
 import { EvmReceiptReadSource, RECEIPT_READ_ABI, RECEIPT_SCHEMA_ID } from '../src/adapters/evm-receipt-read-source.js';
 import { assembleReceiptRead } from '../src/config/receipt-read.js';
 import { createApplicationProjectionApi } from '../src/services/application-projection-api.js';
@@ -10,7 +11,15 @@ import { startApplication } from '../src/main.js';
 const address = (digit) => `0x${digit.repeat(40)}`;
 const hash = (digit) => `0x${digit.repeat(64)}`;
 const target = { chainId: '11155111', contract: address('a'), registerId: hash('b'), sourceAuthority: address('c') };
-const abi = new Interface(RECEIPT_READ_ABI);
+// Independent fixed ABI wire vectors; root unit tests need no contract toolchain.
+const schemaHash = '0xee5bd417e3dddcc2dfb85f45260f817dc32e4c1945000d5bb7a738c142a4f9e3';
+const selectors = { '0xbbc2a065': 'registerId', '0x42101596': 'sourceAuthority',
+  '0x6352211e': 'ownerOf', '0x1d1b039c': 'entryCount', '0xa3b200a4': 'mintPolicyHash',
+  '0xf6752412': 'entryAt', '0x5b88055d': 'receiptBinding' };
+function encodeWords(values) {
+  return '0x' + values.flat().map((value) =>
+    (typeof value === 'string' && value.startsWith('0x') ? value.slice(2) : BigInt(value).toString(16)).padStart(64, '0')).join('');
+}
 const code = '0x60006000'; // Synthetic test code only, never a deployed profile.
 const first = [hash('1'), hash('0'), hash('3'), address('4'), '1', '100', '200'];
 const latest = [hash('2'), hash('1'), hash('3'), address('5'), '2', '200', '0'];
@@ -29,7 +38,10 @@ function fixture({ chain = '0xaa36a7', observedCode = code, reorg = false, absen
         result = { number: '0x9', hash: reorg && canonicalReads > 1 ? hash('8') : hash('7') };
       }
     } else if (method === 'eth_call') {
-      const parsed = abi.parseTransaction({ data: params[0].data });
+      const data = params[0].data;
+      const name = selectors[data.slice(0, 10)];
+      assert.ok(name, 'unexpected receipt ABI selector');
+      const parsed = { name, args: [0n, data.length >= 138 ? BigInt('0x' + data.slice(74, 138)) : 0n] };
       const outputs = {
         registerId: [target.registerId], sourceAuthority: [target.sourceAuthority], ownerOf: [address('9')],
         entryCount: [2n], mintPolicyHash: [hash('e')],
@@ -37,7 +49,7 @@ function fixture({ chain = '0xaa36a7', observedCode = code, reorg = false, absen
         receiptBinding: [absent ? Array(5).fill(hash('0')) : [RECEIPT_SCHEMA_ID, hash('e'), hash('f'), hash('a'), hash('d')]],
       };
       const values = alterCall?.(parsed.name, outputs[parsed.name]) ?? outputs[parsed.name];
-      result = abi.encodeFunctionResult(parsed.name, values);
+      result = encodeWords(values);
     } else throw new Error(`READ_METHOD_NOT_ALLOWED:${method}`);
     await afterRequest?.(method, params);
     return result;
@@ -48,7 +60,8 @@ function fixture({ chain = '0xaa36a7', observedCode = code, reorg = false, absen
 const get = (f, tail = 'version/1') => f.api.handle('GET', `/v1/oracle/projection/7/receipt/${tail}`);
 
 test('receipt API uses the existing full ABI and one confirmed block for historical receipt evidence', async () => {
-  assert.equal(RECEIPT_SCHEMA_ID, id('oracle.receipt-binding.v1'));
+  assert.equal(RECEIPT_SCHEMA_ID, schemaHash);
+  assert.equal(RECEIPT_READ_ABI.length, Object.keys(selectors).length);
   const f = fixture();
   const result = await get(f);
   assert.equal(result.status, 200);
@@ -188,4 +201,39 @@ test('the real application start path carries the production assembly receipt ca
   } finally {
     if (app.server?.listening) await new Promise((resolve, reject) => app.server.close((error) => error ? reject(error) : resolve()));
   }
+});
+
+
+test('receipt HTTP deadline returns while the real repository scope retains stalled transport for drain', async () => {
+  let release, entered;
+  const blocked = new Promise((resolve) => { release = resolve; });
+  const started = new Promise((resolve) => { entered = resolve; });
+  let calls = 0;
+  const repository = new MySqlOracleRepository({ pool: { getConnection() { throw new Error('no database work expected'); } } });
+  const scope = createRepositoryExecutionScope({ repository, isCompromised: () => false });
+  const assembled = await assembleReceiptRead({
+    receiptReadConfiguration: { profileId: 'oracle-receipt-read.v1', rpcRef: 'deployment://oracle/receipt-read',
+      target, expectedRuntimeCode: code, minConfirmations: 2 },
+    resolver: { resolve: async () => ({ request() { calls += 1; entered(); return blocked; } }) },
+    timeoutMs: 5,
+    guardRead: (operation) => scope.guardSideEffect(operation),
+    runInScope: (operation) => scope.run(operation),
+  });
+  let watchdog;
+  try {
+    const response = assembled.receiptProjectionSource.receiptSnapshot('7', '1');
+    await started;
+    await assert.rejects(Promise.race([response, new Promise((_, reject) => {
+      watchdog = setTimeout(() => reject(new Error('HTTP_DEADLINE_DEFEATED_BY_DRAIN')), 1000);
+    })]), /RECEIPT_SOURCE_UNAVAILABLE/);
+    assert.equal(scope.snapshot().inFlight, 1);
+    assert.equal(calls, 1);
+  } finally {
+    clearTimeout(watchdog);
+    release('0xaa36a7');
+    const drained = await scope.drain({ timeoutMs: 1000 });
+    assert.equal(drained.state, 'DRAINED');
+    assert.equal(drained.inFlight, 0);
+  }
+  assert.equal(calls, 1, 'expired observation must not start another RPC');
 });
