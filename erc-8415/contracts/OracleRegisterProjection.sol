@@ -88,6 +88,7 @@ contract OracleRegisterProjection is IERC721, IRegisterProjection {
     error InvalidReceiptBinding();
     error ReceiptBindingRequired();
     error ReceiptSegmentReused();
+    error PreviousEntryMismatch();
 
     bytes32 public constant RECEIPT_BINDING_SCHEMA_V1 = keccak256("oracle.receipt-binding.v1");
 
@@ -217,6 +218,36 @@ contract OracleRegisterProjection is IERC721, IRegisterProjection {
         uint64 effectiveAt,
         ReceiptBinding calldata binding
     ) external onlySourceAuthority {
+        _appendReceiptFromSource(tokenId, recordCommitment, registryReference, registerHolder, effectiveAt, binding);
+    }
+
+    /// @notice Atomically compare the signed predecessor before changing the holder or binding.
+    /// @dev Optional product extension; existing standard and legacy source entrypoints remain unchanged.
+    function appendReceiptFromSourceChecked(
+        uint256 tokenId,
+        bytes32 recordCommitment,
+        bytes32 registryReference,
+        address registerHolder,
+        uint64 effectiveAt,
+        uint64 expectedPreviousVersion,
+        bytes32 expectedPreviousCommitment,
+        ReceiptBinding calldata binding
+    ) external onlySourceAuthority {
+        ownerOf(tokenId);
+        RegisterEntry storage previous = _entries[tokenId][_entries[tokenId].length - 1];
+        if (previous.version != expectedPreviousVersion || previous.recordCommitment != expectedPreviousCommitment)
+            revert PreviousEntryMismatch();
+        _appendReceiptFromSource(tokenId, recordCommitment, registryReference, registerHolder, effectiveAt, binding);
+    }
+
+    function _appendReceiptFromSource(
+        uint256 tokenId,
+        bytes32 recordCommitment,
+        bytes32 registryReference,
+        address registerHolder,
+        uint64 effectiveAt,
+        ReceiptBinding memory binding
+    ) internal {
         ownerOf(tokenId);
         if (
             binding.schemaId != RECEIPT_BINDING_SCHEMA_V1

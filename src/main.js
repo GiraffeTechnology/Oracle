@@ -161,6 +161,8 @@ export function startApplication({
       const options = {
         config,
         ...assembleApplicationProjection(config.applicationProjection),
+        receiptProjectionSource: assembly?.receiptProjectionSource,
+        receiptProjectionBinding: assembly?.receiptProjectionBinding,
         positionSource: assembly?.positionSource,
         sourceRegistry: assembly?.sourceRegistry ?? new SourceRegistry(),
         runtime: assembly?.runtime ?? null,
@@ -239,3 +241,4 @@ export function startApplication({
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   startApplication();
 }
+

@@ -135,3 +135,7 @@ replay across versions/tokens, immutable history, legacy compatibility and
 no backfill, binding-bypass rejection, source versus NFT-owner authority, and
 derived admission/safe-transfer hooks. These tests do not assert live-chain
 execution, production source authentication, or completed ArtFi integration.
+
+## Checked source entrypoint
+
+The optional `appendReceiptFromSourceChecked` extension additionally accepts the signed expected predecessor version and commitment before the unchanged binding tuple. It compares both atomically before any entry/holder/binding change and reuses the same application admission hook. Existing entrypoints and standard interfaces are unchanged. Production receipt ingestion uses this checked entrypoint exclusively; see [source receipt ingestion](SOURCE_RECEIPT_INGRESS.md) for authentication, original-format verification, durable recovery, and read boundaries.
