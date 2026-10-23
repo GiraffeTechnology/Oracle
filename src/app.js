@@ -7,6 +7,7 @@ import { publicProtocolProfile } from "./protocol/protocol-profile.js";
 import { assertAssetFactsOnly } from "./services/product-boundary.js";
 import { verifyOracleAttestation } from "./sdk/verifier.js";
 import { FixedWindowRateLimiter } from "./services/rate-limiter.js";
+import { ProjectionReadError } from "./adapters/kit-projection-reader.js";
 
 const JSON_HEADERS = Object.freeze({
   "content-type": "application/json; charset=utf-8",
@@ -106,7 +107,7 @@ export function createApp(options) {
   return http.createServer(createRequestHandler(options));
 }
 
-export function createRequestHandler({ config, sourceRegistry, runtime = null, controlPlane = null, adminOperations = null, authenticateAdmin = null, readinessCheck = null, l2Profile = null, protocolProfile = null, verificationRateLimiter = new FixedWindowRateLimiter({ limit: 60, windowMs: 60000 }) }) {
+export function createRequestHandler({ config, sourceRegistry, runtime = null, controlPlane = null, adminOperations = null, authenticateAdmin = null, readinessCheck = null, l2Profile = null, protocolProfile = null, projectionReader = null, verificationRateLimiter = new FixedWindowRateLimiter({ limit: 60, windowMs: 60000 }), projectionRateLimiter = new FixedWindowRateLimiter({ limit: 60, windowMs: 60000 }) }) {
   if (!config || !sourceRegistry) throw new Error("APP_DEPENDENCY_MISSING");
 
   return async (request, response) => {
@@ -119,6 +120,32 @@ export function createRequestHandler({ config, sourceRegistry, runtime = null, c
       assertAssetFactsOnly(Object.fromEntries(requestUrl.searchParams));
     } catch (error) {
       sendJson(response, 400, { ok: false, errorCode: error.message });
+      return;
+    }
+    if (requestUrl.pathname.startsWith("/v1/rwa/projections/")) {
+      const match = /^\/v1\/rwa\/projections\/([a-zA-Z0-9_-]{1,64})\/tokens\/([0-9]{1,78})\/as-of\/([0-9]{1,20})$/.exec(requestUrl.pathname);
+      if (request.method !== "GET") {
+        sendJson(response, 405, { errorCode: "PROJECTION_READ_ONLY" });
+        return;
+      }
+      if (!match || requestUrl.search) {
+        sendJson(response, 400, { errorCode: "PROJECTION_QUERY_INVALID" });
+        return;
+      }
+      if (!projectionReader) {
+        sendJson(response, 503, { errorCode: "PROJECTION_NOT_CONFIGURED" });
+        return;
+      }
+      try {
+        projectionRateLimiter.consume(request.socket.remoteAddress ?? "unknown-projection-reader");
+        const result = await projectionReader.resolve(match[1], match[2], match[3]);
+        sendJson(response, 200, result);
+      } catch (error) {
+        const limited = error?.message === "RATE_LIMIT_EXCEEDED";
+        sendJson(response, error instanceof ProjectionReadError ? error.status : limited ? 429 : 503, {
+          errorCode: error instanceof ProjectionReadError ? error.code : limited ? "RATE_LIMIT_EXCEEDED" : "PROJECTION_SOURCE_UNAVAILABLE",
+        });
+      }
       return;
     }
     if (request.method === "POST" && requestUrl.pathname === "/v1/rwa/attestations/verify") {

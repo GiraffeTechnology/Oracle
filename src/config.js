@@ -31,6 +31,11 @@ export function loadConfig(env = process.env) {
   }
 
   const lifecycle = env.GIRAFFE_ORACLE_PROCESS_LIFECYCLE ?? "false";
+  const projectionValues = [env.GIRAFFE_ORACLE_KIT_ROOT, env.GIRAFFE_ORACLE_KIT_BASE_URL, env.GIRAFFE_ORACLE_KIT_PROFILE_ID,
+    env.GIRAFFE_ORACLE_KIT_REGISTER_ID, env.GIRAFFE_ORACLE_KIT_VERIFICATION_PROFILE];
+  const projectionEnabled = projectionValues.some((value) => value !== undefined) || env.GIRAFFE_ORACLE_KIT_API_KEY !== undefined;
+  if (projectionEnabled && !projectionValues.every((value) => typeof value === "string" && value.length > 0))
+    throw new Error("PROJECTION_CONFIG_INCOMPLETE");
   if (!["false", "true"].includes(lifecycle)) throw new Error("CONFIG_PROCESS_LIFECYCLE_INVALID");
   if (lifecycle === "true" && runtimeEnvironment !== "production") throw new Error("PROCESS_LIFECYCLE_REQUIRES_PRODUCTION");
   const shutdownTimeout = env.GIRAFFE_ORACLE_SHUTDOWN_TIMEOUT_MS ?? "30000";
@@ -41,6 +46,14 @@ export function loadConfig(env = process.env) {
     environment: runtimeEnvironment,
     host,
     port: parsePort(env.GIRAFFE_ORACLE_PORT ?? "8780"),
+    ...(projectionEnabled ? { kitProjection: Object.freeze({
+      kitRoot: env.GIRAFFE_ORACLE_KIT_ROOT,
+      baseUrl: env.GIRAFFE_ORACLE_KIT_BASE_URL,
+      profileId: env.GIRAFFE_ORACLE_KIT_PROFILE_ID,
+      registerId: env.GIRAFFE_ORACLE_KIT_REGISTER_ID,
+      verificationProfile: env.GIRAFFE_ORACLE_KIT_VERIFICATION_PROFILE,
+      apiKey: env.GIRAFFE_ORACLE_KIT_API_KEY,
+    }) } : {}),
     ...(lifecycle === "true" ? { processLifecycleEnabled: true, shutdownTimeoutMs: Number(shutdownTimeout) } : {}),
     externalWritesEnabled: parseExternalWrites(
       env.GIRAFFE_ORACLE_EXTERNAL_WRITES ?? "false",

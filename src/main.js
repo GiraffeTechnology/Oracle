@@ -6,6 +6,7 @@ import { SourceRegistry } from './domain/source-registry.js';
 import { assembleIsolatedTestApplication } from './config/test-assembly.js';
 import { bootstrapProductionApplication } from './config/production-bootstrap.js';
 import { createHttpShutdownCoordinator } from './services/http-shutdown-coordinator.js';
+import { loadKitProjectionReader } from './adapters/kit-projection-reader.js';
 
 // Code opt-in is not deployment authorization. Injection is for synthetic tests;
 // the CLI always uses the pinned production bootstrap and the real process.
@@ -151,6 +152,10 @@ export function startApplication({
   }
   const ready = (async () => {
     try {
+      // Validate the read dependency before allocating production resources.
+      const projectionReader = config.kitProjection
+        ? await loadKitProjectionReader(config.kitProjection)
+        : null;
       assembly =
         config.environment === 'production'
           ? await bootstrapProduction({ config })
@@ -159,6 +164,7 @@ export function startApplication({
             : null;
       const options = {
         config,
+        projectionReader,
         sourceRegistry: assembly?.sourceRegistry ?? new SourceRegistry(),
         runtime: assembly?.runtime ?? null,
         controlPlane: assembly?.controlPlane,
