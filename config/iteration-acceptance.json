@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "prdVersion": "v0.3",
+  "prdVersion": "v0.4",
   "authoritativeDocuments": [
     "docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md",
     "docs/ACCEPTANCE_RWA_ORACLE_ZH.md"
@@ -17,7 +17,7 @@
       "id": "I1",
       "requirementIds": ["ORACLE-001", "ORACLE-007", "ORACLE-008"],
       "artifacts": ["src/domain/source-registry.js", "src/domain/key-set-registry.js", "src/domain/schema-registry.js", "src/services/business-calendar.js", "schemas/asset-record.v1.json", "schemas/certificate-record.v1.json", "schemas/warehouse-record.v1.json"],
-      "tests": ["requires a registered active source and approved schema", "rejects caller-supplied endpoint fields", "revoked source key sets fail closed", "business calendar skips weekends"],
+      "tests": ["requires a registered active source and approved schema", "rejects caller-supplied endpoint fields", "revoked source key sets fail closed", "business calendar skips weekends and configured holidays"],
       "externalEvidence": []
     },
     {
@@ -38,7 +38,7 @@
       "id": "I4",
       "requirementIds": ["ORACLE-002", "NFR-002"],
       "artifacts": ["src/domain/oracle-status.js", "src/domain/state-engine.js", "src/domain/reason-code-registry.js", "src/services/state-rebuilder.js"],
-      "tests": ["state engine rejects illegal and non-increasing transitions", "state rebuilder reconstructs the current status", "failed asset verification leaves no partial in-memory records"],
+      "tests": ["state engine rejects illegal and non-increasing transitions", "state rebuilder reconstructs the current status from ordered evidence", "failed asset verification leaves no partial in-memory records"],
       "externalEvidence": []
     },
     {
@@ -66,7 +66,7 @@
       "id": "I8",
       "requirementIds": ["ORACLE-008", "ORACLE-009", "CONSUMER-004", "CONSUMER-005", "CONSUMER-006", "CONSUMER-008"],
       "artifacts": ["src/domain/settlement-coordinator.js", "src/services/business-calendar.js", "config/settlement.wenbao-sandbox.json"],
-      "tests": ["settlement requires complete evidence and upgrades the certificate", "settlement timeout and dispute never change the holder", "business calendar skips weekends"],
+      "tests": ["settlement requires complete evidence and upgrades the certificate", "settlement timeout and dispute never change the holder", "business calendar skips weekends and configured holidays"],
       "externalEvidence": []
     },
     {
@@ -87,7 +87,7 @@
       "id": "I11",
       "requirementIds": ["ORACLE-010", "CONSUMER-002", "CONSUMER-003", "CONSUMER-007", "CONSUMER-009"],
       "artifacts": ["src/sdk/verifier.js", "src/protocol/protocol-profile.js", "config/l3.protocol.wd-0.1.1.json", "docs/L2_L3_CONFIGURATION.md"],
-      "tests": ["L3 artifact intake verifies exact bytes and fails closed on changes", "L3 compatibility requires both candidate interfaces plus ERC-8325", "L3 pending observation preserves owner and blocks transfers", "L3 finalize observation verifies atomic version and event set without relying on event order"],
+      "tests": ["L3 artifact intake verifies exact bytes and fails closed on changes", "L3 compatibility requires both candidate interfaces plus ERC-8325", "L3 pending observation accepts a moved owner and rejects blocked transfers", "L3 finalize observation verifies atomic version and event set without relying on event order"],
       "externalEvidence": []
     },
     {
