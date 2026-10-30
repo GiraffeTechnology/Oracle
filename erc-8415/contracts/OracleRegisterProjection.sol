@@ -67,6 +67,16 @@ interface IRegisterProjection is IERC165 {
 /// @dev Source proof verification remains outside this projection-only slice. Only that verified
 /// authority may admit entries; ordinary ERC-721 trading remains independent of projection state.
 contract OracleRegisterProjection is IERC721, IRegisterProjection {
+    /// @dev Optional implementation-specific source receipt, not an ERC-8415 interface.
+    /// The document hash commits to the authoritative registration document itself.
+    struct ReceiptBinding {
+        bytes32 schemaId;
+        bytes32 mintPolicyHash;
+        bytes32 segmentDigest;
+        bytes32 requestHash;
+        bytes32 receiptDocumentHash;
+    }
+
     error Unauthorized();
     error InvalidAddress();
     error TokenNotFound();
@@ -75,6 +85,22 @@ contract OracleRegisterProjection is IERC721, IRegisterProjection {
     error CommitmentReused();
     error NoEntryAsOf();
     error UnsafeRecipient();
+    error InvalidReceiptBinding();
+    error ReceiptBindingRequired();
+    error ReceiptSegmentReused();
+
+    bytes32 public constant RECEIPT_BINDING_SCHEMA_V1 = keccak256("oracle.receipt-binding.v1");
+
+    event MintPolicyCommitted(uint256 indexed tokenId, bytes32 indexed mintPolicyHash);
+    event ReceiptBound(
+        uint256 indexed tokenId,
+        uint64 indexed version,
+        bytes32 indexed segmentDigest,
+        bytes32 schemaId,
+        bytes32 mintPolicyHash,
+        bytes32 requestHash,
+        bytes32 receiptDocumentHash
+    );
 
     bytes4 private constant _ERC165_ID = 0x01ffc9a7;
     bytes4 private constant _ERC721_ID = 0x80ac58cd;
@@ -89,6 +115,9 @@ contract OracleRegisterProjection is IERC721, IRegisterProjection {
     mapping(address => mapping(address => bool)) private _operatorApprovals;
     mapping(uint256 => RegisterEntry[]) private _entries;
     mapping(uint256 => mapping(bytes32 => bool)) private _commitmentUsed;
+    mapping(uint256 => bytes32) private _mintPolicyHashes;
+    mapping(uint256 => mapping(uint64 => ReceiptBinding)) private _receiptBindings;
+    mapping(bytes32 => bool) private _receiptSegmentUsed;
 
     modifier onlySourceAuthority() {
         if (msg.sender != sourceAuthority) revert Unauthorized();
@@ -118,12 +147,44 @@ contract OracleRegisterProjection is IERC721, IRegisterProjection {
         bytes32 registryReference,
         address registerHolder,
         uint64 effectiveAt
-    ) external onlySourceAuthority {
+    ) external virtual onlySourceAuthority {
+        _mintFromSource(
+            tokenOwner, tokenId, recordCommitment, registryReference, registerHolder, effectiveAt, bytes32(0)
+        );
+    }
+
+    /// @notice Commit an opaque application policy atomically with the original NFT mint.
+    /// @dev Policy contents and canonical encoding belong to the application. No post-mint setter exists.
+    function mintReceiptFromSource(
+        address tokenOwner,
+        uint256 tokenId,
+        bytes32 recordCommitment,
+        bytes32 registryReference,
+        address registerHolder,
+        uint64 effectiveAt,
+        bytes32 policyHash
+    ) external virtual onlySourceAuthority {
+        if (policyHash == bytes32(0)) revert InvalidReceiptBinding();
+        _mintFromSource(
+            tokenOwner, tokenId, recordCommitment, registryReference, registerHolder, effectiveAt, policyHash
+        );
+    }
+
+    function _mintFromSource(
+        address tokenOwner,
+        uint256 tokenId,
+        bytes32 recordCommitment,
+        bytes32 registryReference,
+        address registerHolder,
+        uint64 effectiveAt,
+        bytes32 policyHash
+    ) internal {
         if (tokenOwner == address(0) || registerHolder == address(0)) revert InvalidAddress();
         if (_owners[tokenId] != address(0) || recordCommitment == bytes32(0)) revert InvalidEntry();
 
         _owners[tokenId] = tokenOwner;
         _balances[tokenOwner] += 1;
+        _mintPolicyHashes[tokenId] = policyHash;
         _commitmentUsed[tokenId][recordCommitment] = true;
         _entries[tokenId].push(
             RegisterEntry(recordCommitment, bytes32(0), registryReference, registerHolder, 1, effectiveAt, 0)
@@ -131,6 +192,7 @@ contract OracleRegisterProjection is IERC721, IRegisterProjection {
 
         emit Transfer(address(0), tokenOwner, tokenId);
         emit RegisterInitialized(tokenId, recordCommitment, registerHolder, 1, effectiveAt);
+        if (policyHash != bytes32(0)) emit MintPolicyCommitted(tokenId, policyHash);
     }
 
     function appendFromSource(
@@ -140,6 +202,72 @@ contract OracleRegisterProjection is IERC721, IRegisterProjection {
         address registerHolder,
         uint64 effectiveAt
     ) external onlySourceAuthority {
+        if (_mintPolicyHashes[tokenId] != bytes32(0)) revert ReceiptBindingRequired();
+        _appendFromSource(tokenId, recordCommitment, registryReference, registerHolder, effectiveAt);
+    }
+
+    /// @notice Admit the source's registration and its receipt binding in the same transaction.
+    /// @dev Admission does not transfer the ERC-721 owner or execute any payment. The configured
+    /// source authenticates the document and segment correspondence under the committed policy.
+    function appendReceiptFromSource(
+        uint256 tokenId,
+        bytes32 recordCommitment,
+        bytes32 registryReference,
+        address registerHolder,
+        uint64 effectiveAt,
+        ReceiptBinding calldata binding
+    ) external onlySourceAuthority {
+        ownerOf(tokenId);
+        if (
+            binding.schemaId != RECEIPT_BINDING_SCHEMA_V1
+            || binding.mintPolicyHash == bytes32(0)
+            || binding.mintPolicyHash != _mintPolicyHashes[tokenId]
+            || binding.segmentDigest == bytes32(0)
+            || binding.requestHash == bytes32(0)
+            || binding.receiptDocumentHash == bytes32(0)
+        ) revert InvalidReceiptBinding();
+        if (_receiptSegmentUsed[binding.segmentDigest]) revert ReceiptSegmentReused();
+        _validateReceiptAdmission(tokenId, registerHolder, effectiveAt, binding);
+
+        uint64 version = _appendFromSource(
+            tokenId, recordCommitment, registryReference, registerHolder, effectiveAt
+        );
+        _receiptBindings[tokenId][version] = binding;
+        _receiptSegmentUsed[binding.segmentDigest] = true;
+        emit ReceiptBound(
+            tokenId, version, binding.segmentDigest, binding.schemaId, binding.mintPolicyHash,
+            binding.requestHash, binding.receiptDocumentHash
+        );
+    }
+
+    /// @dev Applications may validate their own policy without changing the base projection's semantics.
+    function _validateReceiptAdmission(
+        uint256 tokenId,
+        address registerHolder,
+        uint64 effectiveAt,
+        ReceiptBinding memory binding
+    ) internal view virtual {}
+
+    function mintPolicyHash(uint256 tokenId) public view returns (bytes32) {
+        ownerOf(tokenId);
+        return _mintPolicyHashes[tokenId];
+    }
+
+    /// @dev An all-zero tuple means the existing entry has no source receipt binding.
+    /// Missing tokens or versions revert; callers must not treat an absent binding as proof.
+    function receiptBinding(uint256 tokenId, uint64 version) external view returns (ReceiptBinding memory) {
+        ownerOf(tokenId);
+        if (version == 0 || version > _entries[tokenId].length) revert InvalidEntry();
+        return _receiptBindings[tokenId][version];
+    }
+
+    function _appendFromSource(
+        uint256 tokenId,
+        bytes32 recordCommitment,
+        bytes32 registryReference,
+        address registerHolder,
+        uint64 effectiveAt
+    ) internal returns (uint64 version) {
         ownerOf(tokenId);
         if (recordCommitment == bytes32(0)) revert InvalidEntry();
         if (registerHolder == address(0)) revert InvalidAddress();
@@ -149,7 +277,7 @@ contract OracleRegisterProjection is IERC721, IRegisterProjection {
         RegisterEntry storage previous = list[list.length - 1];
         if (effectiveAt <= previous.effectiveAt) revert EffectiveAtNotIncreasing();
 
-        uint64 version = previous.version + 1;
+        version = previous.version + 1;
         bytes32 previousCommitment = previous.recordCommitment;
         previous.supersededAt = effectiveAt;
         _commitmentUsed[tokenId][recordCommitment] = true;
@@ -248,11 +376,16 @@ contract OracleRegisterProjection is IERC721, IRegisterProjection {
         return _operatorApprovals[owner][operator];
     }
 
-    function transferFrom(address from, address to, uint256 tokenId) public {
+    function transferFrom(address from, address to, uint256 tokenId) public virtual {
         address owner = ownerOf(tokenId);
         if (msg.sender != owner && msg.sender != _approvals[tokenId]
             && !_operatorApprovals[owner][msg.sender]) revert Unauthorized();
-        if (owner != from || to == address(0)) revert InvalidAddress();
+        _transferOwner(from, to, tokenId);
+    }
+
+    /// @dev Authorization remains with the calling entrypoint; this helper grants no external authority.
+    function _transferOwner(address from, address to, uint256 tokenId) internal {
+        if (ownerOf(tokenId) != from || to == address(0)) revert InvalidAddress();
 
         delete _approvals[tokenId];
         _balances[from] -= 1;
@@ -276,4 +409,5 @@ contract OracleRegisterProjection is IERC721, IRegisterProjection {
         }
     }
 }
+
 
