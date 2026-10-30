@@ -296,7 +296,7 @@ When a Preservation Chain registration is withdrawn, a certificate becomes inval
 
 1. Revoke attestations that have not yet expired;
 2. Change protocol status to FROZEN or REVIEW_REQUIRED;
-3. Block NFT transfer and redemption;
+3. Refuse affected attestations and irreversible exercises, and publish the authoritative asset-specific emergency restriction. The compatible consumer/application must enforce the existing emergency transfer/redemption block for the affected asset under its authorized policy. This preserves ORACLE-004 emergency enforcement without giving Oracle independent token-control authority; the restriction must not be inferred from an ordinary open projection gap or added as a universal ERC-8415 rule;
 4. Retain the reason hash, operator, time, and evidence reference;
 5. Publish an idempotent event to subscribers.
 
@@ -386,7 +386,7 @@ Rights are no longer determined by “who currently holds the Token.” The base
 
 | Class | Rule | Typical examples |
 | --- | --- | --- |
-| Deferrable right | May be initiated during the window. Settlement is deferred until the relevant time is final and executed for the confirmed holder at that time. It is neither blocked nor lost. | Distributions, notices, and dividends—rights whose delayed delivery does not defeat their purpose |
+| Deferrable right | May be initiated during the window. Settlement is deferred until the relevant time is final and executed for the confirmed holder at that time. It is neither blocked nor lost. | Notices and other independently permitted deferrable rights; this classification grants no dividend or yield right to this product |
 | Perishable right | The relevant time must be final and have no unresolved gap; otherwise reject that exercise. | Redemption, destruction, voting, and any irreversible one-time exercise |
 
 The test is whether the exercise is **irreversible**: if it cannot be corrected after attribution is determined, it is perishable; if it can be deferred and delivered to the correct holder without losing its meaning, it is deferrable.
@@ -489,13 +489,13 @@ There are two necessary reasons:
 | If authority comes from ownerOf | Consequence |
 | --- | --- |
 | Registrar cannot open a gap | A completed registry change cannot be recorded on-chain—the party responsible for the registry cannot record its own change |
-| Token holder may open a gap | The last buyer can repeatedly open and supersede gaps, making recent times permanently non-final and stopping the projection from tracking the registry |
+| Token holder may open a gap | The last buyer could repeatedly supersede workflow requests and obstruct registrar processing; gap operations themselves must not alter the finality accessor |
 
 Neither authority follows from holding a tradeable position. Third parties that depend on the projection but have no relationship with the registrar need a queryable answer as to who holds this authority; the answer may differ by deployment.
 
 The configuration layer must also constrain the boundary of supersession: superseded settlements cannot be finalized, and attestations already produced for them become invalid. Unbounded supersession is equivalent to indefinitely censoring registry updates.
 
-> Alignment note: This section aligns with the isSettlementAuthority semantics in the L3 proposal. **No ERC number has been assigned to that proposal**—its preamble remains eip: XXXX. The “9999” found in the materials is only a pre-validation placeholder used because the official preamble-eip linter rejects non-numeric values; it is not an assigned number (the ERC editor assigns the number). For references, follow D-007 and use the branch and commit, not any number.
+> Protocol provenance: ERC-8415 is the normative authority. The earlier unnumbered settlement draft is historical; its optional settlement authority surface is not a claim that Kit v2.0 supplies a settlement product. Pin the exact supported interface and source revision for each integration, preserve the existing temporal slice, and do not revive archived draft rules.
 
 ### CONSUMER-005 T+3 Settlement
 
@@ -545,7 +545,7 @@ Cancellation may occur only after the T+3 deadline; cancellation before the dead
 
 Cancellation does not change the projection: it writes no entry and therefore makes no time final (see above).
 
-> Alignment note: This section aligns with the cancellation semantics of the L3 proposal. The proposal also removed the proofData parameter from cancellation: cancellation does not need proof because it does not change the projection; requiring proof would obscure that fact. As above, reference the branch and commit under D-007.
+> Cancellation of a workflow must not be confused with an authoritative rejection record. A missing local notification is neither. Historical draft cancellation ABIs do not prescribe a current ERC interface.
 
 ### CONSUMER-007 Redemption and Termination
 
@@ -580,7 +580,7 @@ Fail-closed behavior must cover both cases below; neither may be treated as “t
 | Case | Requirement |
 | --- | --- |
 | The relevant time is not yet final | Reject perishable exercises. The attestation itself may be entirely valid; a valid attestation does not mean attribution is final |
-| The Token has an unresolved registration gap | Same. The gap means later registry entries may still change the answer for that time |
+| The Token has an unresolved registration gap | Same. An open gap is a separate product exercise restriction; it does not redefine whether the queried instant is final |
 
 > v0.4 addition (D-008): v0.3 fail-closed conditions covered only attestation validity. That was sufficient under the freeze model because a Token could not move while attribution was unresolved. Once the transfer freeze is removed, “attestation is valid” and “attribution is final” are independent facts and must be checked separately; otherwise, an irreversible exercise could be allowed while the attestation is valid but attribution remains unresolved.
 
@@ -728,7 +728,7 @@ The non-security design of a 1:1 NFT depends on actual rights, issuance method, 
 
 ## 13. Phased Delivery
 
-The completed temporal projection slice and its historical evidence are preserved. The next bounded implementation direction is Oracle-owned integration of the pinned ERC8415-Kit v2.0 temporal projection surface and exposure of the Oracle application-facing API to ArtFi. It does not authorize a new settlement engine, payment or custody handling, or a delivery claim.
+The completed temporal projection slice and its historical evidence are preserved. The main baseline now includes the read-only Oracle application integration boundary over the pinned ERC8415-Kit temporal surface. The next bounded work must be authorized separately and does not authorize a new settlement engine, payment or custody handling, or a delivery claim.
 
 The complete mapping between stage exit criteria and requirement IDs is in ACCEPTANCE_RWA_ORACLE_ZH.md §5.
 
@@ -751,7 +751,7 @@ Block production release if any of the following applies:
 - Preservation Chain, certificate, or warehouse-receipt hashes do not match;
 - Zhongchuang Wenmao or custodian/warehouse status cannot be verified;
 - Any regulatory premise P1–P4 cannot be evidenced;
-- After T+0, Oracle still issues a valid attestation permitting transfer, redemption, or pledge;
+- Oracle treats an open gap or a valid attestation as sufficient for a perishable exercise, fabricates finality, or restricts ordinary ERC-721 transfer merely because registration is pending;
 - Oracle attests that the buyer has completed settlement before the authoritative registry has completed;
 - The old certificate is not revoked or certificate history is overwritten;
 - Oracle can determine ownership independently or bypass authoritative sources;

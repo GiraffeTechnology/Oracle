@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "prdVersion": "v0.3",
-  "generatedAt": "2026-09-03T17:11:01.673Z",
+  "prdVersion": "v0.4",
+  "generatedAt": "2026-10-30T04:31:58.914Z",
   "commands": {
     "syntax": {
       "command": "node scripts/syntax-check.mjs",
@@ -150,7 +150,7 @@
           "passed": true
         },
         {
-          "name": "business calendar skips weekends",
+          "name": "business calendar skips weekends and configured holidays",
           "passed": true
         }
       ],
@@ -260,7 +260,7 @@
           "passed": true
         },
         {
-          "name": "state rebuilder reconstructs the current status",
+          "name": "state rebuilder reconstructs the current status from ordered evidence",
           "passed": true
         },
         {
@@ -442,7 +442,7 @@
           "passed": true
         },
         {
-          "name": "business calendar skips weekends",
+          "name": "business calendar skips weekends and configured holidays",
           "passed": true
         }
       ],
@@ -576,7 +576,7 @@
           "passed": true
         },
         {
-          "name": "L3 pending observation preserves owner and blocks transfers",
+          "name": "L3 pending observation accepts a moved owner and rejects blocked transfers",
           "passed": true
         },
         {
@@ -700,5 +700,5 @@
       ]
     }
   ],
-  "reportSha256": "b1ece0cbdb33e679562aff189ec55989f7a898827346a4a627f8f1425d84b985"
+  "reportSha256": "75a4a2ec87b268c35155fba65ba0a87fa28e664ea18a651941cf76c469cbfb67"
 }

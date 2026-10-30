@@ -23,7 +23,7 @@ Applications do not implement ERC-8415 adapters directly. Oracle owns the integr
 
 ## Current complete-product execution (2026-10-17)
 
-Read [config/current-prd.json](config/current-prd.json), then the complete pinned v0.4 [PRD](docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md) and its v0.4 acceptance configuration on every start, resume, intake and handoff. The current public PRD is already English despite its stable historical filename. Do not replace it with a local v0.3 translation or revive an obsolete combined L2/L3 draft. The source blob is `77fdb78685f4d6404609b7b546918384e8b339c3`; full UTF-8 SHA256 is `1d285d23ddbc0c36e57cb1d3b34467f5f57985a3a8e7f953808d3011c9f58631`.
+Read [config/current-prd.json](config/current-prd.json), then the complete pinned v0.4 [PRD](docs/PRD_RWA_ORACLE_PROTOCOL_L2_ZH.md) and its v0.4 acceptance configuration on every start, resume, intake and handoff. The current public PRD is already English despite its stable historical filename. Do not replace it with a local v0.3 translation or revive an obsolete combined L2/L3 draft. The source blob is `dedce3a1193f8c6cdf27ecaa2007b2c439f59141`; full UTF-8 SHA256 is `5969ef97934dd4c6a6f494b1e643f91f601f08ebb769ab70d50aecbef1cd0e9d`.
 
 Original Oracle implements the complete applicable PRD and integration in bounded stages. After opening a stage PR, continue the next independent authorized stage without waiting for its CI. Existing independent review, required CI and merge controls still apply. A future-stage dependency blocks only actions that actually depend on it; do not add documentation-first, whole-project-ready or repeated authorization gates. Keep completed unchanged evidence and do not rerun it without a changed input or a concrete concern.
 
