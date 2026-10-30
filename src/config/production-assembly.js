@@ -13,6 +13,7 @@ import { BusinessCalendar } from "../services/business-calendar.js";
 import { restoreProductionState } from "../services/production-state.js";
 import { OutboxDispatcher } from "../services/outbox-dispatcher.js";
 import { createRepositoryExecutionScope } from "../services/repository-execution-scope.js";
+import { assembleReceiptRead } from "./receipt-read.js";
 
 export async function assembleProductionConfiguration({ l2Profile, l3Profile, resolver }) {
   const l2 = validateL2DeploymentProfile(l2Profile);
@@ -39,7 +40,7 @@ export async function assembleProductionConfiguration({ l2Profile, l3Profile, re
   return Object.freeze({ l2, l3, ports: resolved });
 }
 
-export async function assembleProductionApplication({ config, l2Profile, l3Profile, resolver, settlementConfiguration, clock = () => new Date(), repositoryDrainEnabled = false }) {
+export async function assembleProductionApplication({ config, l2Profile, l3Profile, resolver, settlementConfiguration, receiptReadConfiguration, clock = () => new Date(), repositoryDrainEnabled = false }) {
   if (config?.environment !== "production") throw new Error("PRODUCTION_ASSEMBLY_ENVIRONMENT_REJECTED");
   if (typeof repositoryDrainEnabled !== "boolean") throw new Error("REPOSITORY_LIFECYCLE_OPTION_INVALID");
   let assembled = await assembleProductionConfiguration({ l2Profile, l3Profile, resolver });
@@ -62,6 +63,11 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
     : null;
   if (repositoryExecution) assembled = Object.freeze({ ...assembled, ports: Object.freeze({ ...assembled.ports, repository: repositoryExecution.repository }) });
   const inRepositoryScope = (operation) => repositoryExecution ? repositoryExecution.run(operation) : operation();
+  const receiptRead = await assembleReceiptRead({ receiptReadConfiguration, resolver, runInScope: inRepositoryScope,
+    guardRead: (operation) => {
+      if (runtime.operationalState.compromised === true) throw new Error('DURABLE_STATE_COMPROMISED');
+      return repositoryExecution ? repositoryExecution.guardSideEffect(operation) : operation();
+    } });
   const dualControl = new DualControlQueue();
   const rawSigner = assembled.ports.signer;
   if (typeof rawSigner.rotate !== "function" || typeof rawSigner.reconcile !== "function" || typeof rawSigner.activateRuntime !== "function") throw new Error("PRODUCTION_SIGNER_ROTATION_BROKER_INVALID");
@@ -253,7 +259,7 @@ export async function assembleProductionApplication({ config, l2Profile, l3Profi
     if (method === "exportAudit") input.adminOperations = new AdminOperations({ runtime, sourceRegistry: runtime.sourceRegistry, authorizer: requestAuthorizer, reviewQueue: runtime.reviewQueue, dualControl, clock });
     return requestControlPlane.inspectCommandRecovery(method, input);
   };
-  return Object.freeze({ ...assembled, runtime, sourceRegistry: runtime.sourceRegistry, controlPlane, adminOperations, authenticateAdmin, inspectCommandRecovery, readinessCheck, outboxDispatcher, startBackgroundWorkers, repositoryLifecycle });
+  return Object.freeze({ ...assembled, ...receiptRead, runtime, sourceRegistry: runtime.sourceRegistry, controlPlane, adminOperations, authenticateAdmin, inspectCommandRecovery, readinessCheck, outboxDispatcher, startBackgroundWorkers, repositoryLifecycle });
 }
 
 

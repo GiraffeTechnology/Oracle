@@ -1,6 +1,7 @@
 # Giraffe ERC Hoodi 真实测试计划
 
-状态：执行准备完成；等待受控钱包引用和 SIN 远端 ACL 门禁通过  
+Status: execution preparation is complete; controlled wallet references and the configured remote ACL checks remain pending.
+
 网络：Hoodi testnet  
 固定 chainId：`560048`  
 禁止范围：任何主网、生产 L1、未知链、bridge、swap、faucet、真实资产或个人数据
@@ -19,8 +20,8 @@
 
 ## 2. 钱包与角色
 
-- W1 / ArtFi1：`0x75F6e1BAc9bF07a54FECc416ef76327BbD2c3089`
-- W2 / ArtFi2：`0xDE3c1D455c2CCe1bAcf1e70aAC7fA3B8cCb1ec2B`
+- W1: `<TEST_WALLET_1_ADDRESS>`
+- W2: `<TEST_WALLET_2_ADDRESS>`
 - K3 / Authority：每个测试 fixture 在内存中随机生成的零余额临时钱包，仅签署提案规定的 EIP-712 数据。
 
 角色映射：W1=`administrator + operator + outsider + destination B`；W2=`owner + destination A`。测试按钱包分别串行管理 pending nonce，不并发签名或广播。
@@ -34,7 +35,7 @@
 3. 部署交易固定完整 init-code Keccak；调用交易固定 target、selector 和完整 calldata Keccak；
 4. `Invoke-ArtFiOfflineSignerV1` 输出签名交易到 repo 外 exclusive-new 文件；
 5. 校验签名交易的 chainId、from、nonce、to、value 和 calldata；
-6. 仅通过 `ArtFiChainBridge/sin/v1` 的 `broadcast-stdin` 广播；
+6. Broadcast only with `broadcast-stdin` through the configured Hoodi bridge;
 7. 仅在 bridge 返回链身份已证明后接受交易哈希；
 8. 通过 bridge 的 `receipt` 串行确认成功后，才处理该钱包下一 nonce。
 
@@ -64,12 +65,12 @@
 - 运行时字节码大小；
 - 所有失败项和阻断，不得隐瞒或弱化断言。
 
-## 7. 当前执行门禁
+## 7. Pre-execution verification
 
 以下三项必须同时通过后才能签名或广播：
 
-1. ArtFi1/ArtFi2 经审计并安装的离线 broker 固定引用完成真实 ownership self-test（当前等待 broker v2 开发、独立审计、管理员安装和用户 OS 文件选择器操作）；
-2. SIN 远端允许本 ERC 任务以 Hoodi-only 最小动作集合调用 `ArtFiChainBridge/sin/v1`（已通过）；
-3. UNIT-A39 权威 bytes32、test-only manifest、文件哈希复核及 Hoodi 公开上链许可（已通过）。
+1. The installed, audited offline broker completes real ownership self-tests for the pinned W1/W2 references;
+2. The configured remote ACL permits only the required Hoodi-only actions through the configured bridge;
+3. The authoritative UNIT-A39 bytes32 value, test-only manifest, file hash verification and permission for public Hoodi anchoring are confirmed.
 
 任一项失败即保持 fail-closed，不得改用私钥、任意 RPC 或其他链路绕过。

@@ -107,9 +107,9 @@ export function createApp(options) {
   return http.createServer(createRequestHandler(options));
 }
 
-export function createRequestHandler({ config, sourceRegistry, runtime = null, controlPlane = null, adminOperations = null, authenticateAdmin = null, readinessCheck = null, projectionSource = null, projectionBinding = null, positionSource = null, l2Profile = null, protocolProfile = null, verificationRateLimiter = new FixedWindowRateLimiter({ limit: 60, windowMs: 60000 }) }) {
+export function createRequestHandler({ config, sourceRegistry, runtime = null, controlPlane = null, adminOperations = null, authenticateAdmin = null, readinessCheck = null, projectionSource = null, projectionBinding = null, receiptProjectionSource = null, positionSource = null, l2Profile = null, protocolProfile = null, verificationRateLimiter = new FixedWindowRateLimiter({ limit: 60, windowMs: 60000 }) }) {
   if (!config || !sourceRegistry) throw new Error("APP_DEPENDENCY_MISSING");
-  const projectionApi = createApplicationProjectionApi({ projectionSource, projectionBinding, positionSource });
+  const projectionApi = createApplicationProjectionApi({ projectionSource, projectionBinding, positionSource, receiptProjectionSource });
 
   return async (request, response) => {
     const requestUrl = new URL(request.url, "http://localhost");

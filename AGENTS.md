@@ -127,7 +127,7 @@ A proof establishes what the verification profile proves. It must not silently b
 
 ## 6. No autonomous protocol governance
 
-Codex, Claude Code, automated reviewers, CI agents, and other tools may implement, test, audit, and report evidence. They do not have authority to create or modify protocol semantics.
+Implementation and review tools may implement, test, audit, and report evidence. They do not have authority to create or modify protocol semantics.
 
 They MUST NOT independently:
 
@@ -271,8 +271,6 @@ The objective is convergence: implement ERC-8415 faithfully, realize the necessa
 
 ## Stage-Based Delivery Rule
 
-Implement the complete authorized PRD through bounded stages; a stage is an execution unit, not a permanent stop after its PR.
-
 ### Completed slice
 
 The completed ERC-8415 temporal register-projection slice is KEEP. Preserve its implementation, conformance tests, and historical evidence. Do not rewrite history or reinterpret completed projection evidence as delivery of later settlement capabilities.
@@ -292,9 +290,7 @@ The next implementation direction is the Oracle-owned application integration bo
 
 The current verified ERC8415-Kit handoff covers the v2.0 temporal projection surface only. Optional gap behavior and the legacy `settle()` surface MUST NOT be represented as a v2.1 or v2.2 settlement product.
 
-No new settlement engine, payment implementation, custody workflow, release workflow, or refund workflow is authorized by this documentation alignment.
-
-Agents MUST NOT:
+Implementation constraints — implementations MUST NOT:
 
 - make ArtFi integrate ERC8415-Kit directly;
 - place an ERC-8415 adapter or projection or settlement infrastructure in ArtFi;
@@ -304,13 +300,13 @@ Agents MUST NOT:
 - create additional gates;
 - expand PRD scope.
 
-Agents MUST:
+Verification and preservation:
 
 - preserve existing code and completed projection behavior;
 - preserve historical evidence;
-- implement each applicable stage within the complete authorized PRD, then continue the next independent stage;
+- keep implementation within the defined bounded scope;
 - test and provide commit-bound evidence;
-- freeze completed stages.
+- preserve compatibility with completed projection tests.
 
 Classification:
 
