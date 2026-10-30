@@ -71,6 +71,62 @@ test("ORACLE-002 exposes exactly eight fail-closed public states", () => {
   }
 });
 
+test("ORACLE-002 transition matrix exhaustively accepts declared edges and rejects all others", () => {
+  const legal = new Map([
+    [OracleStatus.NOT_VERIFIED, new Set([OracleStatus.VALID, OracleStatus.INVALID, OracleStatus.REVIEW_REQUIRED])],
+    [OracleStatus.VALID, new Set([OracleStatus.TRANSFER_PENDING, OracleStatus.FROZEN, OracleStatus.REVOKED, OracleStatus.EXPIRED])],
+    [OracleStatus.TRANSFER_PENDING, new Set([OracleStatus.VALID, OracleStatus.FROZEN, OracleStatus.REVIEW_REQUIRED, OracleStatus.REVOKED])],
+    [OracleStatus.FROZEN, new Set([OracleStatus.VALID, OracleStatus.REVIEW_REQUIRED, OracleStatus.REVOKED])],
+    [OracleStatus.REVIEW_REQUIRED, new Set([OracleStatus.VALID, OracleStatus.INVALID, OracleStatus.FROZEN, OracleStatus.REVOKED])],
+    [OracleStatus.EXPIRED, new Set([OracleStatus.VALID, OracleStatus.REVOKED])],
+    [OracleStatus.INVALID, new Set([OracleStatus.REVIEW_REQUIRED])],
+    [OracleStatus.REVOKED, new Set()],
+  ]);
+  const pathFromInitial = (target) => {
+    const queue = [{ state: OracleStatus.NOT_VERIFIED, path: [] }];
+    const seen = new Set([OracleStatus.NOT_VERIFIED]);
+    for (let cursor = 0; cursor < queue.length; cursor += 1) {
+      const { state, path } = queue[cursor];
+      if (state === target) return path;
+      for (const next of legal.get(state) ?? []) {
+        if (seen.has(next)) continue;
+        seen.add(next);
+        queue.push({ state: next, path: [...path, next] });
+      }
+    }
+    throw new Error(`TEST_MATRIX_STATE_UNREACHABLE:${target}`);
+  };
+
+  assert.deepEqual([...legal.keys()].sort(), [...ORACLE_STATUSES].sort());
+  for (const from of ORACLE_STATUSES) {
+    for (const to of ORACLE_STATUSES) {
+      const states = new StateEngine();
+      const subjectId = `matrix-${from}-${to}`;
+      let evidenceVersion = 1;
+      for (const pathState of pathFromInitial(from)) {
+        states.transition({ subjectId, to: pathState, reasonHash: HASH_A, evidenceVersion, occurredAt: NOW.toISOString() });
+        evidenceVersion += 1;
+      }
+
+      const beforeHistory = states.history(subjectId);
+      const beforeCurrent = states.current(subjectId);
+      if (legal.get(from).has(to)) {
+        const entry = states.transition({ subjectId, to, reasonHash: HASH_B, evidenceVersion, occurredAt: NOW.toISOString() });
+        assert.equal(entry.from, from);
+        assert.equal(states.current(subjectId), to);
+        assert.equal(states.history(subjectId).length, beforeHistory.length + 1);
+      } else {
+        assert.throws(
+          () => states.transition({ subjectId, to, reasonHash: HASH_B, evidenceVersion, occurredAt: NOW.toISOString() }),
+          new RegExp(`STATE_TRANSITION_REJECTED:${from}:${to}`),
+        );
+        assert.equal(states.current(subjectId), beforeCurrent);
+        assert.deepEqual(states.history(subjectId), beforeHistory);
+      }
+    }
+  }
+});
+
 test("ORACLE-003 binds every attestation to chain contract token and purpose", () => {
   const { privateKey, publicKey } = generateKeyPairSync("ed25519");
   const service = new AttestationService({ signerSetId: "synthetic-signers", privateKey, publicKey, revocations: new RevocationRegistry(), clock: () => NOW });
