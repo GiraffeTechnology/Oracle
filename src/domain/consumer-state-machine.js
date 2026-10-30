@@ -148,7 +148,7 @@ export class SyntheticConsumerStateMachine {
    * gap is open. What a pending settlement refuses is the perishable exercise, and it refuses
    * that exercise only, never the token's transferability.
    */
-  assertOperationAllowed(tokenRef, operation, { instant } = {}) {
+  assertOperationAllowed(tokenRef, operation, { instant, exerciser } = {}) {
     const rightClass = OPERATION_CLASS[operation];
     if (rightClass === undefined) throw new Error("CONSUMER_OPERATION_INVALID");
 
@@ -164,6 +164,14 @@ export class SyntheticConsumerStateMachine {
     }
     if (!this.isFinalAsOf(tokenRef, instant)) {
       throw new Error(`CONSUMER_PERISHABLE_NOT_FINAL:${operation}`);
+    }
+    if (operation === "redeem") {
+      if (typeof exerciser !== "string" || exerciser.length === 0) {
+        throw new Error("CONSUMER_REDEMPTION_EXERCISER_REQUIRED");
+      }
+      if (this.holderAsOf(tokenRef, instant) !== exerciser) {
+        throw new Error("CONSUMER_REDEMPTION_HOLDER_MISMATCH");
+      }
     }
     return true;
   }

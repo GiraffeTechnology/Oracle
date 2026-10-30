@@ -316,11 +316,19 @@ test("CONSUMER-007 redemption requires a final instant with no open gap", () => 
 
   machine.closeGap("t7", { effectiveAt: 10, holder: "wallet-a" });
   machine.closeGap("t7", { effectiveAt: 20, holder: "wallet-b" });
-  assert.equal(machine.assertOperationAllowed("t7", "redeem", { instant: 10 }), true);
+  assert.throws(
+    () => machine.assertOperationAllowed("t7", "redeem", { instant: 10 }),
+    /CONSUMER_REDEMPTION_EXERCISER_REQUIRED/,
+  );
+  assert.throws(
+    () => machine.assertOperationAllowed("t7", "redeem", { instant: 10, exerciser: "wallet-b" }),
+    /CONSUMER_REDEMPTION_HOLDER_MISMATCH/,
+  );
+  assert.equal(machine.assertOperationAllowed("t7", "redeem", { instant: 10, exerciser: "wallet-a" }), true);
 
   machine.openGap("t7", { openedAt: 5 });
   assert.throws(
-    () => machine.assertOperationAllowed("t7", "redeem", { instant: 10 }),
+    () => machine.assertOperationAllowed("t7", "redeem", { instant: 10, exerciser: "wallet-a" }),
     /CONSUMER_PERISHABLE_GAP_OPEN:redeem/,
   );
   assert.equal(machine.assertOperationAllowed("t7", "transfer"), true, "refusing the exercise never restricts transfer");
