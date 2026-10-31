@@ -8,7 +8,7 @@ import test from "node:test";
 
 // Run the real CLI and real Node test subprocesses in an isolated fixture. Never
 // recurse into the repository suite or substitute a fabricated reporter result.
-function execute(t, { version = "v0.4", requirementIds = ["NFR-004"], requiredTest = "acceptance fixture", requirements = ["NFR-004"], testSource, syntaxExit = 0, scanExit = 0, artifact = true, evidence } = {}) {
+function execute(t, { version = "v0.4", requirementIds = ["NFR-004"], requiredTest = "acceptance fixture", requirements = ["NFR-004"], testSource, syntaxExit = 0, scanExit = 0, artifact = true, evidence, forceColor = false } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), "oracle-iteration-executor-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const directory of ["scripts", "src/services", "config", "test", "evidence/acceptance"]) mkdirSync(path.join(root, directory), { recursive: true });
@@ -25,6 +25,11 @@ function execute(t, { version = "v0.4", requirementIds = ["NFR-004"], requiredTe
   write("config/prd-v0.4-acceptance.json", JSON.stringify({ prdVersion: "v0.4", requirements: requirements.map((id) => ({ id })) }));
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;
+  if (forceColor) {
+    env.FORCE_COLOR = "1";
+    delete env.NO_COLOR;
+    delete env.NODE_DISABLE_COLORS;
+  }
   const result = spawnSync(process.execPath, ["scripts/verify-iterations.mjs"], { cwd: root, env, encoding: "utf8", timeout: 15000 });
   assert.equal(result.error, undefined);
   let report;
@@ -40,6 +45,18 @@ test("iteration executor emits a hash-verifiable report for passing fixture evid
   assert.equal(reportSha256, createHash("sha256").update(JSON.stringify(unsigned)).digest("hex"));
   assert.deepEqual(report.traceability.unmappedRequirementIds, []);
   assert.equal(report.iterations[0].tests[0].passed, true);
+});
+
+
+test("iteration executor disables inherited forced colors in verification children", (t) => {
+  const { status, report } = execute(t, {
+    forceColor: true,
+    testSource: 'import test from "node:test"; import assert from "node:assert/strict"; test("acceptance fixture", () => { assert.equal(process.env.FORCE_COLOR, undefined); assert.equal(process.env.NO_COLOR, "1"); assert.equal(process.env.NODE_DISABLE_COLORS, "1"); });',
+  });
+  assert.equal(status, 0, JSON.stringify(report));
+  assert.equal(report.commands.unit.ok, true);
+  assert.equal(report.iterations[0].tests[0].passed, true);
+  assert.equal(report.summary.allComplete, true);
 });
 
 for (const [label, options, code] of [
@@ -64,8 +81,8 @@ for (const [label, options] of [
   ["missing artifact", { artifact: false }],
   ["missing I12 evidence", { evidence: null }],
   ["invalid I12 evidence", { evidence: { schemaVersion: 1, type: "72h-stability", status: "PASS" } }],
-]) test(`iteration executor remains blocked on ${label}`, (t) => {
-  const { status, report } = execute(t, options);
+]) for (const forceColor of [false, true]) test(`iteration executor remains blocked on ${label}${forceColor ? " with forced colors" : ""}`, (t) => {
+  const { status, report } = execute(t, { ...options, forceColor });
   assert.equal(status, 1);
   assert.deepEqual(report.summary, { completed: [], blocked: ["I12"], allComplete: false });
   assert.equal(report.iterations[0].complete, false);

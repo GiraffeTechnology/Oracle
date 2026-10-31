@@ -18,7 +18,11 @@ async function exists(relative) {
 }
 
 function runNode(args) {
-  const result = spawnSync(process.execPath, args, { cwd: root, encoding: "utf8", windowsHide: true, maxBuffer: 16 * 1024 * 1024 });
+  // Reporter output is a machine input: inherited FORCE_COLOR must not add ANSI.
+  // Do not strip arbitrary test-name bytes or weaken exact-name matching.
+  const env = { ...process.env, NO_COLOR: "1", NODE_DISABLE_COLORS: "1" };
+  delete env.FORCE_COLOR;
+  const result = spawnSync(process.execPath, args, { cwd: root, env, encoding: "utf8", windowsHide: true, maxBuffer: 16 * 1024 * 1024 });
   return { ok: result.status === 0, status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
