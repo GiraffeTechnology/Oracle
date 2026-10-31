@@ -18,16 +18,14 @@ async function exists(relative) {
 }
 
 function runNode(args) {
-  const result = spawnSync(process.execPath, args, { cwd: root, encoding: "utf8", windowsHide: true, maxBuffer: 16 * 1024 * 1024 });
+  // Reporter output is a machine input: inherited FORCE_COLOR must not add ANSI.
+  // Do not strip arbitrary test-name bytes or weaken exact-name matching.
+  const env = { ...process.env, NO_COLOR: "1", NODE_DISABLE_COLORS: "1" };
+  delete env.FORCE_COLOR;
+  const result = spawnSync(process.execPath, args, { cwd: root, env, encoding: "utf8", windowsHide: true, maxBuffer: 16 * 1024 * 1024 });
   return { ok: result.status === 0, status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
-const syntax = runNode(["scripts/syntax-check.mjs"]);
-// Pin the human-readable reporter because iteration evidence matches exact test
-// names. Node's default reporter is environment-dependent (TAP vs spec).
-const tests = runNode(["--test", "--test-reporter=spec", "test/*.test.js"]);
-const scan = runNode(["scripts/repository-scan.mjs"]);
-const testOutput = `${tests.stdout}\n${tests.stderr}`;
 const results = [];
 const authoritativeRequirementIds = new Set(requirementManifest.requirements.map(({ id }) => id));
 const mappedRequirementIds = new Set();
@@ -53,10 +51,22 @@ if (unmappedRequirementIds.length > 0) {
   throw new Error(`ITERATION_REQUIREMENT_UNMAPPED:${unmappedRequirementIds.join(",")}`);
 }
 
+const syntax = runNode(["scripts/syntax-check.mjs"]);
+// Pin the human-readable reporter because iteration evidence matches exact test
+// names. Node's default reporter is environment-dependent (TAP vs spec).
+const tests = runNode(["--test", "--test-reporter=spec", "test/*.test.js"]);
+const scan = runNode(["scripts/repository-scan.mjs"]);
+const testOutput = `${tests.stdout}\n${tests.stderr}`;
+// Match a whole successful spec-reporter result, never a prefix of another test.
+const passedTestNames = new Set(testOutput.split(/\r?\n/).flatMap((line) => {
+  const match = /^\s*✔ (.*) \(\d+(?:\.\d+)?(?:ms|s)\)$/.exec(line);
+  return match ? [match[1]] : [];
+}));
+
 for (const iteration of manifest.iterations) {
   const artifacts = [];
   for (const relative of iteration.artifacts) artifacts.push({ path: relative, present: await exists(relative) });
-  const requiredTests = iteration.tests.map((name) => ({ name, passed: tests.ok && testOutput.includes(`✔ ${name}`) }));
+  const requiredTests = iteration.tests.map((name) => ({ name, passed: tests.ok && passedTestNames.has(name) }));
   const externalEvidence = [];
   for (const relative of iteration.externalEvidence) {
     const present = await exists(relative);
