@@ -22,6 +22,79 @@ components:
         assetReference: { type: string, minLength: 3, maxLength: 256, pattern: '^[a-zA-Z0-9][a-zA-Z0-9:._/-]{2,255}$' }
         certificateReference: { type: string, minLength: 3, maxLength: 256, pattern: '^[a-zA-Z0-9][a-zA-Z0-9:._/-]{2,255}$' }
         warehouseReference: { type: string, minLength: 3, maxLength: 256, pattern: '^[a-zA-Z0-9][a-zA-Z0-9:._/-]{2,255}$' }
+    ReceiptDecimal:
+      type: string
+      pattern: "^(0|[1-9][0-9]*)$"
+      description: Canonical decimal string, never a JSON number; uint256 IDs and uint64 entry versions/times.
+    ReceiptHash:
+      type: string
+      pattern: "^0x[0-9a-f]{64}$"
+    ReceiptAddress:
+      type: string
+      pattern: "^0x[0-9a-f]{40}$"
+    ReceiptBlock:
+      type: object
+      additionalProperties: false
+      required: [number, hash]
+      properties:
+        number: { $ref: '#/components/schemas/ReceiptDecimal' }
+        hash: { $ref: '#/components/schemas/ReceiptHash' }
+    ReceiptSnapshot:
+      type: object
+      additionalProperties: false
+      required: [tokenId, source, block, entry, mintPolicyHash, receiptBinding, receiptAvailable, evidence]
+      description: Canonical contract-state observation, not original-document authenticity, institutional NFTReceiptAuthority, ZK/state proof, temporal finality or permission to release funds.
+      properties:
+        tokenId: { $ref: '#/components/schemas/ReceiptDecimal' }
+        source:
+          type: object
+          additionalProperties: false
+          required: [chainId, contract, registerId, sourceAuthority]
+          properties:
+            chainId: { $ref: '#/components/schemas/ReceiptDecimal' }
+            contract: { $ref: '#/components/schemas/ReceiptAddress' }
+            registerId: { $ref: '#/components/schemas/ReceiptHash' }
+            sourceAuthority: { $ref: '#/components/schemas/ReceiptAddress' }
+        block: { $ref: '#/components/schemas/ReceiptBlock' }
+        entry:
+          type: object
+          additionalProperties: false
+          required: [recordCommitment, previousCommitment, registryReference, holder, version, effectiveAt, supersededAt]
+          properties:
+            recordCommitment: { $ref: '#/components/schemas/ReceiptHash' }
+            previousCommitment: { $ref: '#/components/schemas/ReceiptHash' }
+            registryReference: { $ref: '#/components/schemas/ReceiptHash' }
+            holder: { $ref: '#/components/schemas/ReceiptAddress' }
+            version: { $ref: '#/components/schemas/ReceiptDecimal' }
+            effectiveAt: { $ref: '#/components/schemas/ReceiptDecimal' }
+            supersededAt: { $ref: '#/components/schemas/ReceiptDecimal' }
+        mintPolicyHash: { $ref: '#/components/schemas/ReceiptHash' }
+        receiptBinding:
+          type: object
+          additionalProperties: false
+          required: [schemaId, mintPolicyHash, segmentDigest, requestHash, receiptDocumentHash]
+          properties:
+            schemaId: { $ref: '#/components/schemas/ReceiptHash' }
+            mintPolicyHash: { $ref: '#/components/schemas/ReceiptHash' }
+            segmentDigest: { $ref: '#/components/schemas/ReceiptHash' }
+            requestHash: { $ref: '#/components/schemas/ReceiptHash' }
+            receiptDocumentHash: { $ref: '#/components/schemas/ReceiptHash' }
+        receiptAvailable: { type: boolean }
+        evidence:
+          type: object
+          additionalProperties: false
+          required: [kind, head, minimumConfirmations]
+          properties:
+            kind: { type: string, const: canonical-contract-state }
+            head: { $ref: '#/components/schemas/ReceiptBlock' }
+            minimumConfirmations: { type: integer, minimum: 1, maximum: 256 }
+    ReceiptReadError:
+      type: object
+      additionalProperties: false
+      required: [ok, errorCode]
+      properties:
+        ok: { type: boolean, const: false }
+        errorCode: { type: string }
   securitySchemes:
     mutualTLS:
       type: mutualTLS
@@ -30,6 +103,101 @@ components:
       in: header
       name: X-Giraffe-Request-Signature
 paths:
+  /v1/oracle/projection/{tokenId}/receipt/current:
+    get:
+      operationId: getCurrentReceiptSnapshot
+      description: >-
+        Latest admitted entry at the selected confirmed block, not necessarily the live tip or holder effective now.
+        Source and runtime are fixed by deployment; callers cannot select an upstream.
+        All-zero receipt fields return receiptAvailable false, never authority.
+        Confirmation depth is separate from temporal finality. Other methods under
+        this prefix return405 PROJECTION_READ_ONLY. No automatic submission or retry.
+      parameters:
+        - { name: tokenId, in: path, required: true, schema: { type: string, pattern: "^(0|[1-9][0-9]*)$", maxLength: 78 }, description: Canonical uint256 decimal string; out-of-range values return400. }
+      responses:
+        '200':
+          description: Confirmed canonical contract snapshot, not institutional or financial acceptance.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptSnapshot' }
+        '400':
+          description: TOKEN_ID_INVALID or VERSION_INVALID
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptReadError' }
+        '404':
+          description: EMPTY_PROJECTION or UNKNOWN_VERSION; not proof of non-execution
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptReadError' }
+        '405':
+          description: PROJECTION_READ_ONLY; no write or document-upload route
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptReadError' }
+        '409':
+          description: RECEIPT_DOMAIN_MISMATCH, RECEIPT_RUNTIME_IDENTITY_MISMATCH or RECEIPT_SOURCE_REORGED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptReadError' }
+        '502':
+          description: RECEIPT_SOURCE_MALFORMED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptReadError' }
+        '503':
+          description: Receipt capability, policy, confirmations or provider unavailable; UNKNOWN stays unresolved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptReadError' }
+  /v1/oracle/projection/{tokenId}/receipt/version/{version}:
+    get:
+      operationId: getVersionedReceiptSnapshot
+      description: >-
+        Exact historical version, never a neighboring or cached substitute.
+        Source and runtime are fixed by deployment; callers cannot select an upstream.
+        All-zero receipt fields return receiptAvailable false, never authority.
+        Confirmation depth is separate from temporal finality. Other methods under
+        this prefix return405 PROJECTION_READ_ONLY. No automatic submission or retry.
+      parameters:
+        - { name: tokenId, in: path, required: true, schema: { type: string, pattern: "^(0|[1-9][0-9]*)$", maxLength: 78 }, description: Canonical uint256 decimal string; out-of-range values return400. }
+        - { name: version, in: path, required: true, schema: { type: string, pattern: "^[1-9][0-9]*$", maxLength: 20 }, description: Positive canonical uint64 decimal string; zero/out-of-range values return400. }
+      responses:
+        '200':
+          description: Confirmed canonical contract snapshot, not institutional or financial acceptance.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptSnapshot' }
+        '400':
+          description: TOKEN_ID_INVALID or VERSION_INVALID
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptReadError' }
+        '404':
+          description: EMPTY_PROJECTION or UNKNOWN_VERSION; not proof of non-execution
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptReadError' }
+        '405':
+          description: PROJECTION_READ_ONLY; no write or document-upload route
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptReadError' }
+        '409':
+          description: RECEIPT_DOMAIN_MISMATCH, RECEIPT_RUNTIME_IDENTITY_MISMATCH or RECEIPT_SOURCE_REORGED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptReadError' }
+        '502':
+          description: RECEIPT_SOURCE_MALFORMED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptReadError' }
+        '503':
+          description: Receipt capability, policy, confirmations or provider unavailable; UNKNOWN stays unresolved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptReadError' }
   /healthz:
     get:
       operationId: health
