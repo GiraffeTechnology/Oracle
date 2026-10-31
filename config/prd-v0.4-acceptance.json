@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "prdVersion": "v0.4",
-  "prdSha256": "1d285d23ddbc0c36e57cb1d3b34467f5f57985a3a8e7f953808d3011c9f58631",
+  "prdSha256": "5969ef97934dd4c6a6f494b1e643f91f601f08ebb769ab70d50aecbef1cd0e9d",
   "acceptanceSha256": "c8e137a0627f80fa6de7c705a78e3b927fd95646f892259b9e2607db8bbef2cc",
   "requirements": [
     {
